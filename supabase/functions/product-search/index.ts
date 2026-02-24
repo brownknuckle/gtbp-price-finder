@@ -42,13 +42,13 @@ Return ONLY valid JSON with this schema:
   "brand": "Brand name",
   "category": "shoes" or "clothing" or "accessories",
   "search_queries": ["query1 to search retailers", "query2", "query3"],
-  "retailers": ["retailer1.com", "retailer2.com", "retailer3.com", "retailer4.com", "retailer5.com"],
+  "retailers": ["retailer1.co.uk", "retailer2.co.uk", "retailer3.com", ...at least 10-12 retailers],
   "estimated_retail_price": 120,
   "suggestions": ["Similar product 1", "Similar product 2", "Similar product 3"]
 }
 
-The user is based in the UK. Suggest global retailers that ship to the UK, prioritising UK and European retailers.
-Good examples: nike.com, footlocker.co.uk, endclothing.com, jdsports.co.uk, size.co.uk, asos.com, zalando.co.uk, mrporter.com, ssense.com, sneakersnstuff.com, stockx.com, farfetch.com, flannels.com.
+The user is based in the UK. You MUST return at least 10-12 retailers. Always prioritise UK versions of retailers (e.g. nike.com/gb, footlocker.co.uk, jdsports.co.uk, size.co.uk).
+Include a mix of: UK high street (jdsports.co.uk, size.co.uk, footlocker.co.uk, schuh.co.uk, offspring.co.uk, flannels.com), UK online (endclothing.com, asos.com, zalando.co.uk), European (sneakersnstuff.com, asphaltgold.com, solebox.com), and global resellers (stockx.com, goat.com, farfetch.com, ssense.com, mrporter.com).
 For suggestions, provide predictive autocomplete suggestions related to the query.`,
           },
           { role: "user", content: query },
@@ -66,7 +66,7 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
                   brand: { type: "string" },
                   category: { type: "string", enum: ["shoes", "clothing", "accessories"] },
                   search_queries: { type: "array", items: { type: "string" } },
-                  retailers: { type: "array", items: { type: "string" } },
+                  retailers: { type: "array", items: { type: "string" }, minItems: 8, description: "At least 8-12 retailers, prioritise UK (.co.uk) retailers first, then EU, then global" },
                   estimated_retail_price: { type: "number" },
                   suggestions: { type: "array", items: { type: "string" } },
                 },
