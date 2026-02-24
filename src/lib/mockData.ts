@@ -4,6 +4,7 @@ import nb550Img from "@/assets/nb-550.png";
 import adidasSambaImg from "@/assets/adidas-samba.png";
 import stoneIslandImg from "@/assets/stone-island.png";
 import asicsKayanoImg from "@/assets/asics-kayano.png";
+import nikeP6000Img from "@/assets/nike-p6000.png";
 
 export const productImages = {
   cortez: nikeCortezImg,
@@ -12,7 +13,37 @@ export const productImages = {
   samba: adidasSambaImg,
   stoneIsland: stoneIslandImg,
   asicsKayano: asicsKayanoImg,
+  p6000: nikeP6000Img,
 };
+
+export interface Product {
+  key: string;
+  name: string;
+  subtitle: string;
+  image: string;
+}
+
+export const products: Record<string, Product> = {
+  cortez: { key: "cortez", name: "Nike Cortez", subtitle: "White/Black — Men's Size 10", image: nikeCortezImg },
+  p6000: { key: "p6000", name: "Nike P-6000", subtitle: "Metallic Silver — Men's Size 10", image: nikeP6000Img },
+  airmax1: { key: "airmax1", name: "Nike Air Max 1 '86 OG", subtitle: "Men's Size 10", image: nikeAirmax1Img },
+  nb550: { key: "nb550", name: "New Balance 550", subtitle: "White Green — Men's Size 10", image: nb550Img },
+  samba: { key: "samba", name: "Adidas Samba OG", subtitle: "Black — Men's Size 10", image: adidasSambaImg },
+  stoneIsland: { key: "stoneIsland", name: "Stone Island Soft Shell Jacket", subtitle: "Size L", image: stoneIslandImg },
+  asicsKayano: { key: "asicsKayano", name: "ASICS Gel-Kayano 14", subtitle: "Men's Size 10", image: asicsKayanoImg },
+};
+
+/** Detect product from search query or URL */
+export function detectProduct(query: string): Product {
+  const q = query.toLowerCase();
+  if (q.includes("p-6000") || q.includes("p6000") || q.includes("IQ0577") || q.includes("iq0577")) return products.p6000;
+  if (q.includes("air max") || q.includes("airmax")) return products.airmax1;
+  if (q.includes("550") || q.includes("new balance")) return products.nb550;
+  if (q.includes("samba") || q.includes("adidas")) return products.samba;
+  if (q.includes("stone island")) return products.stoneIsland;
+  if (q.includes("kayano") || q.includes("asics")) return products.asicsKayano;
+  return products.cortez;
+}
 
 export const trendingSearches = [
   "Nike Air Max 1",

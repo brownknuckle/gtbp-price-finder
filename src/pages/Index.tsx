@@ -20,7 +20,7 @@ const Index = () => {
   const [sizeType, setSizeType] = useState<"clothing" | "shoes">("shoes");
 
   const handleSearch = () => {
-    navigate("/results");
+    navigate(`/results?q=${encodeURIComponent(query)}`);
   };
 
   return (
@@ -112,7 +112,7 @@ const Index = () => {
                 transition={{ delay: 0.55 + i * 0.08 }}
                 onClick={() => {
                   setQuery(term);
-                  navigate("/results");
+                  navigate(`/results?q=${encodeURIComponent(term)}`);
                 }}
                 className="rounded-full border bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-primary hover:text-primary-foreground"
               >
