@@ -80,38 +80,17 @@ serve(async (req) => {
     // Run individual site: searches for each retailer (max 5 concurrent)
     const allResults: any[] = [];
     const seenUrls = new Set<string>();
-    const CONCURRENCY = 8;
+    const CONCURRENCY = 15;
 
-    for (let i = 0; i < retailers.length; i += CONCURRENCY) {
-      const batch = retailers.slice(i, i + CONCURRENCY);
-      const batchPromises = batch.map((retailer: string) =>
-        doSearch(`${product_name} buy site:${retailer}`, 5)
-      );
+    // Run ALL retailer searches + one broad fallback in parallel
+    const retailerPromises = retailers.map((retailer: string) =>
+      doSearch(`${product_name} buy site:${retailer}`, 3)
+    );
+    const broadPromise = doSearch(`${product_name} buy UK price GBP £`, 10);
 
-      const batchResults = await Promise.all(batchPromises);
+    const allSearchResults = await Promise.all([...retailerPromises, broadPromise]);
 
-      for (const result of batchResults) {
-        for (const item of (result.data || [])) {
-          if (item.url && !seenUrls.has(item.url) && !isComparisonSite(item.url)) {
-            seenUrls.add(item.url);
-            allResults.push(item);
-          }
-        }
-      }
-
-      if (i + CONCURRENCY < retailers.length) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-    }
-
-    // Multiple broad fallback searches to catch retailers not in the list
-    const broadQueries = [
-      `${product_name} buy UK price GBP`,
-      `${product_name} shop online UK delivery`,
-      `"${product_name}" £`,
-    ];
-    const broadResults = await Promise.all(broadQueries.map(q => doSearch(q, 10)));
-    for (const result of broadResults) {
+    for (const result of allSearchResults) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url) && !isComparisonSite(item.url)) {
           seenUrls.add(item.url);
@@ -137,7 +116,7 @@ serve(async (req) => {
     console.log(`Deduped to ${dedupedResults.length} unique retailer domains`);
 
     const scrapedContent = dedupedResults
-      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${r.markdown?.slice(0, 1500) || r.description || "No content"}`)
+      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${r.markdown?.slice(0, 800) || r.description || "No content"}`)
       .join("\n\n---\n\n");
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
