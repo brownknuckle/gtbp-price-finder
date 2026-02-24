@@ -221,7 +221,7 @@ CRITICAL RULES:
     const sorted = filtered
       .map((r: any, i: number) => ({
         rank: i + 1,
-        retailer: r.retailer,
+        retailer: (r.retailer || "Unknown").replace(/[,:].*?(retailer|item_price|shipping|total|flag|country)[:\s]*/gi, "").trim(),
         country: r.country || "Unknown",
         flag: r.flag || "🌍",
         itemPrice: r.item_price,
