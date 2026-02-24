@@ -27,22 +27,22 @@ const Index = () => {
     <PageTransition>
       <div className="flex min-h-[calc(100vh-57px)] flex-col items-center justify-center px-4">
         <div className="w-full max-w-2xl text-center">
-          {/* Brand mark */}
+          {/* Bold display logo */}
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-            className="mb-2"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="mb-1"
           >
-            <h1 className="font-serif text-7xl italic tracking-tight text-foreground sm:text-8xl">
+            <h1 className="font-display text-8xl uppercase leading-none tracking-wider text-foreground sm:text-9xl">
               GTBP
             </h1>
           </motion.div>
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-            className="mb-12 text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground"
+            transition={{ delay: 0.25, duration: 0.4 }}
+            className="mb-12 text-[11px] font-semibold uppercase tracking-[0.35em] text-muted-foreground"
           >
             Get The Best Price
           </motion.p>
@@ -51,7 +51,7 @@ const Index = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
+            transition={{ delay: 0.35, duration: 0.5 }}
             className="mb-5 flex flex-col gap-3 sm:flex-row"
           >
             <div className="relative flex-1">
@@ -59,7 +59,7 @@ const Index = () => {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search by item name, brand, or paste a URL…"
-                className="h-13 rounded-lg border-border/60 bg-card pr-10 text-base shadow-sm transition-shadow focus-visible:shadow-md"
+                className="h-13 rounded-md border-border bg-card pr-10 text-base shadow-xs transition-shadow focus-visible:shadow-md"
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
               <button className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-primary">
@@ -69,7 +69,7 @@ const Index = () => {
 
             <div className="flex gap-2">
               <Select defaultValue="shoes" onValueChange={(v) => setSizeType(v as "clothing" | "shoes")}>
-                <SelectTrigger className="h-13 w-24 rounded-lg text-xs">
+                <SelectTrigger className="h-13 w-24 rounded-md text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -79,7 +79,7 @@ const Index = () => {
               </Select>
 
               <Select defaultValue="10">
-                <SelectTrigger className="h-13 w-20 rounded-lg">
+                <SelectTrigger className="h-13 w-20 rounded-md">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -93,7 +93,7 @@ const Index = () => {
                 </SelectContent>
               </Select>
 
-              <Button onClick={handleSearch} className="h-13 rounded-lg px-6 text-sm font-semibold">
+              <Button onClick={handleSearch} className="h-13 rounded-md px-6 font-display text-lg uppercase tracking-wider">
                 <Search className="mr-2 h-4 w-4" />
                 Search
               </Button>
@@ -104,7 +104,7 @@ const Index = () => {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.4 }}
+            transition={{ delay: 0.55, duration: 0.4 }}
             className="flex flex-wrap justify-center gap-2"
           >
             {trendingSearches.map((term, i) => (
@@ -114,12 +114,12 @@ const Index = () => {
                 whileTap={{ scale: 0.97 }}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.65 + i * 0.07 }}
+                transition={{ delay: 0.6 + i * 0.07 }}
                 onClick={() => {
                   setQuery(term);
                   navigate(`/results?q=${encodeURIComponent(term)}`);
                 }}
-                className="group flex items-center gap-1.5 rounded-full border border-border/60 bg-card px-4 py-2 text-sm font-medium text-foreground shadow-xs transition-all hover:border-primary/40 hover:bg-primary hover:text-primary-foreground hover:shadow-sm"
+                className="group flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-xs transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground hover:shadow-sm"
               >
                 {term}
                 <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
