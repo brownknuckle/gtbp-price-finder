@@ -207,11 +207,30 @@ const Results = () => {
         {!isLoading && results.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20">
             <p className="text-sm font-medium text-muted-foreground">
-              No prices found. Try a different search.
+              No prices found. This can happen if the search timed out.
             </p>
-            <Button variant="outline" className="mt-4" onClick={() => navigate("/")}>
-              Back to Search
-            </Button>
+            <div className="mt-4 flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  fetchedRef.current = false;
+                  setIsLoading(true);
+                  setPhase("scraping");
+                  setProgress(5);
+                  if (product) {
+                    scrapePrices(product.product_name, product.retailers)
+                      .then(setResults)
+                      .catch(() => {})
+                      .finally(() => setIsLoading(false));
+                  }
+                }}
+              >
+                Retry Search
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/")}>
+                New Search
+              </Button>
+            </div>
           </div>
         )}
 
