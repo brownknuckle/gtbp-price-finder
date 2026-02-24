@@ -52,9 +52,17 @@ export const trendingSearches = [
   "Adidas Samba",
 ];
 
+export type SizeRegion = "US" | "UK" | "EU";
+
+export const shoeSizes: Record<SizeRegion, string[]> = {
+  US: ["6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "13", "14", "15"],
+  UK: ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "12", "13", "14"],
+  EU: ["38.5", "39", "40", "40.5", "41", "42", "42.5", "43", "44", "44.5", "45", "45.5", "46", "47.5", "48.5", "49.5"],
+};
+
 export const sizeOptions = {
   clothing: ["XS", "S", "M", "L", "XL"],
-  shoes: ["6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+  shoes: shoeSizes.UK, // default
 };
 
 export interface RetailerResult {
