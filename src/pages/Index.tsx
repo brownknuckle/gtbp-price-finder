@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { sizeOptions } from "@/lib/mockData";
+import { sizeOptions, shoeSizes, type SizeRegion } from "@/lib/mockData";
 import { searchProduct } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import PageTransition from "@/components/PageTransition";
@@ -28,6 +28,7 @@ const Index = () => {
   const { toast } = useToast();
   const [query, setQuery] = useState("");
   const [sizeType, setSizeType] = useState<"clothing" | "shoes">("shoes");
+  const [sizeRegion, setSizeRegion] = useState<SizeRegion>("UK");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -168,12 +169,25 @@ const Index = () => {
                 </SelectContent>
               </Select>
 
-              <Select defaultValue="10">
+              {sizeType === "shoes" && (
+                <Select defaultValue="UK" onValueChange={(v) => setSizeRegion(v as SizeRegion)}>
+                  <SelectTrigger className="h-13 w-16 rounded-md text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UK">UK</SelectItem>
+                    <SelectItem value="US">US</SelectItem>
+                    <SelectItem value="EU">EU</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+
+              <Select defaultValue={sizeType === "shoes" ? "9" : "M"}>
                 <SelectTrigger className="h-13 w-20 rounded-md">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(sizeType === "clothing" ? sizeOptions.clothing : sizeOptions.shoes).map(
+                  {(sizeType === "clothing" ? sizeOptions.clothing : shoeSizes[sizeRegion]).map(
                     (size) => (
                       <SelectItem key={size} value={size}>
                         {size}
