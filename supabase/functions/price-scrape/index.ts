@@ -241,9 +241,8 @@ CRITICAL RULES:
     const filtered = results.filter((r: any) => !isComparisonSite(r.url || ""));
 
     // Sort by total price ascending
-    const sorted = filtered
-      .map((r: any, i: number) => ({
-        rank: i + 1,
+    const mapped = filtered
+      .map((r: any) => ({
         retailer: (r.retailer || "Unknown").replace(/[,:].*?(retailer|item_price|shipping|total|flag|country)[:\s]*/gi, "").trim(),
         country: r.country || "Unknown",
         flag: r.flag || "🌍",
@@ -256,8 +255,18 @@ CRITICAL RULES:
         currency: r.currency || "GBP",
         url: r.url || "#",
       }))
-      .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay)
-      .map((r: any, i: number) => ({ ...r, rank: i + 1 }));
+      .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay);
+
+    // Deduplicate: keep only the cheapest entry per retailer name
+    const seenRetailers = new Set<string>();
+    const deduped = mapped.filter((r: any) => {
+      const key = r.retailer.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (seenRetailers.has(key)) return false;
+      seenRetailers.add(key);
+      return true;
+    });
+
+    const sorted = deduped.map((r: any, i: number) => ({ ...r, rank: i + 1 }));
 
     // Save to cache (fire and forget)
     sb.from("price_cache")
