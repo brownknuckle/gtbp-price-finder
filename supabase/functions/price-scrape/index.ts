@@ -80,7 +80,7 @@ serve(async (req) => {
     // Run individual site: searches for each retailer (max 5 concurrent)
     const allResults: any[] = [];
     const seenUrls = new Set<string>();
-    const CONCURRENCY = 5;
+    const CONCURRENCY = 8;
 
     for (let i = 0; i < retailers.length; i += CONCURRENCY) {
       const batch = retailers.slice(i, i + CONCURRENCY);

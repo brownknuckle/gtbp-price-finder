@@ -303,8 +303,8 @@ const Index = () => {
                 },
                 {
                   icon: Globe,
-                  title: "We Search 20+ Retailers",
-                  desc: "We scrape Nike, JD Sports, Size?, Foot Locker, END., StockX and many more to find every available listing.",
+                  title: "We Search 30+ Retailers",
+                  desc: "We search Nike, JD Sports, Size?, Foot Locker, END., StockX, ASOS, Schuh, GOAT, Farfetch and 20+ more to find every listing.",
                 },
                 {
                   icon: Zap,
@@ -337,7 +337,7 @@ const Index = () => {
             {[
               { icon: ShieldCheck, label: "No sign-up required" },
               { icon: Zap, label: "Results in under 30s" },
-              { icon: Globe, label: "20+ UK & EU retailers" },
+              { icon: Globe, label: "30+ UK & EU retailers" },
             ].map((item) => (
               <div key={item.label} className="flex items-center gap-2 text-sm text-muted-foreground">
                 <item.icon className="h-4 w-4 text-primary" />
@@ -361,7 +361,7 @@ const Index = () => {
                 },
                 {
                   q: "How do you find the prices?",
-                  a: "We use AI to search across 20+ UK and international retailers in real-time, extracting actual product page prices — not estimates.",
+                  a: "We use AI to search across 30+ UK and international retailers in real-time, extracting actual product page prices — not estimates.",
                 },
                 {
                   q: "Are shipping costs included?",
