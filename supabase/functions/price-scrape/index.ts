@@ -67,7 +67,8 @@ serve(async (req) => {
             content: `You are a price extraction expert. Given scraped web content about a product, extract real retailer prices.
 
 Extract prices from the content and return structured data. Only include results where you found an actual price.
-For each retailer, estimate shipping and duties based on their typical policies.
+The user is based in the UK. Convert all prices to GBP (£). Estimate shipping to a UK address and import duties/VAT where applicable (non-UK retailers).
+For trust_rating, use the retailer's Trustpilot score (1-5 scale). If you don't know the exact score, estimate based on general Trustpilot reputation.
 Use the actual prices found in the scraped content - do NOT make up prices.`,
           },
           {
@@ -92,12 +93,12 @@ Use the actual prices found in the scraped content - do NOT make up prices.`,
                         retailer: { type: "string", description: "Retailer name" },
                         country: { type: "string", description: "Country of retailer" },
                         flag: { type: "string", description: "Country flag emoji" },
-                        item_price: { type: "number", description: "Item price in USD" },
+                        item_price: { type: "number", description: "Item price in GBP" },
                         shipping: { type: "number", description: "Estimated shipping cost" },
-                        duties: { type: "number", description: "Estimated import duties" },
+                        duties: { type: "number", description: "Estimated import duties/VAT for UK delivery" },
                         total: { type: "number", description: "Total you pay" },
                         delivery: { type: "string", description: "Estimated delivery time" },
-                        trust_rating: { type: "number", description: "Trust rating 1-5" },
+                        trust_rating: { type: "number", description: "Trustpilot rating 1-5" },
                         currency: { type: "string", description: "Original currency code" },
                         url: { type: "string", description: "URL to buy" },
                       },
@@ -154,7 +155,7 @@ Use the actual prices found in the scraped content - do NOT make up prices.`,
         totalYouPay: r.total || r.item_price + (r.shipping || 0) + (r.duties || 0),
         delivery: r.delivery || "5-10 days",
         trustRating: r.trust_rating || 4.0,
-        currency: r.currency || "USD",
+        currency: r.currency || "GBP",
         url: r.url || "#",
       }))
       .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay)
