@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { searchResults } from "@/lib/mockData";
+import { searchResults, productImages } from "@/lib/mockData";
 import PageTransition from "@/components/PageTransition";
 
 type SortKey = "price" | "delivery" | "trust";
@@ -27,7 +27,7 @@ const Results = () => {
         {/* Header */}
         <div className="mb-6 flex items-center gap-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-secondary">
-            <img src="/placeholder.svg" alt="Nike Cortez" className="h-12 w-12 object-contain" />
+            <img src={productImages.cortez} alt="Nike Cortez" className="h-12 w-12 object-contain" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">Nike Cortez White/Black</h1>

@@ -1,3 +1,19 @@
+import nikeCortezImg from "@/assets/nike-cortez.png";
+import nikeAirmax1Img from "@/assets/nike-airmax1.png";
+import nb550Img from "@/assets/nb-550.png";
+import adidasSambaImg from "@/assets/adidas-samba.png";
+import stoneIslandImg from "@/assets/stone-island.png";
+import asicsKayanoImg from "@/assets/asics-kayano.png";
+
+export const productImages = {
+  cortez: nikeCortezImg,
+  airmax1: nikeAirmax1Img,
+  nb550: nb550Img,
+  samba: adidasSambaImg,
+  stoneIsland: stoneIslandImg,
+  asicsKayano: asicsKayanoImg,
+};
+
 export const trendingSearches = [
   "Nike Air Max 1",
   "New Balance 550",
@@ -43,12 +59,12 @@ export interface WatchlistItem {
 }
 
 export const watchlistItems: WatchlistItem[] = [
-  { id: "1", name: "Nike Air Max 1 '86 OG", image: "/placeholder.svg", currentBestPrice: 134.99, previousPrice: 149.99, priceChange: "down", alertEnabled: true },
-  { id: "2", name: "New Balance 550 White Green", image: "/placeholder.svg", currentBestPrice: 112.00, previousPrice: 109.00, priceChange: "up", alertEnabled: false },
-  { id: "3", name: "Adidas Samba OG Black", image: "/placeholder.svg", currentBestPrice: 98.49, previousPrice: 98.49, priceChange: "same", alertEnabled: true },
-  { id: "4", name: "Stone Island Soft Shell Jacket", image: "/placeholder.svg", currentBestPrice: 445.00, previousPrice: 520.00, priceChange: "down", alertEnabled: false },
-  { id: "5", name: "Nike Cortez White/Black", image: "/placeholder.svg", currentBestPrice: 98.49, previousPrice: 105.00, priceChange: "down", alertEnabled: true },
-  { id: "6", name: "ASICS Gel-Kayano 14", image: "/placeholder.svg", currentBestPrice: 155.00, previousPrice: 142.00, priceChange: "up", alertEnabled: false },
+  { id: "1", name: "Nike Air Max 1 '86 OG", image: nikeAirmax1Img, currentBestPrice: 134.99, previousPrice: 149.99, priceChange: "down", alertEnabled: true },
+  { id: "2", name: "New Balance 550 White Green", image: nb550Img, currentBestPrice: 112.00, previousPrice: 109.00, priceChange: "up", alertEnabled: false },
+  { id: "3", name: "Adidas Samba OG Black", image: adidasSambaImg, currentBestPrice: 98.49, previousPrice: 98.49, priceChange: "same", alertEnabled: true },
+  { id: "4", name: "Stone Island Soft Shell Jacket", image: stoneIslandImg, currentBestPrice: 445.00, previousPrice: 520.00, priceChange: "down", alertEnabled: false },
+  { id: "5", name: "Nike Cortez White/Black", image: nikeCortezImg, currentBestPrice: 98.49, previousPrice: 105.00, priceChange: "down", alertEnabled: true },
+  { id: "6", name: "ASICS Gel-Kayano 14", image: asicsKayanoImg, currentBestPrice: 155.00, previousPrice: 142.00, priceChange: "up", alertEnabled: false },
 ];
 
 export const priceHistoryData = [

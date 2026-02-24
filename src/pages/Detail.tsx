@@ -2,7 +2,7 @@ import { Star } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { searchResults, priceHistoryData } from "@/lib/mockData";
+import { searchResults, priceHistoryData, productImages } from "@/lib/mockData";
 import {
   LineChart,
   Line,
@@ -29,7 +29,7 @@ const Detail = () => {
           >
             <div className="flex aspect-square items-center justify-center rounded-2xl bg-secondary">
               <img
-                src="/placeholder.svg"
+                src={productImages.cortez}
                 alt="Nike Cortez"
                 className="h-3/4 w-3/4 object-contain"
               />
