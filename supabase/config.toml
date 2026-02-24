@@ -1,1 +1,7 @@
 project_id = "qrlmkaolugdjsxeilfuz"
+
+[functions.product-search]
+verify_jwt = false
+
+[functions.price-scrape]
+verify_jwt = false
