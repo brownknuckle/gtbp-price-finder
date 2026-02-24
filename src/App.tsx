@@ -7,7 +7,7 @@ import { AnimatePresence } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import Index from "./pages/Index";
 import Results from "./pages/Results";
-import Detail from "./pages/Detail";
+// Detail page removed — was using mock data
 import Watchlist from "./pages/Watchlist";
 import NotFound from "./pages/NotFound";
 
@@ -20,7 +20,6 @@ const AnimatedRoutes = () => {
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Index />} />
         <Route path="/results" element={<Results />} />
-        <Route path="/detail" element={<Detail />} />
         <Route path="/watchlist" element={<Watchlist />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

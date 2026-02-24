@@ -1,66 +1,41 @@
-import { ArrowDown, ArrowUp, Bell, BellOff } from "lucide-react";
+import { Heart } from "lucide-react";
 import { motion } from "framer-motion";
-import { watchlistItems } from "@/lib/mockData";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import PageTransition from "@/components/PageTransition";
 
 const Watchlist = () => {
+  const navigate = useNavigate();
+
   return (
     <PageTransition>
-      <div className="mx-auto max-w-5xl px-4 py-6">
-        <h1 className="mb-6 text-2xl font-bold text-foreground">Watchlist</h1>
+      <div className="mx-auto max-w-3xl px-4 py-12">
+        <h1 className="mb-2 text-2xl font-bold text-foreground">Watchlist</h1>
+        <p className="mb-8 text-sm text-muted-foreground">
+          Save products to track prices over time. Coming soon.
+        </p>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {watchlistItems.map((item, i) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.07, duration: 0.35, ease: "easeOut" }}
-              whileHover={{ y: -4, transition: { duration: 0.2 } }}
-              className="group relative rounded-xl border bg-card p-4 transition-shadow hover:shadow-md"
-            >
-              <div className="mb-3 flex aspect-square items-center justify-center rounded-lg bg-secondary">
-                <img
-                  src={item.image}
-                  alt={item.name}
-                  className="h-3/4 w-3/4 object-contain"
-                />
-              </div>
-
-              <h3 className="text-sm font-semibold text-foreground line-clamp-2">
-                {item.name}
-              </h3>
-
-              <div className="mt-2 flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <span className="text-lg font-extrabold text-accent">
-                    ${item.currentBestPrice.toFixed(2)}
-                  </span>
-                  {item.priceChange === "down" && (
-                    <ArrowDown className="h-4 w-4 text-accent" />
-                  )}
-                  {item.priceChange === "up" && (
-                    <ArrowUp className="h-4 w-4 text-destructive" />
-                  )}
-                </div>
-
-                <button className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary">
-                  {item.alertEnabled ? (
-                    <Bell className="h-4 w-4 text-primary" />
-                  ) : (
-                    <BellOff className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-
-              {item.priceChange !== "same" && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  was ${item.previousPrice.toFixed(2)}
-                </p>
-              )}
-            </motion.div>
-          ))}
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center"
+        >
+          <Heart className="mb-4 h-10 w-10 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-muted-foreground">
+            Your watchlist is empty
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground/60">
+            Search for a product and save it to start tracking prices.
+          </p>
+          <Button
+            variant="outline"
+            className="mt-6"
+            onClick={() => navigate("/")}
+          >
+            Search Products
+          </Button>
+        </motion.div>
       </div>
     </PageTransition>
   );
