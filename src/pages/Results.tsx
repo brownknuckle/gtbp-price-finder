@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Star, Loader2, ExternalLink } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { scrapePrices, searchProduct, type PriceResult, type ProductInfo } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import PageTransition from "@/components/PageTransition";
@@ -25,7 +26,9 @@ const Results = () => {
   const [domesticOnly, setDomesticOnly] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>("price");
   const fetchedRef = useRef(false);
-
+  const [activeRetailer, setActiveRetailer] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [phase, setPhase] = useState<"identifying" | "scraping" | "done">("identifying");
   useEffect(() => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
@@ -40,11 +43,16 @@ const Results = () => {
             navigate("/");
             return;
           }
+          setPhase("identifying");
           prod = await searchProduct(query);
           setProduct(prod);
         }
 
+        setPhase("scraping");
+        setProgress(5);
         const data = await scrapePrices(prod.product_name, prod.retailers);
+        setPhase("done");
+        setProgress(100);
         setResults(data);
       } catch (e: any) {
         toast({
@@ -59,6 +67,24 @@ const Results = () => {
 
     run();
   }, []);
+
+  // Simulate progress ticking while scraping
+  useEffect(() => {
+    if (!isLoading || phase !== "scraping") return;
+    const interval = setInterval(() => {
+      setProgress((p) => Math.min(p + 2, 90));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isLoading, phase]);
+
+  // Cycle through retailer names
+  useEffect(() => {
+    if (!isLoading || !product?.retailers?.length || phase !== "scraping") return;
+    const interval = setInterval(() => {
+      setActiveRetailer((i) => (i + 1) % product.retailers.length);
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [isLoading, product, phase]);
 
   const sorted = [...results].sort((a, b) => {
     if (sortBy === "price") return a.totalYouPay - b.totalYouPay;
@@ -112,12 +138,37 @@ const Results = () => {
         {isLoading && (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="mb-4 h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm font-medium text-muted-foreground">
-              Scraping retailers for the best prices…
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground/60">
-              This may take 10–20 seconds
-            </p>
+            {phase === "identifying" ? (
+              <>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Identifying product…
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Searching retailers for the best prices…
+                </p>
+                <div className="mt-4 w-full max-w-xs">
+                  <Progress value={progress} className="h-2" />
+                </div>
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={activeRetailer}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.25 }}
+                    className="mt-3 text-xs text-muted-foreground/70"
+                  >
+                    Checking {product?.retailers?.[activeRetailer] || "retailers"}…
+                  </motion.p>
+                </AnimatePresence>
+                <p className="mt-2 text-xs text-muted-foreground/50">
+                  {product?.retailers?.length || 0} retailers · may take 20–30s
+                </p>
+              </>
+            )}
           </div>
         )}
 
