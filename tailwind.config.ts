@@ -87,7 +87,7 @@ export default {
   			'2xl': 'var(--shadow-2xl)'
   		},
   		fontFamily: {
-  			display: ['Bebas Neue', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+  			display: ['Anton', 'ui-sans-serif', 'system-ui', 'sans-serif'],
   			sans: ['Space Grotesk', 'ui-sans-serif', 'system-ui', 'sans-serif'],
   			mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace']
   		}
