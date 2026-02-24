@@ -6,6 +6,19 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Price comparison / aggregator domains to exclude
+const EXCLUDED_DOMAINS = [
+  "pricespy", "pricerunner", "idealo", "shopzilla", "bizrate",
+  "google.com/shopping", "shopping.google", "kelkoo", "nextag",
+  "pricegrabber", "shopbot", "skinflint", "camelcamelcamel",
+  "keepa.com", "prisjakt",
+];
+
+function isComparisonSite(url: string): boolean {
+  const lower = url.toLowerCase();
+  return EXCLUDED_DOMAINS.some(d => lower.includes(d));
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -25,11 +38,8 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Run multiple Firecrawl searches: one broad + one per-retailer batch
-    const searches: Promise<any>[] = [];
-
-    // 1) Broad UK-focused search
-    searches.push(
+    // Search each retailer individually for best results
+    const doSearch = (query: string, limit: number) =>
       fetch("https://api.firecrawl.dev/v1/search", {
         method: "POST",
         headers: {
@@ -37,62 +47,46 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          query: `${product_name} buy price UK`,
-          limit: 10,
+          query,
+          limit,
           lang: "en",
           country: "gb",
           scrapeOptions: { formats: ["markdown"] },
         }),
-      }).then(r => r.json()).catch(() => ({ data: [] }))
-    );
+      }).then(r => r.json()).catch(() => ({ data: [] }));
 
-    // 2) Retailer-specific searches in batches of 3
-    const retailerBatches: string[][] = [];
-    for (let i = 0; i < retailers.length; i += 3) {
-      retailerBatches.push(retailers.slice(i, i + 3));
-    }
+    // Run individual site: searches for each retailer (max 3 concurrent)
+    const allResults: any[] = [];
+    const seenUrls = new Set<string>();
+    const CONCURRENCY = 3;
 
-    for (const batch of retailerBatches) {
-      const siteFilter = batch.map((r: string) => `site:${r}`).join(" OR ");
-      searches.push(
-        fetch("https://api.firecrawl.dev/v1/search", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            query: `${product_name} price ${siteFilter}`,
-            limit: 6,
-            lang: "en",
-            country: "gb",
-            scrapeOptions: { formats: ["markdown"] },
-          }),
-        }).then(r => r.json()).catch(() => ({ data: [] }))
+    for (let i = 0; i < retailers.length; i += CONCURRENCY) {
+      const batch = retailers.slice(i, i + CONCURRENCY);
+      const batchPromises = batch.map((retailer: string) =>
+        doSearch(`${product_name} site:${retailer}`, 3)
       );
 
-      // Small delay between batches to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 300));
-    }
+      const batchResults = await Promise.all(batchPromises);
 
-    const searchResults = await Promise.all(searches);
-
-    // Deduplicate by URL and combine all scraped content
-    const seenUrls = new Set<string>();
-    const allResults: any[] = [];
-    for (const result of searchResults) {
-      for (const item of (result.data || [])) {
-        if (item.url && !seenUrls.has(item.url)) {
-          seenUrls.add(item.url);
-          allResults.push(item);
+      for (const result of batchResults) {
+        for (const item of (result.data || [])) {
+          if (item.url && !seenUrls.has(item.url) && !isComparisonSite(item.url)) {
+            seenUrls.add(item.url);
+            allResults.push(item);
+          }
         }
+      }
+
+      // Small delay between batches
+      if (i + CONCURRENCY < retailers.length) {
+        await new Promise(resolve => setTimeout(resolve, 250));
       }
     }
 
-    console.log(`Found ${allResults.length} unique sources from ${searchResults.length} searches`);
+    console.log(`Found ${allResults.length} direct retailer sources from ${retailers.length} retailers`);
 
     const scrapedContent = allResults
-      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${r.markdown?.slice(0, 1500) || r.description || "No content"}`)
+      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${r.markdown?.slice(0, 2000) || r.description || "No content"}`)
       .join("\n\n---\n\n");
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -106,19 +100,22 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a price extraction expert. Given scraped web content about a product, extract real retailer prices.
+            content: `You are a price extraction expert. Given scraped web content from DIRECT RETAILER websites, extract real prices.
 
-Extract prices from the content and return structured data. Only include results where you found an actual price.
-The user is based in the UK. Convert all prices to GBP (£). Estimate shipping to a UK address and import duties/VAT where applicable (non-UK retailers).
-For UK retailers (.co.uk domains), duties should be £0 as VAT is included.
-For trust_rating, use the retailer's Trustpilot score (1-5 scale). If you don't know the exact score, estimate based on general Trustpilot reputation.
-Use the actual prices found in the scraped content - do NOT make up prices.
-Always prefer the UK version of a retailer (e.g. nike.com/gb or nike.co.uk over nike.com).
-Try to extract as many distinct retailer results as possible from the content.`,
+CRITICAL RULES:
+- ONLY return results from actual retailers that sell the product directly (e.g. Nike, JD Sports, Foot Locker, END., ASOS, Size?, Offspring, Schuh, etc.)
+- NEVER include price comparison or aggregator sites (PriceSpy, Pricerunner, Idealo, Google Shopping, Kelkoo, etc.)
+- Each result must link to a product page where the user can actually buy the item
+- The user is based in the UK. Convert all prices to GBP (£).
+- For UK retailers, duties = £0 (VAT included). For non-UK retailers, estimate shipping + duties to UK.
+- For trust_rating, use the retailer's Trustpilot score (1-5). Estimate if unknown.
+- Use ONLY actual prices found in the scraped content — do NOT invent prices.
+- Always prefer UK versions of retailers (nike.com/gb, endclothing.com/gb, etc.)
+- The retailer name should be the actual store name (e.g. "Nike UK", "JD Sports", "END."), NOT the comparison site name.`,
           },
           {
             role: "user",
-            content: `Product: ${product_name}\n\nScraped content:\n${scrapedContent}\n\nExtract all prices found for this product. Return as many retailers as you can find.`,
+            content: `Product: ${product_name}\n\nScraped retailer pages:\n${scrapedContent}\n\nExtract prices from direct retailers only. Exclude any comparison or aggregator sites.`,
           },
         ],
         tools: [
@@ -126,7 +123,7 @@ Try to extract as many distinct retailer results as possible from the content.`,
             type: "function",
             function: {
               name: "extract_prices",
-              description: "Extract structured price data from scraped content",
+              description: "Extract structured price data from direct retailer pages only",
               parameters: {
                 type: "object",
                 properties: {
@@ -135,17 +132,17 @@ Try to extract as many distinct retailer results as possible from the content.`,
                     items: {
                       type: "object",
                       properties: {
-                        retailer: { type: "string", description: "Retailer name (use UK name e.g. 'Nike UK' not 'Nike US')" },
+                        retailer: { type: "string", description: "Direct retailer name (e.g. 'Nike UK', 'JD Sports', 'END.') — never a comparison site" },
                         country: { type: "string", description: "Country of retailer" },
                         flag: { type: "string", description: "Country flag emoji" },
                         item_price: { type: "number", description: "Item price in GBP" },
                         shipping: { type: "number", description: "Estimated shipping cost to UK in GBP" },
-                        duties: { type: "number", description: "Estimated import duties/VAT for UK delivery in GBP (£0 for UK retailers)" },
+                        duties: { type: "number", description: "Import duties/VAT for UK delivery in GBP (£0 for UK retailers)" },
                         total: { type: "number", description: "Total you pay in GBP" },
                         delivery: { type: "string", description: "Estimated delivery time to UK" },
                         trust_rating: { type: "number", description: "Trustpilot rating 1-5" },
                         currency: { type: "string", description: "Original currency code" },
-                        url: { type: "string", description: "URL to buy (prefer UK URLs)" },
+                        url: { type: "string", description: "Direct product page URL on retailer site" },
                       },
                       required: ["retailer", "country", "flag", "item_price", "total", "url"],
                       additionalProperties: false,
@@ -187,8 +184,11 @@ Try to extract as many distinct retailer results as possible from the content.`,
 
     const { results } = JSON.parse(toolCall.function.arguments);
 
+    // Final filter: remove any comparison sites that slipped through
+    const filtered = results.filter((r: any) => !isComparisonSite(r.url || ""));
+
     // Sort by total price ascending
-    const sorted = results
+    const sorted = filtered
       .map((r: any, i: number) => ({
         rank: i + 1,
         retailer: r.retailer,
