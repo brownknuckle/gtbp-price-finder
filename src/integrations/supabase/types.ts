@@ -14,7 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      price_cache: {
+        Row: {
+          created_at: string
+          id: string
+          product_info: Json
+          product_key: string
+          results: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_info: Json
+          product_key: string
+          results: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_info?: Json
+          product_key?: string
+          results?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

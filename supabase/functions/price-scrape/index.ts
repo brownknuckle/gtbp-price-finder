@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -31,6 +31,28 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Check cache first
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const sb = createClient(supabaseUrl, supabaseKey);
+    const cacheKey = product_name.toLowerCase().trim();
+
+    const { data: cached } = await sb
+      .from("price_cache")
+      .select("results, created_at")
+      .eq("product_key", cacheKey)
+      .gte("created_at", new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
+      .maybeSingle();
+
+    if (cached) {
+      console.log("Cache hit for:", cacheKey);
+      return new Response(JSON.stringify({ success: true, results: cached.results, cached: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    console.log("Cache miss for:", cacheKey);
 
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     if (!FIRECRAWL_API_KEY) throw new Error("FIRECRAWL_API_KEY not configured");
@@ -213,6 +235,11 @@ CRITICAL RULES:
       }))
       .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay)
       .map((r: any, i: number) => ({ ...r, rank: i + 1 }));
+
+    // Save to cache (fire and forget)
+    sb.from("price_cache")
+      .upsert({ product_key: cacheKey, results: sorted, product_info: { product_name, retailers } }, { onConflict: "product_key" })
+      .then(({ error }) => { if (error) console.error("Cache write error:", error); });
 
     return new Response(JSON.stringify({ success: true, results: sorted }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
