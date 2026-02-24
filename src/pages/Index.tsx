@@ -27,14 +27,14 @@ const Index = () => {
     <PageTransition>
       <div className="flex min-h-[calc(100vh-57px)] flex-col items-center justify-center px-4">
         <div className="w-full max-w-2xl text-center">
-          {/* Bold display logo */}
+          {/* Bold orange logo */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
             className="mb-1"
           >
-            <h1 className="font-display text-8xl uppercase leading-none tracking-wider text-foreground sm:text-9xl">
+            <h1 className="font-display text-8xl uppercase leading-none tracking-wider text-primary sm:text-9xl">
               GTBP
             </h1>
           </motion.div>
