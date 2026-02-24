@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Star, Loader2, ExternalLink } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -134,42 +135,72 @@ const Results = () => {
           </div>
         )}
 
-        {/* Loading */}
-        {isLoading && (
+        {/* Loading – identifying phase: centered spinner */}
+        {isLoading && phase === "identifying" && (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="mb-4 h-8 w-8 animate-spin text-primary" />
-            {phase === "identifying" ? (
-              <>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Identifying product…
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Searching retailers for the best prices…
-                </p>
-                <div className="mt-4 w-full max-w-xs">
-                  <Progress value={progress} className="h-2" />
-                </div>
-                <AnimatePresence mode="wait">
-                  <motion.p
-                    key={activeRetailer}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.25 }}
-                    className="mt-3 text-xs text-muted-foreground/70"
-                  >
-                    Checking {product?.retailers?.[activeRetailer] || "retailers"}…
-                  </motion.p>
-                </AnimatePresence>
-                <p className="mt-2 text-xs text-muted-foreground/50">
-                  {product?.retailers?.length || 0} retailers · may take 20–30s
-                </p>
-              </>
-            )}
+            <p className="text-sm font-medium text-muted-foreground">
+              Identifying product…
+            </p>
           </div>
+        )}
+
+        {/* Loading – scraping phase: progress bar + skeleton cards */}
+        {isLoading && phase === "scraping" && (
+          <>
+            <div className="mb-5 rounded-xl border border-primary/20 bg-primary/5 p-4">
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-sm font-medium text-foreground">
+                      Searching {product?.retailers?.length || 0} retailers…
+                    </p>
+                    <span className="text-xs text-muted-foreground">{Math.round(progress)}%</span>
+                  </div>
+                  <Progress value={progress} className="h-1.5" />
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={activeRetailer}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="mt-1.5 text-xs text-muted-foreground/70"
+                    >
+                      Checking {product?.retailers?.[activeRetailer] || "retailers"}…
+                    </motion.p>
+                  </AnimatePresence>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="w-full rounded-xl border p-4"
+                  style={{ opacity: 1 - i * 0.15 }}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <Skeleton className="h-8 w-8 rounded-full" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-48" />
+                        <Skeleton className="h-3 w-36" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-8 w-24" />
+                      <Skeleton className="h-8 w-20 rounded-md" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {/* No results */}
