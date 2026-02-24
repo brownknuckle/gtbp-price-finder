@@ -55,15 +55,15 @@ serve(async (req) => {
         }),
       }).then(r => r.json()).catch(() => ({ data: [] }));
 
-    // Run individual site: searches for each retailer (max 3 concurrent)
+    // Run individual site: searches for each retailer (max 5 concurrent)
     const allResults: any[] = [];
     const seenUrls = new Set<string>();
-    const CONCURRENCY = 3;
+    const CONCURRENCY = 5;
 
     for (let i = 0; i < retailers.length; i += CONCURRENCY) {
       const batch = retailers.slice(i, i + CONCURRENCY);
       const batchPromises = batch.map((retailer: string) =>
-        doSearch(`${product_name} site:${retailer}`, 3)
+        doSearch(`${product_name} buy site:${retailer}`, 5)
       );
 
       const batchResults = await Promise.all(batchPromises);
@@ -77,9 +77,17 @@ serve(async (req) => {
         }
       }
 
-      // Small delay between batches
       if (i + CONCURRENCY < retailers.length) {
-        await new Promise(resolve => setTimeout(resolve, 250));
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+
+    // Broad fallback search to catch retailers not in the list
+    const broadSearch = await doSearch(`${product_name} buy UK price GBP`, 10);
+    for (const item of (broadSearch.data || [])) {
+      if (item.url && !seenUrls.has(item.url) && !isComparisonSite(item.url)) {
+        seenUrls.add(item.url);
+        allResults.push(item);
       }
     }
 
