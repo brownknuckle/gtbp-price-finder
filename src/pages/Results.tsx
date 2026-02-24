@@ -1,17 +1,20 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Star } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { searchResults, productImages } from "@/lib/mockData";
+import { searchResults, detectProduct } from "@/lib/mockData";
 import PageTransition from "@/components/PageTransition";
 
 type SortKey = "price" | "delivery" | "trust";
 
 const Results = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const query = searchParams.get("q") || "";
+  const product = detectProduct(query);
   const [domesticOnly, setDomesticOnly] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>("price");
 
@@ -27,11 +30,11 @@ const Results = () => {
         {/* Header */}
         <div className="mb-6 flex items-center gap-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-secondary">
-            <img src={productImages.cortez} alt="Nike Cortez" className="h-12 w-12 object-contain" />
+            <img src={product.image} alt={product.name} className="h-12 w-12 object-contain" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Nike Cortez White/Black</h1>
-            <p className="text-sm text-muted-foreground">Men's Size 10</p>
+            <h1 className="text-xl font-bold text-foreground">{product.name}</h1>
+            <p className="text-sm text-muted-foreground">{product.subtitle}</p>
           </div>
         </div>
 
@@ -72,7 +75,7 @@ const Results = () => {
               transition={{ delay: i * 0.08, duration: 0.35, ease: "easeOut" }}
               whileHover={{ scale: 1.01, y: -2 }}
               whileTap={{ scale: 0.99 }}
-              onClick={() => navigate("/detail")}
+              onClick={() => navigate(`/detail?q=${encodeURIComponent(query)}`)}
               className={`w-full rounded-xl border p-4 text-left transition-shadow hover:shadow-md ${
                 i === 0
                   ? "border-accent bg-accent/5 shadow-sm"

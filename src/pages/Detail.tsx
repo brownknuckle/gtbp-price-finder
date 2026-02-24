@@ -1,8 +1,9 @@
 import { Star } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { searchResults, priceHistoryData, productImages } from "@/lib/mockData";
+import { searchResults, priceHistoryData, detectProduct } from "@/lib/mockData";
 import {
   LineChart,
   Line,
@@ -15,6 +16,9 @@ import {
 import PageTransition from "@/components/PageTransition";
 
 const Detail = () => {
+  const [searchParams] = useSearchParams();
+  const query = searchParams.get("q") || "";
+  const product = detectProduct(query);
   const best = searchResults[0];
 
   return (
@@ -29,8 +33,8 @@ const Detail = () => {
           >
             <div className="flex aspect-square items-center justify-center rounded-2xl bg-secondary">
               <img
-                src={productImages.cortez}
-                alt="Nike Cortez"
+                src={product.image}
+                alt={product.name}
                 className="h-3/4 w-3/4 object-contain"
               />
             </div>
@@ -42,8 +46,8 @@ const Detail = () => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
           >
-            <h1 className="text-2xl font-bold text-foreground">Nike Cortez</h1>
-            <p className="text-muted-foreground">White/Black — Men's Size 10</p>
+            <h1 className="text-2xl font-bold text-foreground">{product.name}</h1>
+            <p className="text-muted-foreground">{product.subtitle}</p>
 
             <motion.div
               initial={{ opacity: 0, y: 15 }}
