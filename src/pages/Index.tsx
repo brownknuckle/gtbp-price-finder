@@ -37,38 +37,42 @@ const Index = () => {
 
   // Predictive text: fetch suggestions as user types
   useEffect(() => {
-    if (query.length < 3) {
+    if (query.length < 3 || isSearching) {
       setSuggestions([]);
       return;
     }
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
+      if (isSearching) return; // double-check in case search started during debounce
       try {
         const result = await searchProduct(query);
-        setSuggestions(result.suggestions || []);
-        setShowSuggestions(true);
+        if (!isSearching) {
+          setSuggestions(result.suggestions || []);
+          setShowSuggestions(true);
+        }
       } catch {
         // Silently fail for autocomplete
       }
-    }, 500);
+    }, 600);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query]);
+  }, [query, isSearching]);
 
   const handleSearch = async (searchQuery?: string) => {
     const q = searchQuery || query;
     if (!q.trim()) return;
 
     setShowSuggestions(false);
+    setSuggestions([]);
     setIsSearching(true);
+    // Cancel any pending autocomplete
+    if (debounceRef.current) clearTimeout(debounceRef.current);
 
     try {
-      // Identify the product first
       const product = await searchProduct(q);
-      // Navigate to results with product data in state
       navigate(`/results?q=${encodeURIComponent(q)}`, {
         state: { product },
       });

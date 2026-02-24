@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Star, Loader2, ExternalLink } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { scrapePrices, type PriceResult, type ProductInfo } from "@/lib/api";
+import { scrapePrices, searchProduct, type PriceResult, type ProductInfo } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import PageTransition from "@/components/PageTransition";
 
@@ -17,24 +17,34 @@ const Results = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const query = searchParams.get("q") || "";
-  const product = (location.state as any)?.product as ProductInfo | undefined;
+  const stateProduct = (location.state as any)?.product as ProductInfo | undefined;
 
+  const [product, setProduct] = useState<ProductInfo | undefined>(stateProduct);
   const [results, setResults] = useState<PriceResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [domesticOnly, setDomesticOnly] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>("price");
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
-    if (!product) {
-      // No product data, go back
-      navigate("/");
-      return;
-    }
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
 
-    const fetchPrices = async () => {
+    const run = async () => {
       setIsLoading(true);
       try {
-        const data = await scrapePrices(product.product_name, product.retailers);
+        // If no product from navigation state, fetch it from the query
+        let prod = product;
+        if (!prod) {
+          if (!query) {
+            navigate("/");
+            return;
+          }
+          prod = await searchProduct(query);
+          setProduct(prod);
+        }
+
+        const data = await scrapePrices(prod.product_name, prod.retailers);
         setResults(data);
       } catch (e: any) {
         toast({
@@ -47,8 +57,8 @@ const Results = () => {
       }
     };
 
-    fetchPrices();
-  }, [product]);
+    run();
+  }, []);
 
   const sorted = [...results].sort((a, b) => {
     if (sortBy === "price") return a.totalYouPay - b.totalYouPay;
