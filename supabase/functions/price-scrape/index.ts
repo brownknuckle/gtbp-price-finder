@@ -104,19 +104,26 @@ serve(async (req) => {
       }
     }
 
-    // Broad fallback search to catch retailers not in the list
-    const broadSearch = await doSearch(`${product_name} buy UK price GBP`, 10);
-    for (const item of (broadSearch.data || [])) {
-      if (item.url && !seenUrls.has(item.url) && !isComparisonSite(item.url)) {
-        seenUrls.add(item.url);
-        allResults.push(item);
+    // Multiple broad fallback searches to catch retailers not in the list
+    const broadQueries = [
+      `${product_name} buy UK price GBP`,
+      `${product_name} shop online UK delivery`,
+      `"${product_name}" £`,
+    ];
+    const broadResults = await Promise.all(broadQueries.map(q => doSearch(q, 10)));
+    for (const result of broadResults) {
+      for (const item of (result.data || [])) {
+        if (item.url && !seenUrls.has(item.url) && !isComparisonSite(item.url)) {
+          seenUrls.add(item.url);
+          allResults.push(item);
+        }
       }
     }
 
     console.log(`Found ${allResults.length} direct retailer sources from ${retailers.length} retailers`);
 
     const scrapedContent = allResults
-      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${r.markdown?.slice(0, 2000) || r.description || "No content"}`)
+      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${r.markdown?.slice(0, 3000) || r.description || "No content"}`)
       .join("\n\n---\n\n");
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -133,7 +140,8 @@ serve(async (req) => {
             content: `You are a price extraction expert. Given scraped web content from DIRECT RETAILER websites, extract real prices.
 
 CRITICAL RULES:
-- ONLY return results from actual retailers that sell the product directly (e.g. Nike, JD Sports, Foot Locker, END., ASOS, Size?, Offspring, Schuh, etc.)
+- Extract ALL retailers where a price is found — aim for 8-15+ results. Do NOT limit yourself to just a few.
+- ONLY return results from actual retailers that sell the product directly (e.g. Nike, JD Sports, Foot Locker, END., ASOS, Size?, Offspring, Schuh, Selfridges, Flannels, StockX, GOAT, etc.)
 - NEVER include price comparison or aggregator sites (PriceSpy, Pricerunner, Idealo, Google Shopping, Kelkoo, etc.)
 - Each result must link to a product page where the user can actually buy the item
 - The user is based in the UK. Convert all prices to GBP (£).
@@ -141,7 +149,8 @@ CRITICAL RULES:
 - For trust_rating, use the retailer's Trustpilot score (1-5). Estimate if unknown.
 - Use ONLY actual prices found in the scraped content — do NOT invent prices.
 - Always prefer UK versions of retailers (nike.com/gb, endclothing.com/gb, etc.)
-- The retailer name should be the actual store name (e.g. "Nike UK", "JD Sports", "END."), NOT the comparison site name.`,
+- The retailer field must contain ONLY the store name (e.g. "Nike UK", "JD Sports", "END."). Do NOT include prices, fields, or metadata in the retailer name.
+- If a source page mentions a price for the product, include it. More results = better.`,
           },
           {
             role: "user",
