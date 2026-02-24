@@ -122,8 +122,22 @@ serve(async (req) => {
 
     console.log(`Found ${allResults.length} direct retailer sources from ${retailers.length} retailers`);
 
-    const scrapedContent = allResults
-      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${r.markdown?.slice(0, 3000) || r.description || "No content"}`)
+    // Deduplicate by domain to keep one result per retailer, limit total to avoid timeouts
+    const byDomain = new Map<string, any>();
+    for (const r of allResults) {
+      try {
+        const domain = new URL(r.url).hostname.replace("www.", "");
+        if (!byDomain.has(domain)) {
+          byDomain.set(domain, r);
+        }
+      } catch { /* skip invalid URLs */ }
+    }
+    const dedupedResults = Array.from(byDomain.values()).slice(0, 30);
+
+    console.log(`Deduped to ${dedupedResults.length} unique retailer domains`);
+
+    const scrapedContent = dedupedResults
+      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${r.markdown?.slice(0, 1500) || r.description || "No content"}`)
       .join("\n\n---\n\n");
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
