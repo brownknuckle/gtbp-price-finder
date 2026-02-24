@@ -136,7 +136,7 @@ CRITICAL RULES:
 - Extract ALL retailers where an EXACT price is clearly stated in the scraped text. Aim for 8-15+ results.
 - ONLY use prices that are EXPLICITLY written in the scraped content. If you cannot find a specific number in the text, DO NOT include that retailer.
 - NEVER estimate, guess, or infer a price. If the scraped content says "£83" or "50% off £165" → use £83 as the item_price.
-- If a page shows both a sale price and original price, ALWAYS use the SALE / current price as item_price.
+- If a page shows both a sale price and original price, ALWAYS use the SALE / current price as item_price and set original_price to the higher original/RRP price.
 - ONLY return results from actual retailers (e.g. Nike, JD Sports, Foot Locker, END., ASOS, Size?, Offspring, Schuh, Selfridges, Flannels, StockX, GOAT, etc.)
 - NEVER include price comparison or aggregator sites (PriceSpy, Pricerunner, Idealo, Google Shopping, Kelkoo, etc.)
 - Each result must link to a product page where the user can actually buy the item.
@@ -177,6 +177,7 @@ CRITICAL RULES:
                         trust_rating: { type: "number", description: "Trustpilot rating 1-5" },
                         currency: { type: "string", description: "Original currency code" },
                         url: { type: "string", description: "Direct product page URL on retailer site" },
+                        original_price: { type: "number", description: "Original/RRP price in GBP before discount, or null if not on sale", nullable: true },
                       },
                       required: ["retailer", "country", "flag", "item_price", "total", "url"],
                       additionalProperties: false,
@@ -231,6 +232,7 @@ CRITICAL RULES:
         shipping: r.shipping || 0,
         duties: r.duties || 0,
         totalYouPay: r.total || r.item_price + (r.shipping || 0) + (r.duties || 0),
+        originalPrice: r.original_price || null,
         delivery: r.delivery || "5-10 days",
         trustRating: r.trust_rating || 4.0,
         currency: r.currency || "GBP",
