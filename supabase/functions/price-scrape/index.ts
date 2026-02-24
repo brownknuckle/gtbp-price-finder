@@ -25,31 +25,73 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Use Firecrawl search to find prices across retailers
-    const searchQuery = `${product_name} buy price`;
-    
-    const firecrawlResponse = await fetch("https://api.firecrawl.dev/v1/search", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: searchQuery,
-        limit: 10,
-        scrapeOptions: { formats: ["markdown"] },
-      }),
-    });
+    // Run multiple Firecrawl searches: one broad + one per-retailer batch
+    const searches: Promise<any>[] = [];
 
-    const firecrawlData = await firecrawlResponse.json();
+    // 1) Broad UK-focused search
+    searches.push(
+      fetch("https://api.firecrawl.dev/v1/search", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query: `${product_name} buy price UK`,
+          limit: 10,
+          lang: "en",
+          country: "gb",
+          scrapeOptions: { formats: ["markdown"] },
+        }),
+      }).then(r => r.json()).catch(() => ({ data: [] }))
+    );
 
-    if (!firecrawlResponse.ok) {
-      console.error("Firecrawl error:", firecrawlData);
-      throw new Error("Firecrawl search failed");
+    // 2) Retailer-specific searches in batches of 3
+    const retailerBatches: string[][] = [];
+    for (let i = 0; i < retailers.length; i += 3) {
+      retailerBatches.push(retailers.slice(i, i + 3));
     }
 
-    // Use AI to extract structured price data from the scraped results
-    const scrapedContent = (firecrawlData.data || [])
+    for (const batch of retailerBatches) {
+      const siteFilter = batch.map((r: string) => `site:${r}`).join(" OR ");
+      searches.push(
+        fetch("https://api.firecrawl.dev/v1/search", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: `${product_name} price ${siteFilter}`,
+            limit: 6,
+            lang: "en",
+            country: "gb",
+            scrapeOptions: { formats: ["markdown"] },
+          }),
+        }).then(r => r.json()).catch(() => ({ data: [] }))
+      );
+
+      // Small delay between batches to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    const searchResults = await Promise.all(searches);
+
+    // Deduplicate by URL and combine all scraped content
+    const seenUrls = new Set<string>();
+    const allResults: any[] = [];
+    for (const result of searchResults) {
+      for (const item of (result.data || [])) {
+        if (item.url && !seenUrls.has(item.url)) {
+          seenUrls.add(item.url);
+          allResults.push(item);
+        }
+      }
+    }
+
+    console.log(`Found ${allResults.length} unique sources from ${searchResults.length} searches`);
+
+    const scrapedContent = allResults
       .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${r.markdown?.slice(0, 1500) || r.description || "No content"}`)
       .join("\n\n---\n\n");
 
@@ -68,12 +110,15 @@ serve(async (req) => {
 
 Extract prices from the content and return structured data. Only include results where you found an actual price.
 The user is based in the UK. Convert all prices to GBP (£). Estimate shipping to a UK address and import duties/VAT where applicable (non-UK retailers).
+For UK retailers (.co.uk domains), duties should be £0 as VAT is included.
 For trust_rating, use the retailer's Trustpilot score (1-5 scale). If you don't know the exact score, estimate based on general Trustpilot reputation.
-Use the actual prices found in the scraped content - do NOT make up prices.`,
+Use the actual prices found in the scraped content - do NOT make up prices.
+Always prefer the UK version of a retailer (e.g. nike.com/gb or nike.co.uk over nike.com).
+Try to extract as many distinct retailer results as possible from the content.`,
           },
           {
             role: "user",
-            content: `Product: ${product_name}\n\nScraped content:\n${scrapedContent}\n\nExtract all prices found for this product.`,
+            content: `Product: ${product_name}\n\nScraped content:\n${scrapedContent}\n\nExtract all prices found for this product. Return as many retailers as you can find.`,
           },
         ],
         tools: [
@@ -90,17 +135,17 @@ Use the actual prices found in the scraped content - do NOT make up prices.`,
                     items: {
                       type: "object",
                       properties: {
-                        retailer: { type: "string", description: "Retailer name" },
+                        retailer: { type: "string", description: "Retailer name (use UK name e.g. 'Nike UK' not 'Nike US')" },
                         country: { type: "string", description: "Country of retailer" },
                         flag: { type: "string", description: "Country flag emoji" },
                         item_price: { type: "number", description: "Item price in GBP" },
-                        shipping: { type: "number", description: "Estimated shipping cost" },
-                        duties: { type: "number", description: "Estimated import duties/VAT for UK delivery" },
-                        total: { type: "number", description: "Total you pay" },
-                        delivery: { type: "string", description: "Estimated delivery time" },
+                        shipping: { type: "number", description: "Estimated shipping cost to UK in GBP" },
+                        duties: { type: "number", description: "Estimated import duties/VAT for UK delivery in GBP (£0 for UK retailers)" },
+                        total: { type: "number", description: "Total you pay in GBP" },
+                        delivery: { type: "string", description: "Estimated delivery time to UK" },
                         trust_rating: { type: "number", description: "Trustpilot rating 1-5" },
                         currency: { type: "string", description: "Original currency code" },
-                        url: { type: "string", description: "URL to buy" },
+                        url: { type: "string", description: "URL to buy (prefer UK URLs)" },
                       },
                       required: ["retailer", "country", "flag", "item_price", "total", "url"],
                       additionalProperties: false,
