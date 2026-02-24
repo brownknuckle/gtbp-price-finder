@@ -47,8 +47,13 @@ Return ONLY valid JSON with this schema:
   "suggestions": ["Similar product 1", "Similar product 2", "Similar product 3"]
 }
 
-The user is based in the UK. You MUST return at least 10-12 retailers. Always prioritise UK versions of retailers (e.g. nike.com/gb, footlocker.co.uk, jdsports.co.uk, size.co.uk).
-Include a mix of: UK high street (jdsports.co.uk, size.co.uk, footlocker.co.uk, schuh.co.uk, offspring.co.uk, flannels.com), UK online (endclothing.com, asos.com, zalando.co.uk), European (sneakersnstuff.com, asphaltgold.com, solebox.com), and global resellers (stockx.com, goat.com, farfetch.com, ssense.com, mrporter.com).
+The user is based in the UK. You MUST return at least 15-20 retailers. Always prioritise UK versions of retailers (e.g. nike.com/gb, adidas.co.uk, footlocker.co.uk, jdsports.co.uk, size.co.uk).
+Include a wide mix of:
+- Brand official UK stores: nike.com/gb, adidas.co.uk, newbalance.co.uk, asics.co.uk, puma.com/gb, reebok.co.uk, converse.com/uk, vans.co.uk, timberland.co.uk, drmartens.com
+- UK high street: jdsports.co.uk, size.co.uk, footlocker.co.uk, schuh.co.uk, offspring.co.uk, flannels.com, selfridges.com, harveynichols.com, harrods.com, tessuti.co.uk, scottsmenswear.com, mainlinemenswear.co.uk, footpatrol.com, hanon-shop.com
+- UK online: endclothing.com, asos.com, zalando.co.uk, urbanoutfitters.com/en-gb, matchesfashion.com, brownsfashion.com, stuartslondon.com, aphrodite1994.com, hipstore.com, woodhouseclothing.com, eightyeightstore.com
+- European: sneakersnstuff.com, asphaltgold.com, solebox.com, bstn.com, overkillshop.com, allikestore.com, titolo.ch, suppa.de, sivasdescalzo.com, nakedcph.com, rezet.dk, kickz.com
+- Global resellers: stockx.com, goat.com, farfetch.com, ssense.com, mrporter.com, klekt.com, laced.co.uk, ebay.co.uk, depop.com
 For suggestions, provide predictive autocomplete suggestions related to the query.`,
           },
           { role: "user", content: query },
@@ -66,7 +71,7 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
                   brand: { type: "string" },
                   category: { type: "string", enum: ["shoes", "clothing", "accessories"] },
                   search_queries: { type: "array", items: { type: "string" } },
-                  retailers: { type: "array", items: { type: "string" }, minItems: 8, description: "At least 8-12 retailers, prioritise UK (.co.uk) retailers first, then EU, then global" },
+                  retailers: { type: "array", items: { type: "string" }, minItems: 15, description: "At least 15-20 retailers, prioritise UK (.co.uk) retailers first, then EU, then global" },
                   estimated_retail_price: { type: "number" },
                   suggestions: { type: "array", items: { type: "string" } },
                 },
