@@ -133,17 +133,19 @@ serve(async (req) => {
             content: `You are a price extraction expert. Given scraped web content from DIRECT RETAILER websites, extract real prices.
 
 CRITICAL RULES:
-- Extract ALL retailers where a price is found — aim for 8-15+ results. Do NOT limit yourself to just a few.
-- ONLY return results from actual retailers that sell the product directly (e.g. Nike, JD Sports, Foot Locker, END., ASOS, Size?, Offspring, Schuh, Selfridges, Flannels, StockX, GOAT, etc.)
+- Extract ALL retailers where an EXACT price is clearly stated in the scraped text. Aim for 8-15+ results.
+- ONLY use prices that are EXPLICITLY written in the scraped content. If you cannot find a specific number in the text, DO NOT include that retailer.
+- NEVER estimate, guess, or infer a price. If the scraped content says "£83" or "50% off £165" → use £83 as the item_price.
+- If a page shows both a sale price and original price, ALWAYS use the SALE / current price as item_price.
+- ONLY return results from actual retailers (e.g. Nike, JD Sports, Foot Locker, END., ASOS, Size?, Offspring, Schuh, Selfridges, Flannels, StockX, GOAT, etc.)
 - NEVER include price comparison or aggregator sites (PriceSpy, Pricerunner, Idealo, Google Shopping, Kelkoo, etc.)
-- Each result must link to a product page where the user can actually buy the item
+- Each result must link to a product page where the user can actually buy the item.
 - The user is based in the UK. Convert all prices to GBP (£).
 - For UK retailers, duties = £0 (VAT included). For non-UK retailers, estimate shipping + duties to UK.
 - For trust_rating, use the retailer's Trustpilot score (1-5). Estimate if unknown.
-- Use ONLY actual prices found in the scraped content — do NOT invent prices.
 - Always prefer UK versions of retailers (nike.com/gb, endclothing.com/gb, etc.)
 - The retailer field must contain ONLY the store name (e.g. "Nike UK", "JD Sports", "END."). Do NOT include prices, fields, or metadata in the retailer name.
-- If a source page mentions a price for the product, include it. More results = better.`,
+- If a page shows "SOLD OUT" or "OUT OF STOCK", do NOT include that retailer.`,
           },
           {
             role: "user",
