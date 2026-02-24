@@ -142,7 +142,7 @@ const Detail = () => {
                 <Line
                   type="monotone"
                   dataKey="price"
-                  stroke="hsl(150 62% 26%)"
+                  stroke="hsl(160 84% 39%)"
                   strokeWidth={2}
                   dot={{ r: 3 }}
                 />
