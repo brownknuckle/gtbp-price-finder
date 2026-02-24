@@ -19,6 +19,7 @@ export interface PriceResult {
   shipping: number;
   duties: number;
   totalYouPay: number;
+  originalPrice: number | null;
   delivery: string;
   trustRating: number;
   currency: string;

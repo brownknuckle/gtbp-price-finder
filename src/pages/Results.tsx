@@ -263,8 +263,16 @@ const Results = () => {
                           Best Price
                         </Badge>
                       )}
+                      {r.originalPrice && r.originalPrice > r.itemPrice && (
+                        <Badge variant="destructive" className="text-[10px]">
+                          {Math.round((1 - r.itemPrice / r.originalPrice) * 100)}% Off
+                        </Badge>
+                      )}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      {r.originalPrice && r.originalPrice > r.itemPrice && (
+                        <span className="line-through text-muted-foreground/50">£{r.originalPrice.toFixed(2)}</span>
+                      )}
                       <span>Item: £{r.itemPrice.toFixed(2)}</span>
                       <span>Shipping: £{r.shipping.toFixed(2)}</span>
                       <span>Duties: £{r.duties.toFixed(2)}</span>
