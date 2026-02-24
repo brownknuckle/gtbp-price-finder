@@ -154,15 +154,15 @@ const Results = () => {
                       )}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span>Item: ${r.itemPrice.toFixed(2)}</span>
-                      <span>Shipping: ${r.shipping.toFixed(2)}</span>
-                      <span>Duties: ${r.duties.toFixed(2)}</span>
+                      <span>Item: £{r.itemPrice.toFixed(2)}</span>
+                      <span>Shipping: £{r.shipping.toFixed(2)}</span>
+                      <span>Duties: £{r.duties.toFixed(2)}</span>
                     </div>
                     <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{r.delivery}</span>
                       <span className="flex items-center gap-0.5">
                         <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
-                        {r.trustRating}
+                        {r.trustRating} Trustpilot
                       </span>
                     </div>
                   </div>
@@ -172,7 +172,7 @@ const Results = () => {
                   <div>
                     <p className="text-xs text-muted-foreground">Total You Pay</p>
                     <p className="text-2xl font-extrabold text-primary">
-                      ${r.totalYouPay.toFixed(2)}
+                      £{r.totalYouPay.toFixed(2)}
                     </p>
                   </div>
                   <Button

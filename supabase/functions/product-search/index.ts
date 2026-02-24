@@ -47,7 +47,8 @@ Return ONLY valid JSON with this schema:
   "suggestions": ["Similar product 1", "Similar product 2", "Similar product 3"]
 }
 
-For retailers, suggest real websites that sell this type of product (e.g., nike.com, footlocker.com, endclothing.com, ssense.com, mrporter.com, zalando.com, asos.com, jdsports.com, sneakersnstuff.com, stockx.com).
+The user is based in the UK. Suggest global retailers that ship to the UK, prioritising UK and European retailers.
+Good examples: nike.com, footlocker.co.uk, endclothing.com, jdsports.co.uk, size.co.uk, asos.com, zalando.co.uk, mrporter.com, ssense.com, sneakersnstuff.com, stockx.com, farfetch.com, flannels.com.
 For suggestions, provide predictive autocomplete suggestions related to the query.`,
           },
           { role: "user", content: query },
