@@ -41,25 +41,51 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: image ? "google/gemini-2.5-flash" : "google/gemini-2.5-flash-lite",
+        model: image ? "google/gemini-2.5-pro" : "google/gemini-2.5-flash-lite",
         messages: [
           {
             role: "system",
-            content: `You are a product identification expert for fashion and footwear.
-Given a user query (which could be a product name, brand, SKU, URL, description, or an IMAGE of a product), identify the product and return structured JSON.
+            content: `You are an expert product identification specialist for fashion, footwear, and streetwear.
+
+Given a user query (product name, brand, SKU, URL, description) OR an IMAGE of a product, identify the EXACT product with maximum precision.
+
+${image ? `## IMAGE IDENTIFICATION INSTRUCTIONS
+You are receiving a product image. Apply these steps IN ORDER:
+1. **Brand identification**: Look for logos, brand markings, tags, labels, embossed text on sole/tongue/heel
+2. **Model identification**: Identify the EXACT model by examining:
+   - Sole shape and pattern (e.g. waffle sole = Nike, GEL cushioning = ASICS)
+   - Silhouette profile (high-top, low-top, runner, boot, etc.)
+   - Panel construction and overlays
+   - Lacing system style
+   - Tongue shape and padding level
+   - Heel counter design
+   - Midsole technology visible features
+3. **Colourway identification**: Describe the EXACT colourway by listing each colour visible on each part (upper, swoosh/logo, midsole, outsole, laces, tongue, heel tab). Match to official colourway names where possible (e.g. "Sport Red/White" not just "red and white")
+4. **Season/Year**: If identifiable from details, note the release year or season
+5. **Distinguishing features**: Note any special editions, collaborations, or unique details (e.g. "Big Bubble", "OG", "Retro", "SE", "Premium")
+
+Be EXTREMELY specific. For example:
+- GOOD: "Nike Air Max 1 '86 OG Big Bubble Sport Red/White-Black"
+- BAD: "Nike Air Max red"
+- GOOD: "New Balance 550 White/Green BB550WT1"
+- BAD: "New Balance sneaker"
+- GOOD: "adidas Samba OG Cloud White/Core Black/Clear Granite"
+- BAD: "adidas Samba"` : ''}
 
 Return ONLY valid JSON with this schema:
 {
-  "product_name": "Full product name",
+  "product_name": "Full product name including colourway",
   "brand": "Brand name",
   "category": "shoes" or "clothing" or "accessories",
   "search_queries": ["query1 to search retailers", "query2", "query3"],
-  "retailers": ["retailer1.co.uk", "retailer2.co.uk", "retailer3.com", ...at least 25-30 retailers],
+  "retailers": ["retailer1.co.uk", "retailer2.co.uk", ...at least 25-30 retailers],
   "estimated_retail_price": 120,
+  "confidence": 0.95,
+  "identification_notes": "Brief explanation of how the product was identified",
   "suggestions": ["Similar product 1", "Similar product 2", "Similar product 3"]
 }
 
-If an IMAGE is provided, carefully examine the product in the image — identify the exact brand, model, colourway, and any other distinguishing features. Be as specific as possible (e.g. "Nike Air Max 1 '86 OG Big Bubble Sport Red" not just "Nike Air Max").
+The "confidence" field should be a number between 0 and 1 indicating how confident you are in the identification. If confidence < 0.7, still provide your best guess but note uncertainty in identification_notes.
 
 The user is based in the UK. You MUST return 25-30 retailers. Always prioritise UK versions of retailers (e.g. nike.com/gb, adidas.co.uk, footlocker.co.uk, jdsports.co.uk, size.co.uk).
 Include a wide mix of:
@@ -81,15 +107,17 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
               parameters: {
                 type: "object",
                 properties: {
-                  product_name: { type: "string" },
+                  product_name: { type: "string", description: "Full product name including colourway" },
                   brand: { type: "string" },
                   category: { type: "string", enum: ["shoes", "clothing", "accessories"] },
                   search_queries: { type: "array", items: { type: "string" } },
                   retailers: { type: "array", items: { type: "string" }, minItems: 25, description: "25-30 retailers, prioritise UK (.co.uk) retailers first, then EU, then global" },
                   estimated_retail_price: { type: "number" },
+                  confidence: { type: "number", description: "0-1 confidence score for identification accuracy" },
+                  identification_notes: { type: "string", description: "Brief explanation of how the product was identified" },
                   suggestions: { type: "array", items: { type: "string" } },
                 },
-                required: ["product_name", "brand", "category", "search_queries", "retailers", "estimated_retail_price", "suggestions"],
+                required: ["product_name", "brand", "category", "search_queries", "retailers", "estimated_retail_price", "confidence", "identification_notes", "suggestions"],
                 additionalProperties: false,
               },
             },

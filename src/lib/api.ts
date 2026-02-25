@@ -7,6 +7,8 @@ export interface ProductInfo {
   search_queries: string[];
   retailers: string[];
   estimated_retail_price: number;
+  confidence: number;
+  identification_notes: string;
   suggestions: string[];
 }
 
