@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, ArrowRight, Loader2, ShieldCheck, Zap, Globe } from "lucide-react";
+import { Search, ArrowRight, Loader2, ShieldCheck, Zap, Globe, Camera, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,8 +32,11 @@ const Index = () => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Predictive text: fetch suggestions as user types
   useEffect(() => {
@@ -61,9 +64,36 @@ const Index = () => {
     };
   }, [query, isSearching]);
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please upload an image file.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Max 5MB image size.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setImagePreview(result);
+      setImageBase64(result);
+    };
+    reader.readAsDataURL(file);
+    // Reset input so the same file can be re-selected
+    e.target.value = "";
+  };
+
+  const clearImage = () => {
+    setImagePreview(null);
+    setImageBase64(null);
+  };
+
   const handleSearch = async (searchQuery?: string) => {
     const q = searchQuery || query;
-    if (!q.trim()) return;
+    if (!q.trim() && !imageBase64) return;
 
     setShowSuggestions(false);
     setSuggestions([]);
@@ -71,8 +101,8 @@ const Index = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     try {
-      const product = await searchProduct(q);
-      navigate(`/results?q=${encodeURIComponent(q)}`, {
+      const product = await searchProduct(q || "Identify this product", imageBase64 || undefined);
+      navigate(`/results?q=${encodeURIComponent(product.product_name || q)}`, {
         state: { product },
       });
     } catch (e: any) {
@@ -118,6 +148,33 @@ const Index = () => {
               transition={{ delay: 0.35, duration: 0.5 }}
               className="relative mb-5"
             >
+              {/* Image preview */}
+              <AnimatePresence>
+                {imagePreview && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-3 flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 p-2"
+                  >
+                    <img src={imagePreview} alt="Upload preview" className="h-14 w-14 rounded object-cover" />
+                    <span className="flex-1 text-xs text-muted-foreground">Image attached — we'll identify this product</span>
+                    <button onClick={clearImage} className="rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-foreground">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+
               {/* Search input row */}
               <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="relative flex-1">
@@ -128,10 +185,19 @@ const Index = () => {
                     onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                     placeholder="Paste a URL, SKU, brand, or describe any item…"
-                    className="h-12 rounded-md border-border bg-card pr-4 text-sm shadow-xs transition-shadow focus-visible:shadow-md sm:h-13 sm:text-base"
+                    className="h-12 rounded-md border-border bg-card pl-4 pr-12 text-sm shadow-xs transition-shadow focus-visible:shadow-md sm:h-13 sm:text-base"
                     onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                     disabled={isSearching}
                   />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isSearching}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+                    title="Search by image"
+                  >
+                    <Camera className="h-4 w-4" />
+                  </button>
 
                   {/* Predictive suggestions dropdown */}
                   <AnimatePresence>
