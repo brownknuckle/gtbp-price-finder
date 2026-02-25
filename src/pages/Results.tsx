@@ -151,7 +151,7 @@ const Results = () => {
               animate={{ opacity: 1, scale: 1 }}
               className="hidden sm:block shrink-0"
             >
-              <div className="h-20 w-20 overflow-hidden rounded-xl border bg-secondary flex items-center justify-center">
+              <div className="h-32 w-32 overflow-hidden rounded-xl border bg-secondary flex items-center justify-center">
                 {product.image_url ? (
                   <img
                     src={product.image_url}
