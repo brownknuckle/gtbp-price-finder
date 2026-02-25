@@ -14,6 +14,13 @@ const EXCLUDED_DOMAINS = [
   "keepa.com", "prisjakt", "pricehunter",
 ];
 
+// UK-headquartered retailers that use .com domains
+const UK_COM_RETAILERS = new Set([
+  "asos.com", "flannels.com", "footasylum.com", "endclothing.com",
+  "selfridges.com", "harveynichols.com", "mrporter.com", "matchesfashion.com",
+  "farfetch.com", "sportsdirect.com", "jdsports.com", "very.co.uk",
+]);
+
 const MIN_CACHE_RESULTS = 6;
 
 function isComparisonSite(url: string): boolean {
@@ -99,7 +106,7 @@ function buildFallbackResults(sources: any[]): any[] {
         return null;
       }
 
-      const isUk = hostname.endsWith(".uk") || hostname.includes(".co.uk");
+      const isUk = hostname.endsWith(".uk") || hostname.includes(".co.uk") || UK_COM_RETAILERS.has(hostname);
       const shipping = isUk ? 4.99 : 12.99;
       const duties = isUk ? 0 : Number((itemPrice * 0.2).toFixed(2));
 
@@ -241,12 +248,17 @@ serve(async (req) => {
       const siteQuery = batch.map((r: string) => `site:${r}`).join(" OR ");
       return doSearch(`${searchName} buy price £ ${siteQuery}`, Math.min(batch.length * 3, 24));
     });
-    // Three broad fallback searches for wider coverage
+
+    // Broad fallback searches + dedicated UK sweep
     const broadPromise1 = doSearch(`${searchName} buy UK price GBP £`, 15);
     const broadPromise2 = doSearch(`"${searchName}" shop price £`, 10);
     const broadPromise3 = doSearch(`${searchName} trainers price`, 8);
+    const ukSweep1 = doSearch(`"${searchName}" buy £ site:.co.uk`, 20);
+    const ukSweep2 = doSearch(`${searchName} price £ site:.co.uk OR site:.uk`, 15);
 
-    const allSearchResults = await Promise.all([...batchPromises, broadPromise1, broadPromise2, broadPromise3]);
+    const allSearchResults = await Promise.all([
+      ...batchPromises, broadPromise1, broadPromise2, broadPromise3, ukSweep1, ukSweep2,
+    ]);
 
     for (const result of allSearchResults) {
       for (const item of (result.data || [])) {
@@ -257,19 +269,59 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Found ${allResults.length} direct retailer sources from ${normalizedRetailers.length} retailers`);
+    console.log(`Pass 1: Found ${allResults.length} sources from ${normalizedRetailers.length} retailers`);
 
-    // Deduplicate by domain to keep one result per retailer, limit total to avoid timeouts
+    // Deduplicate by domain
     const byDomain = new Map<string, any>();
     for (const r of allResults) {
       try {
         const domain = new URL(r.url).hostname.replace("www.", "");
-        if (!byDomain.has(domain)) {
-          byDomain.set(domain, r);
-        }
-      } catch { /* skip invalid URLs */ }
+        if (!byDomain.has(domain)) byDomain.set(domain, r);
+      } catch { /* skip */ }
     }
-    const dedupedResults = Array.from(byDomain.values()).slice(0, 40);
+
+    // --- Pass 2: Gap-fill missing UK retailers ---
+    const ukRetailers = normalizedRetailers.filter(
+      (r) => r.endsWith(".uk") || r.includes(".co.uk")
+    );
+    const coveredDomains = new Set(byDomain.keys());
+    const missingUk = ukRetailers.filter((r) => !coveredDomains.has(r));
+
+    if (missingUk.length > 0) {
+      console.log(`Pass 2: Gap-filling ${missingUk.length} missing UK retailers: ${missingUk.join(", ")}`);
+
+      // Run targeted searches for missing UK retailers in small batches
+      const GAP_BATCH = 4;
+      const gapBatches: string[][] = [];
+      for (let i = 0; i < missingUk.length; i += GAP_BATCH) {
+        gapBatches.push(missingUk.slice(i, i + GAP_BATCH));
+      }
+
+      const gapPromises = gapBatches.map((batch) => {
+        const siteQuery = batch.map((r) => `site:${r}`).join(" OR ");
+        return doSearch(`${searchName} ${siteQuery}`, batch.length * 3);
+      });
+
+      const gapResults = await Promise.all(gapPromises);
+      let gapFound = 0;
+      for (const result of gapResults) {
+        for (const item of (result.data || [])) {
+          if (item.url && !seenUrls.has(item.url) && !isComparisonSite(item.url)) {
+            seenUrls.add(item.url);
+            try {
+              const domain = new URL(item.url).hostname.replace("www.", "");
+              if (!byDomain.has(domain)) {
+                byDomain.set(domain, item);
+                gapFound++;
+              }
+            } catch { /* skip */ }
+          }
+        }
+      }
+      console.log(`Pass 2: Filled ${gapFound} additional UK retailers`);
+    }
+
+    const dedupedResults = Array.from(byDomain.values()).slice(0, 50);
 
     console.log(`Deduped to ${dedupedResults.length} unique retailer domains`);
 
