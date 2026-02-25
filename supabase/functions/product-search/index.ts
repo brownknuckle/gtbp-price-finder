@@ -10,9 +10,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { query } = await req.json();
-    if (!query) {
-      return new Response(JSON.stringify({ error: "Query is required" }), {
+    const { query, image } = await req.json();
+    if (!query && !image) {
+      return new Response(JSON.stringify({ error: "Query or image is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -21,7 +21,19 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Use AI to identify the product and suggest search terms
+    // Build messages array - include image if provided
+    const userContent: any[] = [];
+    if (image) {
+      userContent.push({
+        type: "image_url",
+        image_url: { url: image.startsWith("data:") ? image : `data:image/jpeg;base64,${image}` },
+      });
+    }
+    userContent.push({
+      type: "text",
+      text: query || "Identify this product from the image",
+    });
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -29,12 +41,12 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: image ? "google/gemini-2.5-flash" : "google/gemini-2.5-flash-lite",
         messages: [
           {
             role: "system",
             content: `You are a product identification expert for fashion and footwear.
-Given a user query (which could be a product name, brand, SKU, URL, or description), identify the product and return structured JSON.
+Given a user query (which could be a product name, brand, SKU, URL, description, or an IMAGE of a product), identify the product and return structured JSON.
 
 Return ONLY valid JSON with this schema:
 {
@@ -47,6 +59,8 @@ Return ONLY valid JSON with this schema:
   "suggestions": ["Similar product 1", "Similar product 2", "Similar product 3"]
 }
 
+If an IMAGE is provided, carefully examine the product in the image — identify the exact brand, model, colourway, and any other distinguishing features. Be as specific as possible (e.g. "Nike Air Max 1 '86 OG Big Bubble Sport Red" not just "Nike Air Max").
+
 The user is based in the UK. You MUST return 25-30 retailers. Always prioritise UK versions of retailers (e.g. nike.com/gb, adidas.co.uk, footlocker.co.uk, jdsports.co.uk, size.co.uk).
 Include a wide mix of:
 - Brand official UK stores: nike.com/gb, adidas.co.uk, newbalance.co.uk, asics.co.uk, puma.com/gb, reebok.co.uk, converse.com/uk, vans.co.uk, timberland.co.uk, drmartens.com, saucony.com/en-gb, hoka.com/en/gb, on-running.com/en-gb
@@ -56,14 +70,14 @@ Include a wide mix of:
 - Global resellers: stockx.com, goat.com, farfetch.com, ssense.com, mrporter.com, klekt.com, laced.co.uk, ebay.co.uk, depop.com, grailed.com
 For suggestions, provide predictive autocomplete suggestions related to the query.`,
           },
-          { role: "user", content: query },
+          { role: "user", content: userContent },
         ],
         tools: [
           {
             type: "function",
             function: {
               name: "identify_product",
-              description: "Identify a product from a search query",
+              description: "Identify a product from a search query or image",
               parameters: {
                 type: "object",
                 properties: {

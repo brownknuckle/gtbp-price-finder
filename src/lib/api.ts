@@ -26,9 +26,12 @@ export interface PriceResult {
   url: string;
 }
 
-export async function searchProduct(query: string): Promise<ProductInfo> {
+export async function searchProduct(query: string, imageBase64?: string): Promise<ProductInfo> {
+  const body: Record<string, string> = { query };
+  if (imageBase64) body.image = imageBase64;
+
   const { data, error } = await supabase.functions.invoke("product-search", {
-    body: { query },
+    body,
   });
 
   if (error) throw new Error(error.message || "Product search failed");
