@@ -77,18 +77,25 @@ serve(async (req) => {
         }),
       }).then(r => r.json()).catch(() => ({ data: [] }));
 
-    // Run individual site: searches for each retailer (max 5 concurrent)
+    // Batch retailers into groups of 5 for fewer API calls
     const allResults: any[] = [];
     const seenUrls = new Set<string>();
-    const CONCURRENCY = 15;
 
-    // Run ALL retailer searches + one broad fallback in parallel
-    const retailerPromises = retailers.map((retailer: string) =>
-      doSearch(`${product_name} buy site:${retailer}`, 3)
-    );
-    const broadPromise = doSearch(`${product_name} buy UK price GBP £`, 10);
+    const BATCH_SIZE = 5;
+    const retailerBatches: string[][] = [];
+    for (let i = 0; i < retailers.length; i += BATCH_SIZE) {
+      retailerBatches.push(retailers.slice(i, i + BATCH_SIZE));
+    }
 
-    const allSearchResults = await Promise.all([...retailerPromises, broadPromise]);
+    // Build batched queries: "product site:a.com OR site:b.com OR site:c.com"
+    const batchPromises = retailerBatches.map((batch: string[]) => {
+      const siteQuery = batch.map((r: string) => `site:${r}`).join(" OR ");
+      return doSearch(`${product_name} buy ${siteQuery}`, batch.length * 2);
+    });
+    // One broad fallback
+    const broadPromise = doSearch(`${product_name} buy UK price GBP £`, 8);
+
+    const allSearchResults = await Promise.all([...batchPromises, broadPromise]);
 
     for (const result of allSearchResults) {
       for (const item of (result.data || [])) {
