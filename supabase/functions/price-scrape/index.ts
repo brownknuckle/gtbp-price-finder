@@ -383,7 +383,14 @@ CRITICAL RULES:
 - Each result must link to a SPECIFIC PRODUCT PAGE where the user can actually buy the item.
 - NEVER return URLs that point to category pages, collection pages, brand listing pages, search results, or release-date pages. The URL must be for ONE specific product, not a list of products.
 - URLs containing /collection/, /category/, /brand/, /brands/, /release-dates/ are NOT product pages — exclude them.
-- Verify the product in the URL matches the searched product. Do NOT return results for different products (e.g. returning a Gazelle link when searching for Samba).
+
+PRODUCT MATCHING — VERY IMPORTANT:
+- You MUST only return results for the EXACT product and colorway/variant specified. The product name includes the colorway (e.g. "Black/White", "Core Black/Cloud White").
+- Do NOT return results for different colorways of the same shoe (e.g. if searching for Black/White Samba, do NOT include White/Black, Cloud White, or any other color variant).
+- Do NOT return results for a different gender version unless it is the same product (e.g. do not return Women's if the search is for unisex/men's).
+- If a URL or page title clearly indicates a DIFFERENT colorway or variant, EXCLUDE it.
+- When in doubt whether a result matches the exact product, EXCLUDE it. Precision matters more than quantity.
+
 - The user is based in the UK. Convert all prices to GBP (£).
 - For UK retailers, duties = £0 (VAT included). For non-UK retailers, estimate shipping + duties to UK.
 - For trust_rating, use the retailer's Trustpilot score (1-5). Estimate if unknown.
@@ -391,11 +398,12 @@ CRITICAL RULES:
 - The retailer field must contain ONLY the store name (e.g. "Nike UK", "JD Sports", "END."). Do NOT include prices, fields, or metadata in the retailer name.
 - If a page shows "SOLD OUT" or "OUT OF STOCK", do NOT include that retailer.
 - EXCLUDE children's, baby, toddler, or infant versions of the product. Only include ADULT sizes.
-- Prices below £30 for shoes or £15 for accessories are almost certainly wrong — skip them.`,
+- Prices below £30 for shoes or £15 for accessories are almost certainly wrong — skip them.
+- Do NOT return duplicate retailers. If the same store appears multiple times (e.g. "Amazon" and "Amazon UK"), only include the one with the best price.`,
           },
           {
             role: "user",
-            content: `Product: ${searchName}\n\nScraped retailer pages:\n${scrapedContent}\n\nExtract prices from direct retailers only. Exclude any comparison or aggregator sites.`,
+            content: `Product: ${searchName}\n\nScraped retailer pages:\n${scrapedContent}\n\nExtract prices from direct retailers only. Exclude any comparison or aggregator sites. Only include results for the EXACT product and colorway specified above.`,
           },
         ],
         tools: [
@@ -498,18 +506,23 @@ CRITICAL RULES:
 
     const fallbackMapped = buildFallbackResults(dedupedResults, priceFloor);
 
-    // Merge AI + deterministic fallback, keep cheapest per retailer
-    const mergedByRetailer = new Map<string, any>();
+    // Merge AI + deterministic fallback, keep cheapest per domain (not retailer name)
+    const mergedByDomain = new Map<string, any>();
     for (const entry of [...mapped, ...fallbackMapped]) {
-      const key = normalizeRetailerName(entry.retailer);
-      if (!key) continue;
-      const existing = mergedByRetailer.get(key);
+      let domainKey: string;
+      try {
+        domainKey = new URL(entry.url).hostname.replace(/^www\./, "");
+      } catch {
+        domainKey = normalizeRetailerName(entry.retailer);
+      }
+      if (!domainKey) continue;
+      const existing = mergedByDomain.get(domainKey);
       if (!existing || entry.totalYouPay < existing.totalYouPay) {
-        mergedByRetailer.set(key, entry);
+        mergedByDomain.set(domainKey, entry);
       }
     }
 
-    const sorted = Array.from(mergedByRetailer.values())
+    const sorted = Array.from(mergedByDomain.values())
       .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay)
       .map((r: any, i: number) => ({ ...r, rank: i + 1 }));
 
