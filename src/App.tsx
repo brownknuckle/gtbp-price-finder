@@ -7,7 +7,7 @@ import { AnimatePresence } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import Index from "./pages/Index";
 import Results from "./pages/Results";
-// Detail page removed — was using mock data
+
 import Watchlist from "./pages/Watchlist";
 import NotFound from "./pages/NotFound";
 

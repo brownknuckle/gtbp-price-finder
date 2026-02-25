@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Star, Loader2, ExternalLink } from "lucide-react";
+import { Star, Loader2, ExternalLink, Heart } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { scrapePrices, searchProduct, type PriceResult, type ProductInfo } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useWatchlist } from "@/hooks/useWatchlist";
 import PageTransition from "@/components/PageTransition";
 
 type SortKey = "price" | "delivery" | "trust";
@@ -20,6 +21,9 @@ const Results = () => {
   const location = useLocation();
   const query = searchParams.get("q") || "";
   const stateProduct = (location.state as any)?.product as ProductInfo | undefined;
+  const stateSizing = (location.state as any)?.sizing as {
+    gender: string; sizeType: string; sizeRegion: string; size: string;
+  } | undefined;
 
   const [product, setProduct] = useState<ProductInfo | undefined>(stateProduct);
   const [results, setResults] = useState<PriceResult[]>([]);
@@ -30,6 +34,7 @@ const Results = () => {
   const [activeRetailer, setActiveRetailer] = useState(0);
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<"identifying" | "scraping" | "done">("identifying");
+  const { add: addToWatchlist, isInWatchlist } = useWatchlist();
   useEffect(() => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
@@ -51,7 +56,8 @@ const Results = () => {
 
         setPhase("scraping");
         setProgress(5);
-        const data = await scrapePrices(prod.product_name, prod.retailers);
+        const sizeStr = stateSizing ? ` ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}` : "";
+        const data = await scrapePrices(prod.product_name + sizeStr, prod.retailers);
         setPhase("done");
         setProgress(100);
         setResults(data);
@@ -112,13 +118,37 @@ const Results = () => {
     <PageTransition>
       <div className="mx-auto max-w-3xl px-4 py-6">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-xl font-bold text-foreground">
-            {product?.product_name || query}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {product?.brand} · {product?.category}
-          </p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-foreground">
+              {product?.product_name || query}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {product?.brand} · {product?.category}
+              {stateSizing && ` · ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}`}
+            </p>
+          </div>
+          {product && !isLoading && (
+            <Button
+              variant={isInWatchlist(product.product_name) ? "default" : "outline"}
+              size="sm"
+              className="gap-1.5 shrink-0"
+              onClick={() => {
+                if (!isInWatchlist(product.product_name)) {
+                  addToWatchlist({
+                    product_name: product.product_name,
+                    brand: product.brand,
+                    category: product.category,
+                    best_price: sorted[0]?.totalYouPay,
+                  });
+                }
+              }}
+              disabled={isInWatchlist(product.product_name)}
+            >
+              <Heart className={`h-4 w-4 ${isInWatchlist(product.product_name) ? "fill-current" : ""}`} />
+              {isInWatchlist(product.product_name) ? "Saved" : "Save"}
+            </Button>
+          )}
         </div>
 
         {/* Controls */}

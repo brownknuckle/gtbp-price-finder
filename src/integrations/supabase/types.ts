@@ -38,6 +38,48 @@ export type Database = {
         }
         Relationships: []
       }
+      watchlist: {
+        Row: {
+          best_price: number | null
+          brand: string | null
+          category: string | null
+          created_at: string
+          id: string
+          previous_price: number | null
+          product_name: string
+          retailers: Json | null
+          search_query: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          best_price?: number | null
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          previous_price?: number | null
+          product_name: string
+          retailers?: Json | null
+          search_query?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          best_price?: number | null
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          previous_price?: number | null
+          product_name?: string
+          retailers?: Json | null
+          search_query?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
