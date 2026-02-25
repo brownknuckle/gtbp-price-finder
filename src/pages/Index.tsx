@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, ArrowRight, Loader2, ShieldCheck, Zap, Globe, Camera, X } from "lucide-react";
+import { Search, ArrowRight, Loader2, ShieldCheck, Zap, Globe, Camera, X, CheckCircle, AlertTriangle, Edit3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { sizeOptions, shoeSizes, type SizeRegion } from "@/lib/mockData";
-import { searchProduct } from "@/lib/api";
+import { searchProduct, type ProductInfo } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import PageTransition from "@/components/PageTransition";
 
@@ -34,6 +34,9 @@ const Index = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [pendingProduct, setPendingProduct] = useState<ProductInfo | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,8 +74,8 @@ const Index = () => {
       toast({ title: "Invalid file", description: "Please upload an image file.", variant: "destructive" });
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Max 5MB image size.", variant: "destructive" });
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Max 10MB image size.", variant: "destructive" });
       return;
     }
     const reader = new FileReader();
@@ -89,6 +92,8 @@ const Index = () => {
   const clearImage = () => {
     setImagePreview(null);
     setImageBase64(null);
+    setPendingProduct(null);
+    setEditingName(false);
   };
 
   const handleSearch = async (searchQuery?: string) => {
@@ -102,6 +107,15 @@ const Index = () => {
 
     try {
       const product = await searchProduct(q || "Identify this product", imageBase64 || undefined);
+
+      // If image search, show confirmation step instead of navigating immediately
+      if (imageBase64 && !pendingProduct) {
+        setPendingProduct(product);
+        setEditedName(product.product_name);
+        setIsSearching(false);
+        return;
+      }
+
       navigate(`/results?q=${encodeURIComponent(product.product_name || q)}`, {
         state: { product },
       });
@@ -113,6 +127,35 @@ const Index = () => {
       });
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleConfirmProduct = () => {
+    if (!pendingProduct) return;
+    const finalProduct = { ...pendingProduct, product_name: editedName || pendingProduct.product_name };
+    navigate(`/results?q=${encodeURIComponent(finalProduct.product_name)}`, {
+      state: { product: finalProduct },
+    });
+  };
+
+  const handleRejectAndRetry = async () => {
+    setPendingProduct(null);
+    setEditingName(false);
+    // Re-search with the edited name as a text query for better accuracy
+    if (editedName && editedName !== pendingProduct?.product_name) {
+      setQuery(editedName);
+      clearImage();
+      setIsSearching(true);
+      try {
+        const product = await searchProduct(editedName);
+        navigate(`/results?q=${encodeURIComponent(product.product_name)}`, {
+          state: { product },
+        });
+      } catch (e: any) {
+        toast({ title: "Search failed", description: e.message, variant: "destructive" });
+      } finally {
+        setIsSearching(false);
+      }
     }
   };
 
@@ -150,7 +193,7 @@ const Index = () => {
             >
               {/* Image preview */}
               <AnimatePresence>
-                {imagePreview && (
+                {imagePreview && !pendingProduct && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
@@ -162,6 +205,75 @@ const Index = () => {
                     <button onClick={clearImage} className="rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-foreground">
                       <X className="h-4 w-4" />
                     </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Confirmation step after image identification */}
+              <AnimatePresence>
+                {pendingProduct && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-3 rounded-lg border border-primary/30 bg-primary/5 p-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      {imagePreview && (
+                        <img src={imagePreview} alt="Identified product" className="h-16 w-16 rounded-md object-cover" />
+                      )}
+                      <div className="flex-1">
+                        <div className="mb-1 flex items-center gap-2">
+                          {pendingProduct.confidence >= 0.8 ? (
+                            <CheckCircle className="h-4 w-4 text-primary" />
+                          ) : (
+                            <AlertTriangle className="h-4 w-4 text-destructive" />
+                          )}
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {pendingProduct.confidence >= 0.8 ? "High confidence match" : "Low confidence — please verify"}
+                            {" "}({Math.round(pendingProduct.confidence * 100)}%)
+                          </span>
+                        </div>
+
+                        {editingName ? (
+                          <Input
+                            value={editedName}
+                            onChange={(e) => setEditedName(e.target.value)}
+                            className="mb-2 h-9 text-sm font-semibold"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") setEditingName(false);
+                            }}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => setEditingName(true)}
+                            className="mb-2 flex items-center gap-1.5 text-left text-sm font-semibold text-foreground hover:text-primary"
+                          >
+                            {editedName || pendingProduct.product_name}
+                            <Edit3 className="h-3 w-3 text-muted-foreground" />
+                          </button>
+                        )}
+
+                        {pendingProduct.identification_notes && (
+                          <p className="mb-2 text-[11px] text-muted-foreground">{pendingProduct.identification_notes}</p>
+                        )}
+
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={handleConfirmProduct} className="h-8 gap-1 text-xs">
+                            <CheckCircle className="h-3 w-3" />
+                            Correct — Search Prices
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={handleRejectAndRetry} className="h-8 gap-1 text-xs">
+                            <Edit3 className="h-3 w-3" />
+                            Wrong — Use Edited Name
+                          </Button>
+                          <button onClick={clearImage} className="ml-auto rounded-full p-1 text-muted-foreground hover:bg-secondary hover:text-foreground">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
