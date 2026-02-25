@@ -176,7 +176,7 @@ serve(async (req) => {
 
     if (hasSufficientCachedResults) {
       console.log(`Cache hit for: ${cacheKey} (${cachedResults.length} results)`);
-      return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true }), {
+      return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cached!.created_at }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
