@@ -1,12 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Price comparison / aggregator domains to exclude
+// ─── Constants ───────────────────────────────────────────────
 const EXCLUDED_DOMAINS = [
   "pricespy", "pricerunner", "idealo", "shopzilla", "bizrate",
   "google.com/shopping", "shopping.google", "kelkoo", "nextag",
@@ -14,113 +15,18 @@ const EXCLUDED_DOMAINS = [
   "keepa.com", "prisjakt", "pricehunter",
 ];
 
-// UK-headquartered retailers that use .com domains
 const UK_COM_RETAILERS = new Set([
   "asos.com", "flannels.com", "footasylum.com", "endclothing.com",
   "selfridges.com", "harveynichols.com", "mrporter.com", "matchesfashion.com",
   "farfetch.com", "sportsdirect.com", "jdsports.com", "very.co.uk",
 ]);
 
-const MIN_CACHE_RESULTS = 6;
-
-function isComparisonSite(url: string): boolean {
-  const lower = url.toLowerCase();
-  return EXCLUDED_DOMAINS.some(d => lower.includes(d));
-}
-
-// URL path patterns that indicate category/collection/brand listing pages, NOT product pages
 const NON_PRODUCT_PATH_PATTERNS = [
-  /\/collection\//i,
-  /\/collections\//i,
-  /\/category\//i,
-  /\/categories\//i,
-  /\/brand\//i,
-  /\/brands\//i,
-  /\/release-dates?\//i,
-  /\/search[?/]/i,
-  /\/shop\/[^/]*$/i, // bare /shop/brand but not /shop/brand/product
-  /\/cat\//i,         // ASOS-style category pages
-  /\/cat\?/i,
-  /\/silhouette\//i,  // GOAT silhouette listing pages
-  /\/refine\//i,
-  /^\/b\/bn_/i,       // eBay browse/category pages (/b/bn_xxxx)
-  /^\/b\/[^/]+$/i,    // eBay bare browse pages (/b/something)
+  /\/collection\//i, /\/collections\//i, /\/category\//i, /\/categories\//i,
+  /\/brand\//i, /\/brands\//i, /\/release-dates?\//i, /\/search[?/]/i,
+  /\/shop\/[^/]*$/i, /\/cat\//i, /\/cat\?/i, /\/silhouette\//i, /\/refine\//i,
+  /^\/b\/bn_/i, /^\/b\/[^/]+$/i,
 ];
-
-function isLikelyProductPage(url: string): boolean {
-  try {
-    const { pathname } = new URL(url);
-    // If path matches a known non-product pattern, reject
-    if (NON_PRODUCT_PATH_PATTERNS.some(p => p.test(pathname))) return false;
-    // Very short paths like /brand or /adidas are almost never product pages
-    const segments = pathname.split("/").filter(Boolean);
-    if (segments.length < 2) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function normalizeRetailerDomain(input: string): string | null {
-  const cleaned = (input || "")
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, "")
-    .replace(/^www\./, "")
-    .split("/")[0]
-    .replace(/\s+/g, "");
-
-  if (!cleaned || !cleaned.includes(".")) return null;
-  if (!/^[a-z0-9.-]+$/.test(cleaned)) return null;
-  return cleaned;
-}
-
-function normalizeRetailerName(name: string): string {
-  return (name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function extractFirstGbpPrice(text: string): number | null {
-  const normalized = (text || "").replace(/,/g, "");
-  const gbpMatch = normalized.match(/£\s?(\d+(?:\.\d{1,2})?)/i);
-  if (gbpMatch) return Number(gbpMatch[1]);
-
-  const codeMatch = normalized.match(/(\d+(?:\.\d{1,2})?)\s?(?:GBP)/i);
-  if (codeMatch) return Number(codeMatch[1]);
-
-  return null;
-}
-
-function retailerNameFromUrl(url: string): string {
-  try {
-    const hostname = new URL(url).hostname.replace(/^www\./, "");
-    const root = hostname.split(".")[0].replace(/[-_]+/g, " ");
-    return root
-      .split(" ")
-      .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ") || "Unknown Retailer";
-  } catch {
-    return "Unknown Retailer";
-  }
-}
-
-function buildSourceSnippet(source: any): string {
-  const raw = `${source?.markdown || ""}\n${source?.description || ""}`.trim();
-  if (!raw) return "No content";
-
-  const lines = raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const relevant = lines
-    .filter((line) => /£|\bgbp\b|\$|€|sale|now|was|in stock|out of stock|add to bag|add to cart/i.test(line))
-    .slice(0, 16);
-
-  return (relevant.length ? relevant.join("\n") : raw).slice(0, 900);
-}
-
-const MIN_REALISTIC_PRICE = 30; // Absolute floor — further refined by estimated_retail_price when available
 
 const PRODUCT_STOPWORDS = new Set([
   "shoes", "shoe", "trainers", "trainer", "sneakers", "sneaker",
@@ -133,106 +39,185 @@ const COLOR_TOKENS = new Set([
   "brown", "grey", "gray", "beige", "cream", "navy", "khaki", "tan", "silver", "gold",
 ]);
 
-// Adjective/qualifier tokens that often prefix colors but shouldn't count as colors themselves
 const COLOR_QUALIFIERS = new Set(["core", "cloud", "dark", "light", "bright", "pale", "deep"]);
+
+const MIN_REALISTIC_PRICE = 30;
+const MIN_CACHE_RESULTS = 6;
+
+// Known Trustpilot ratings for popular retailers
+const TRUST_RATINGS: Record<string, number> = {
+  "nike.com": 1.6, "adidas.co.uk": 1.5, "adidas.com": 1.5,
+  "jdsports.co.uk": 1.9, "footlocker.co.uk": 1.7, "asos.com": 4.0,
+  "endclothing.com": 4.1, "size.co.uk": 1.7, "offspring.co.uk": 1.8,
+  "schuh.co.uk": 4.4, "amazon.co.uk": 4.0, "ebay.co.uk": 3.5,
+  "flannels.com": 4.2, "selfridges.com": 2.3, "footasylum.com": 4.0,
+  "sportsdirect.com": 4.0, "stockx.com": 4.4, "goat.com": 3.0,
+  "office.co.uk": 4.1, "solebox.com": 2.5, "sneakersnstuff.com": 3.8,
+};
+
+// ─── Helpers ─────────────────────────────────────────────────
+function isComparisonSite(url: string): boolean {
+  const lower = url.toLowerCase();
+  return EXCLUDED_DOMAINS.some((d) => lower.includes(d));
+}
+
+function isLikelyProductPage(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const { pathname, search } = parsed;
+    if (NON_PRODUCT_PATH_PATTERNS.some((p) => p.test(pathname))) return false;
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments.length < 2) return false;
+    // Reject search result pages (e.g. ?q=xxx, ?search=xxx)
+    if (/[?&](q|query|search|s)=/i.test(search)) return false;
+    // Reject brand-only category pages like /adidas/adidas-originals (no product slug with numbers/SKU)
+    const lastSegment = segments[segments.length - 1];
+    const hasProductIdentifier = /\d/.test(lastSegment) || lastSegment.length > 15 || segments.length >= 3;
+    if (!hasProductIdentifier) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeRetailerDomain(input: string): string | null {
+  const cleaned = (input || "").trim().toLowerCase()
+    .replace(/^https?:\/\//, "").replace(/^www\./, "")
+    .split("/")[0].replace(/\s+/g, "");
+  if (!cleaned || !cleaned.includes(".")) return null;
+  if (!/^[a-z0-9.-]+$/.test(cleaned)) return null;
+  return cleaned;
+}
+
+function extractDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+function retailerNameFromDomain(domain: string): string {
+  const root = domain.split(".")[0].replace(/[-_]+/g, " ");
+  return root.split(" ").filter(Boolean)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(" ") || "Unknown Retailer";
+}
+
+function isUkDomain(domain: string): boolean {
+  return domain.endsWith(".uk") || domain.includes(".co.uk") || UK_COM_RETAILERS.has(domain);
+}
 
 function extractAllGbpPrices(text: string): number[] {
   const normalized = (text || "").replace(/,/g, "");
   const values: number[] = [];
-
-  const gbpSymbolMatches = normalized.matchAll(/£\s?(\d{1,4}(?:\.\d{1,2})?)/gi);
-  for (const match of gbpSymbolMatches) {
-    const value = Number(match[1]);
-    if (!Number.isNaN(value) && value >= MIN_REALISTIC_PRICE && value <= 5000) values.push(value);
+  for (const match of normalized.matchAll(/£\s?(\d{1,4}(?:\.\d{1,2})?)/gi)) {
+    const v = Number(match[1]);
+    if (!Number.isNaN(v) && v >= 5 && v <= 5000) values.push(v);
   }
-
-  const gbpCodeMatches = normalized.matchAll(/(\d{1,4}(?:\.\d{1,2})?)\s?(?:GBP)/gi);
-  for (const match of gbpCodeMatches) {
-    const value = Number(match[1]);
-    if (!Number.isNaN(value) && value >= MIN_REALISTIC_PRICE && value <= 5000) values.push(value);
+  for (const match of normalized.matchAll(/(\d{1,4}(?:\.\d{1,2})?)\s?(?:GBP)/gi)) {
+    const v = Number(match[1]);
+    if (!Number.isNaN(v) && v >= 5 && v <= 5000) values.push(v);
   }
-
   return Array.from(new Set(values.map((v) => Number(v.toFixed(2)))));
 }
 
 function tokenizeProductName(productName: string): string[] {
-  return (productName || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s/-]/g, " ")
-    .replace(/[/-]/g, " ")
+  return (productName || "").toLowerCase()
+    .replace(/[^a-z0-9\s/-]/g, " ").replace(/[/-]/g, " ")
     .split(/\s+/)
-    .filter((token) => token.length > 1 && !PRODUCT_STOPWORDS.has(token));
+    .filter((t) => t.length > 1 && !PRODUCT_STOPWORDS.has(t));
+}
+
+function matchesProduct(productName: string, url: string, text: string, title?: string): boolean {
+  const fullHaystack = `${url}\n${text}`.toLowerCase();
+  const tokens = tokenizeProductName(productName);
+  if (!tokens.length) return true;
+
+  const mainTokens = tokens.filter((t) => !COLOR_QUALIFIERS.has(t));
+  const matchedTokens = mainTokens.filter((t) => fullHaystack.includes(t));
+
+  // Need brand + model at minimum
+  const required = mainTokens.length <= 3
+    ? Math.max(1, mainTokens.length - 1)
+    : Math.max(2, Math.ceil(mainTokens.length * 0.4));
+  if (matchedTokens.length < required) return false;
+
+  // Color check: use URL + title + first 300 chars of text (NOT full markdown which may mention other colorways)
+  const colors = mainTokens.filter((t) => COLOR_TOKENS.has(t));
+  if (colors.length > 0) {
+    const colorHaystack = `${url}\n${title || ""}\n${text.slice(0, 300)}`.toLowerCase();
+    const matchedColors = colors.filter((c) => colorHaystack.includes(c));
+    if (matchedColors.length < colors.length) return false;
+  }
+
+  return true;
 }
 
 function isOutOfStock(text: string): boolean {
   return /\b(sold out|out of stock|currently unavailable|notify me when available)\b/i.test(text || "");
 }
 
-function matchesRequestedProduct(productName: string, url: string, pageText: string): boolean {
-  const haystack = `${url}\n${pageText}`.toLowerCase();
-  const tokens = tokenizeProductName(productName);
-  if (!tokens.length) return true;
-
-  // Filter out color qualifiers from main token matching
-  const mainTokens = tokens.filter((t) => !COLOR_QUALIFIERS.has(t));
-  const matchedTokens = mainTokens.filter((token) => haystack.includes(token));
-
-  // Need at least the brand + model name tokens
-  const requiredTokenMatches = mainTokens.length <= 3
-    ? Math.max(1, mainTokens.length - 1)
-    : Math.max(2, Math.ceil(mainTokens.length * 0.4));
-
-  if (matchedTokens.length < requiredTokenMatches) return false;
-
-  // Color check: require at least 1 actual color (not qualifier) to match
-  const colors = mainTokens.filter((token) => COLOR_TOKENS.has(token));
-  if (colors.length > 0) {
-    const matchedColors = colors.filter((color) => haystack.includes(color));
-    if (matchedColors.length === 0) return false;
-  }
-
-  return true;
+function getTrustRating(domain: string): number {
+  return TRUST_RATINGS[domain] || 4.0;
 }
 
-function buildFallbackResults(sources: any[], priceFloor: number = MIN_REALISTIC_PRICE): any[] {
-  return sources
-    .map((source: any) => {
-      const url = source?.url || "";
-      if (!url || isComparisonSite(url) || !isLikelyProductPage(url)) return null;
+// ─── Price extraction from a single Firecrawl search result ──
+function extractResultFromSource(
+  source: { url: string; markdown?: string; description?: string; title?: string },
+  productName: string,
+  priceFloor: number
+): any | null {
+  const url = source.url;
+  if (!url || isComparisonSite(url) || !isLikelyProductPage(url)) return null;
 
-      const text = `${source?.markdown || ""}\n${source?.description || ""}`;
-      const itemPrice = extractFirstGbpPrice(text);
-      if (itemPrice === null || Number.isNaN(itemPrice) || itemPrice < priceFloor) return null;
+  const domain = extractDomain(url);
+  if (!domain) return null;
 
-      let hostname = "";
-      try {
-        hostname = new URL(url).hostname.replace(/^www\./, "");
-      } catch {
-        return null;
-      }
+  const content = `${source.title || ""}\n${source.markdown || ""}\n${source.description || ""}`;
 
-      const isUk = hostname.endsWith(".uk") || hostname.includes(".co.uk") || UK_COM_RETAILERS.has(hostname);
-      const shipping = isUk ? 4.99 : 12.99;
-      const duties = isUk ? 0 : Number((itemPrice * 0.2).toFixed(2));
+  // Check product match
+  if (!matchesProduct(productName, url, content)) return null;
 
-      return {
-        retailer: retailerNameFromUrl(url),
-        country: isUk ? "UK" : "International",
-        flag: isUk ? "🇬🇧" : "🌍",
-        itemPrice,
-        shipping,
-        duties,
-        totalYouPay: Number((itemPrice + shipping + duties).toFixed(2)),
-        originalPrice: null,
-        delivery: isUk ? "2-5 days" : "7-14 days",
-        trustRating: 4.0,
-        currency: "GBP",
-        url,
-      };
-    })
-    .filter(Boolean);
+  // Check not sold out
+  if (isOutOfStock(content)) return null;
+
+  // Extract prices from the ACTUAL scraped content
+  const prices = extractAllGbpPrices(content).filter((p) => p >= priceFloor);
+  if (!prices.length) return null;
+
+  // Pick the most likely current/sale price (lowest reasonable price above floor)
+  const sortedPrices = prices.sort((a, b) => a - b);
+  const itemPrice = sortedPrices[0];
+
+  // Check if there's an original/RRP price (must be plausible — within 3x of item price)
+  const candidateOriginal = sortedPrices.length > 1 ? sortedPrices[sortedPrices.length - 1] : null;
+  const originalPrice = candidateOriginal && candidateOriginal > itemPrice * 1.1 && candidateOriginal < itemPrice * 3
+    ? candidateOriginal
+    : null;
+
+  const uk = isUkDomain(domain);
+  const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
+  const duties = uk ? 0 : Number((itemPrice * 0.2).toFixed(2));
+  const totalYouPay = Number((itemPrice + shipping + duties).toFixed(2));
+
+  return {
+    retailer: retailerNameFromDomain(domain),
+    country: uk ? "UK" : "International",
+    flag: uk ? "🇬🇧" : "🌍",
+    itemPrice,
+    shipping,
+    duties,
+    totalYouPay,
+    originalPrice,
+    delivery: uk ? "2-5 days" : "7-14 days",
+    trustRating: getTrustRating(domain),
+    currency: "GBP",
+    url,  // ALWAYS the real URL from Firecrawl, never AI-generated
+  };
 }
 
+// ─── Main handler ────────────────────────────────────────────
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -241,8 +226,7 @@ serve(async (req) => {
 
     if (!product_name || !Array.isArray(retailers) || !retailers.length) {
       return new Response(JSON.stringify({ error: "product_name and retailers are required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -252,27 +236,24 @@ serve(async (req) => {
 
     if (!normalizedRetailers.length) {
       return new Response(JSON.stringify({ error: "No valid retailer domains provided" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Strip sizing info for search queries (keep for display only)
+    // Strip sizing info for search queries
     const searchName = product_name
       .replace(/\b(men'?s?|women'?s?|unisex)\b/gi, "")
       .replace(/\b(UK|US|EU)\s*\d+\.?\d*/gi, "")
       .replace(/\bsize\s*\d+\.?\d*/gi, "")
-      .replace(/\s{2,}/g, " ")
-      .trim();
+      .replace(/\s{2,}/g, " ").trim();
 
-    // Check cache first
+    // ── Cache check ──
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, supabaseKey);
     const cacheKey = searchName.toLowerCase().trim();
 
     let cachedResults: any[] = [];
-    let hasSufficientCachedResults = false;
     let cachedCreatedAt: string | undefined;
 
     if (!skip_cache) {
@@ -284,429 +265,153 @@ serve(async (req) => {
         .maybeSingle();
 
       cachedResults = Array.isArray(cached?.results) ? cached.results : [];
-      hasSufficientCachedResults = cachedResults.length >= MIN_CACHE_RESULTS;
       cachedCreatedAt = cached?.created_at;
-    } else {
-      console.log(`Cache bypass requested for: ${cacheKey}`);
+
+      if (cachedResults.length >= MIN_CACHE_RESULTS) {
+        console.log(`Cache hit for: ${cacheKey} (${cachedResults.length} results)`);
+        return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cachedCreatedAt }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
-    if (hasSufficientCachedResults) {
-      console.log(`Cache hit for: ${cacheKey} (${cachedResults.length} results)`);
-      return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cachedCreatedAt }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (cachedResults.length > 0) {
-      console.log(`Low-quality cache hit for: ${cacheKey} (${cachedResults.length} results), refreshing`);
-    } else {
-      console.log("Cache miss for:", cacheKey);
-    }
-
+    // ── Firecrawl search ──
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     if (!FIRECRAWL_API_KEY) throw new Error("FIRECRAWL_API_KEY not configured");
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const doSearch = async (query: string, limit: number) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
-
       try {
         const response = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
-            "Content-Type": "application/json",
-          },
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
           signal: controller.signal,
-          body: JSON.stringify({
-            query,
-            limit,
-            lang: "en",
-            country: "gb",
-            scrapeOptions: { formats: ["markdown"] },
-          }),
+          body: JSON.stringify({ query, limit, lang: "en", country: "gb", scrapeOptions: { formats: ["markdown"] } }),
         });
-
         return await response.json();
-      } catch {
-        return { data: [] };
-      } finally {
-        clearTimeout(timeout);
-      }
-    };
-
-    const scrapeProductPage = async (url: string): Promise<string> => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-
-      try {
-        const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          signal: controller.signal,
-          body: JSON.stringify({
-            url,
-            formats: ["markdown"],
-            onlyMainContent: true,
-            location: { country: "GB", languages: ["en"] },
-          }),
-        });
-
-        if (!response.ok) return "";
-        const data = await response.json();
-        const markdown = data?.data?.markdown || data?.markdown || "";
-        const description = data?.data?.metadata?.description || data?.metadata?.description || "";
-        return `${markdown}\n${description}`.slice(0, 14000);
-      } catch {
-        return "";
-      } finally {
-        clearTimeout(timeout);
-      }
+      } catch { return { data: [] }; }
+      finally { clearTimeout(timeout); }
     };
 
     console.log(`Searching for: "${searchName}" across ${normalizedRetailers.length} retailers`);
 
-    // Batch retailers into groups for efficient API fan-out
-    const allResults: any[] = [];
+    // ── Build search queries ──
     const seenUrls = new Set<string>();
+    const allSources: any[] = [];
 
+    // Batch retailer-specific searches
     const BATCH_SIZE = 8;
     const retailerBatches: string[][] = [];
     for (let i = 0; i < normalizedRetailers.length; i += BATCH_SIZE) {
       retailerBatches.push(normalizedRetailers.slice(i, i + BATCH_SIZE));
     }
 
-    // Build batched queries using cleaned search name (no sizing info)
-    const batchPromises = retailerBatches.map((batch: string[]) => {
-      const siteQuery = batch.map((r: string) => `site:${r}`).join(" OR ");
+    const batchPromises = retailerBatches.map((batch) => {
+      const siteQuery = batch.map((r) => `site:${r}`).join(" OR ");
       return doSearch(`${searchName} buy price £ ${siteQuery}`, Math.min(batch.length * 3, 24));
     });
 
-    // Broad fallback searches + dedicated UK sweep
-    const broadPromise1 = doSearch(`${searchName} buy UK price GBP £`, 15);
-    const broadPromise2 = doSearch(`"${searchName}" shop price £`, 10);
-    const broadPromise3 = doSearch(`${searchName} trainers price`, 8);
-    const ukSweep1 = doSearch(`"${searchName}" buy £ site:.co.uk`, 20);
-    const ukSweep2 = doSearch(`${searchName} price £ site:.co.uk OR site:.uk`, 15);
+    // Broad searches for coverage
+    const broadSearches = [
+      doSearch(`${searchName} buy UK price GBP £`, 15),
+      doSearch(`"${searchName}" shop price £`, 10),
+      doSearch(`${searchName} trainers price`, 8),
+      doSearch(`"${searchName}" buy £ site:.co.uk`, 20),
+      doSearch(`${searchName} price £ site:.co.uk OR site:.uk`, 15),
+    ];
 
-    const allSearchResults = await Promise.all([
-      ...batchPromises, broadPromise1, broadPromise2, broadPromise3, ukSweep1, ukSweep2,
-    ]);
+    const allSearchResults = await Promise.all([...batchPromises, ...broadSearches]);
 
     for (const result of allSearchResults) {
       for (const item of (result.data || [])) {
-        if (item.url && !seenUrls.has(item.url) && !isComparisonSite(item.url) && isLikelyProductPage(item.url)) {
+        if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
-          allResults.push(item);
+          allSources.push(item);
         }
       }
     }
 
-    console.log(`Pass 1: Found ${allResults.length} sources from ${normalizedRetailers.length} retailers`);
+    console.log(`Firecrawl returned ${allSources.length} unique URLs`);
 
-    // Deduplicate by domain
-    const byDomain = new Map<string, any>();
-    for (const r of allResults) {
-      try {
-        const domain = new URL(r.url).hostname.replace("www.", "");
-        if (!byDomain.has(domain)) byDomain.set(domain, r);
-      } catch { /* skip */ }
-    }
-
-    // --- Pass 2: Gap-fill missing UK retailers ---
-    const ukRetailers = normalizedRetailers.filter(
-      (r) => r.endsWith(".uk") || r.includes(".co.uk")
+    // ── Gap-fill missing UK retailers ──
+    const coveredDomains = new Set(allSources.map((s) => extractDomain(s.url)).filter(Boolean));
+    const missingUk = normalizedRetailers.filter(
+      (r) => (r.endsWith(".uk") || r.includes(".co.uk")) && !coveredDomains.has(r)
     );
-    const coveredDomains = new Set(byDomain.keys());
-    const missingUk = ukRetailers.filter((r) => !coveredDomains.has(r));
 
     if (missingUk.length > 0) {
-      console.log(`Pass 2: Gap-filling ${missingUk.length} missing UK retailers: ${missingUk.join(", ")}`);
-
-      // Run targeted searches for missing UK retailers in small batches
+      console.log(`Gap-filling ${missingUk.length} missing UK retailers`);
       const GAP_BATCH = 4;
       const gapBatches: string[][] = [];
       for (let i = 0; i < missingUk.length; i += GAP_BATCH) {
         gapBatches.push(missingUk.slice(i, i + GAP_BATCH));
       }
-
-      const gapPromises = gapBatches.map((batch) => {
+      const gapResults = await Promise.all(gapBatches.map((batch) => {
         const siteQuery = batch.map((r) => `site:${r}`).join(" OR ");
         return doSearch(`${searchName} ${siteQuery}`, batch.length * 3);
-      });
-
-      const gapResults = await Promise.all(gapPromises);
-      let gapFound = 0;
+      }));
       for (const result of gapResults) {
         for (const item of (result.data || [])) {
-          if (item.url && !seenUrls.has(item.url) && !isComparisonSite(item.url)) {
+          if (item.url && !seenUrls.has(item.url)) {
             seenUrls.add(item.url);
-            try {
-              const domain = new URL(item.url).hostname.replace("www.", "");
-              if (!byDomain.has(domain)) {
-                byDomain.set(domain, item);
-                gapFound++;
-              }
-            } catch { /* skip */ }
+            allSources.push(item);
           }
         }
       }
-      console.log(`Pass 2: Filled ${gapFound} additional UK retailers`);
     }
 
-    const dedupedResults = Array.from(byDomain.values()).slice(0, 50);
-
-    console.log(`Deduped to ${dedupedResults.length} unique retailer domains`);
-
-    const scrapedContent = dedupedResults
-      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${buildSourceSnippet(r)}`)
-      .join("\n\n---\n\n");
-
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are a price extraction expert. Given scraped web content from DIRECT RETAILER websites, extract real prices.
-
-CRITICAL RULES:
-- Extract ALL retailers where an EXACT price is clearly stated in the scraped text. Aim for 8-15+ results.
-- ONLY use prices that are EXPLICITLY written in the scraped content. If you cannot find a specific number in the text, DO NOT include that retailer.
-- NEVER estimate, guess, or infer a price. If the scraped content says "£83" or "50% off £165" → use £83 as the item_price.
-- If a page shows both a sale price and original price, ALWAYS use the SALE / current price as item_price and set original_price to the higher original/RRP price.
-- ONLY return results from actual retailers (e.g. Nike, JD Sports, Foot Locker, END., ASOS, Size?, Offspring, Schuh, Selfridges, Flannels, StockX, GOAT, etc.)
-- NEVER include price comparison or aggregator sites (PriceSpy, Pricerunner, Idealo, Google Shopping, Kelkoo, etc.)
-- Each result must link to a SPECIFIC PRODUCT PAGE where the user can actually buy the item.
-- NEVER return URLs that point to category pages, collection pages, brand listing pages, search results, or release-date pages. The URL must be for ONE specific product, not a list of products.
-- URLs containing /collection/, /category/, /brand/, /brands/, /release-dates/ are NOT product pages — exclude them.
-
-PRODUCT MATCHING — VERY IMPORTANT:
-- You MUST only return results for the EXACT product and colorway/variant specified. The product name includes the colorway (e.g. "Black/White", "Core Black/Cloud White").
-- Do NOT return results for different colorways of the same shoe (e.g. if searching for Black/White Samba, do NOT include White/Black, Cloud White, or any other color variant).
-- Do NOT return results for a different gender version unless it is the same product (e.g. do not return Women's if the search is for unisex/men's).
-- If a URL or page title clearly indicates a DIFFERENT colorway or variant, EXCLUDE it.
-- When in doubt whether a result matches the exact product, EXCLUDE it. Precision matters more than quantity.
-
-- The user is based in the UK. Convert all prices to GBP (£).
-- For UK retailers, duties = £0 (VAT included). For non-UK retailers, estimate shipping + duties to UK.
-- For trust_rating, use the retailer's Trustpilot score (1-5). Estimate if unknown.
-- Always prefer UK versions of retailers (nike.com/gb, endclothing.com/gb, etc.)
-- The retailer field must contain ONLY the store name (e.g. "Nike UK", "JD Sports", "END."). Do NOT include prices, fields, or metadata in the retailer name.
-- If a page shows "SOLD OUT" or "OUT OF STOCK", do NOT include that retailer.
-- EXCLUDE children's, baby, toddler, or infant versions of the product. Only include ADULT sizes.
-- Prices below £30 for shoes or £15 for accessories are almost certainly wrong — skip them.
-- Do NOT return duplicate retailers. If the same store appears multiple times (e.g. "Amazon" and "Amazon UK"), only include the one with the best price.`,
-          },
-          {
-            role: "user",
-            content: `Product: ${searchName}\n\nScraped retailer pages:\n${scrapedContent}\n\nExtract prices from direct retailers only. Exclude any comparison or aggregator sites. Only include results for the EXACT product and colorway specified above.`,
-          },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "extract_prices",
-              description: "Extract structured price data from direct retailer pages only",
-              parameters: {
-                type: "object",
-                properties: {
-                  results: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        retailer: { type: "string", description: "Direct retailer name (e.g. 'Nike UK', 'JD Sports', 'END.') — never a comparison site" },
-                        country: { type: "string", description: "Country of retailer" },
-                        flag: { type: "string", description: "Country flag emoji" },
-                        item_price: { type: "number", description: "Item price in GBP" },
-                        shipping: { type: "number", description: "Estimated shipping cost to UK in GBP" },
-                        duties: { type: "number", description: "Import duties/VAT for UK delivery in GBP (£0 for UK retailers)" },
-                        total: { type: "number", description: "Total you pay in GBP" },
-                        delivery: { type: "string", description: "Estimated delivery time to UK" },
-                        trust_rating: { type: "number", description: "Trustpilot rating 1-5" },
-                        currency: { type: "string", description: "Original currency code" },
-                        url: { type: "string", description: "Direct product page URL on retailer site" },
-                        original_price: { type: "number", description: "Original/RRP price in GBP before discount, or null if not on sale", nullable: true },
-                      },
-                      required: ["retailer", "country", "flag", "item_price", "total", "url"],
-                      additionalProperties: false,
-                    },
-                  },
-                },
-                required: ["results"],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "extract_prices" } },
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited, please try again." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const text = await aiResponse.text();
-      console.error("AI error:", aiResponse.status, text);
-      throw new Error("AI extraction failed");
-    }
-
-    const aiData = await aiResponse.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-
-
-    const { results: aiRawResults = [] } = toolCall?.function?.arguments
-      ? JSON.parse(toolCall.function.arguments)
-      : { results: [] };
-
-    if (!toolCall?.function?.arguments) {
-      console.warn("No AI tool-call output, using deterministic fallback extraction");
-    }
-
-    // Final filter: remove comparison sites and non-product-page URLs
-    const filtered = Array.isArray(aiRawResults)
-      ? aiRawResults.filter((r: any) => !isComparisonSite(r.url || "") && isLikelyProductPage(r.url || ""))
-      : [];
-
-    // Dynamic price floor: if we know the RRP, reject anything below 35% of it
+    // ── Extract prices deterministically ──
     const priceFloor = estimated_retail_price
       ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.35))
       : MIN_REALISTIC_PRICE;
+
     console.log(`Price floor: £${priceFloor} (RRP: ${estimated_retail_price || "unknown"})`);
 
-    const mapped = filtered
-      .filter((r: any) => r.item_price >= priceFloor)
-      .map((r: any) => ({
-      retailer: (r.retailer || "Unknown").replace(/[,:].*?(retailer|item_price|shipping|total|flag|country)[:\s]*/gi, "").trim(),
-      country: r.country || "Unknown",
-      flag: r.flag || "🌍",
-      itemPrice: r.item_price,
-      shipping: r.shipping || 0,
-      duties: r.duties || 0,
-      totalYouPay: r.total || r.item_price + (r.shipping || 0) + (r.duties || 0),
-      originalPrice: r.original_price || null,
-      delivery: r.delivery || "5-10 days",
-      trustRating: r.trust_rating || 4.0,
-      currency: r.currency || "GBP",
-      url: r.url || "#",
-    }));
+    const extracted: any[] = [];
+    for (const source of allSources) {
+      const result = extractResultFromSource(source, searchName, priceFloor);
+      if (result) extracted.push(result);
+    }
 
-    const fallbackMapped = buildFallbackResults(dedupedResults, priceFloor);
+    console.log(`Extracted ${extracted.length} valid results from ${allSources.length} sources`);
 
-    // Merge AI + deterministic fallback, keep cheapest per domain (not retailer name)
-    const mergedByDomain = new Map<string, any>();
-    for (const entry of [...mapped, ...fallbackMapped]) {
-      let domainKey: string;
-      try {
-        domainKey = new URL(entry.url).hostname.replace(/^www\./, "");
-      } catch {
-        domainKey = normalizeRetailerName(entry.retailer);
-      }
-      if (!domainKey) continue;
-      const existing = mergedByDomain.get(domainKey);
+    // ── Deduplicate by domain (keep cheapest) ──
+    const byDomain = new Map<string, any>();
+    for (const entry of extracted) {
+      const domain = extractDomain(entry.url);
+      if (!domain) continue;
+      const existing = byDomain.get(domain);
       if (!existing || entry.totalYouPay < existing.totalYouPay) {
-        mergedByDomain.set(domainKey, entry);
+        byDomain.set(domain, entry);
       }
     }
 
-    const sorted = Array.from(mergedByDomain.values())
-      .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay)
-      .map((r: any, i: number) => ({ ...r, rank: i + 1 }));
+    const finalResults = Array.from(byDomain.values())
+      .sort((a, b) => a.totalYouPay - b.totalYouPay)
+      .map((r, i) => ({ ...r, rank: i + 1 }));
 
-    const VERIFY_LIMIT = 10;
+    console.log(`Final: ${finalResults.length} unique retailers`);
 
-    const verifySingleResult = async (entry: any): Promise<any | null> => {
-      const pageText = await scrapeProductPage(entry.url || "");
-      // If scrape fails (bot-blocked, JS-heavy), keep the result but don't verify price
-      if (!pageText) {
-        console.log(`Verification: Could not scrape ${entry.url}, keeping as unverified`);
-        return { ...entry, verified: false };
-      }
-      if (isOutOfStock(pageText)) {
-        console.log(`Verification: ${entry.url} is out of stock`);
-        return null;
-      }
-      if (!matchesRequestedProduct(searchName, entry.url || "", pageText)) {
-        console.log(`Verification: ${entry.url} does not match product`);
-        return null;
-      }
-
-      const pagePrices = extractAllGbpPrices(pageText).filter((p) => p >= priceFloor);
-      if (!pagePrices.length) {
-        // Page matched product but no GBP price found — keep with original price
-        return { ...entry, verified: true };
-      }
-
-      const closestPrice = pagePrices.reduce((best, p) =>
-        Math.abs(p - entry.itemPrice) < Math.abs(best - entry.itemPrice) ? p : best,
-        pagePrices[0]
-      );
-
-      const priceDelta = Math.abs(closestPrice - entry.itemPrice) / Math.max(entry.itemPrice, 1);
-      // If price is wildly different (>60%), reject
-      if (priceDelta > 0.6) {
-        console.log(`Verification: ${entry.url} price mismatch (expected ~£${entry.itemPrice}, page has £${closestPrice})`);
-        return null;
-      }
-      // If moderately different (>20%), correct to page price
-      if (priceDelta > 0.2) {
-        const itemPrice = Number(closestPrice.toFixed(2));
-        const totalYouPay = Number((itemPrice + (entry.shipping || 0) + (entry.duties || 0)).toFixed(2));
-        return { ...entry, itemPrice, totalYouPay, verified: true };
-      }
-
-      return { ...entry, verified: true };
-    };
-
-    const candidatesForVerification = sorted.slice(0, VERIFY_LIMIT);
-    const checked = await Promise.all(candidatesForVerification.map(verifySingleResult));
-    const verifiedResults = checked.filter(Boolean);
-
-    const finalSorted = verifiedResults
-      .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay)
-      .map((r: any, i: number) => ({ ...r, rank: i + 1 }));
-
-    console.log(`Verification kept ${finalSorted.length}/${candidatesForVerification.length} results`);
-
-    if (finalSorted.length < MIN_CACHE_RESULTS && cachedResults.length > finalSorted.length) {
-      console.log(`Returning better stale cache for ${cacheKey}: ${cachedResults.length} > ${finalSorted.length}`);
+    // Return better stale cache if fresh results are poor
+    if (finalResults.length < MIN_CACHE_RESULTS && cachedResults.length > finalResults.length) {
+      console.log(`Returning stale cache (${cachedResults.length} > ${finalResults.length})`);
       return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, stale: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (finalSorted.length > 0) {
-      // Save to cache (fire and forget)
+    // ── Cache results ──
+    if (finalResults.length > 0) {
       sb.from("price_cache")
         .upsert(
-          { product_key: cacheKey, results: finalSorted, product_info: { product_name, retailers: normalizedRetailers } },
+          { product_key: cacheKey, results: finalResults, product_info: { product_name, retailers: normalizedRetailers } },
           { onConflict: "product_key" }
         )
         .then(({ error }) => { if (error) console.error("Cache write error:", error); });
     }
 
-    return new Response(JSON.stringify({ success: true, results: finalSorted }), {
+    return new Response(JSON.stringify({ success: true, results: finalResults }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
