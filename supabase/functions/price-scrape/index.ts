@@ -14,9 +14,109 @@ const EXCLUDED_DOMAINS = [
   "keepa.com", "prisjakt",
 ];
 
+const MIN_CACHE_RESULTS = 6;
+
 function isComparisonSite(url: string): boolean {
   const lower = url.toLowerCase();
   return EXCLUDED_DOMAINS.some(d => lower.includes(d));
+}
+
+function normalizeRetailerDomain(input: string): string | null {
+  const cleaned = (input || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0]
+    .replace(/\s+/g, "");
+
+  if (!cleaned || !cleaned.includes(".")) return null;
+  if (!/^[a-z0-9.-]+$/.test(cleaned)) return null;
+  return cleaned;
+}
+
+function normalizeRetailerName(name: string): string {
+  return (name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function extractFirstGbpPrice(text: string): number | null {
+  const normalized = (text || "").replace(/,/g, "");
+  const gbpMatch = normalized.match(/£\s?(\d+(?:\.\d{1,2})?)/i);
+  if (gbpMatch) return Number(gbpMatch[1]);
+
+  const codeMatch = normalized.match(/(\d+(?:\.\d{1,2})?)\s?(?:GBP)/i);
+  if (codeMatch) return Number(codeMatch[1]);
+
+  return null;
+}
+
+function retailerNameFromUrl(url: string): string {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, "");
+    const root = hostname.split(".")[0].replace(/[-_]+/g, " ");
+    return root
+      .split(" ")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ") || "Unknown Retailer";
+  } catch {
+    return "Unknown Retailer";
+  }
+}
+
+function buildSourceSnippet(source: any): string {
+  const raw = `${source?.markdown || ""}\n${source?.description || ""}`.trim();
+  if (!raw) return "No content";
+
+  const lines = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const relevant = lines
+    .filter((line) => /£|\bgbp\b|\$|€|sale|now|was|in stock|out of stock|add to bag|add to cart/i.test(line))
+    .slice(0, 16);
+
+  return (relevant.length ? relevant.join("\n") : raw).slice(0, 900);
+}
+
+function buildFallbackResults(sources: any[]): any[] {
+  return sources
+    .map((source: any) => {
+      const url = source?.url || "";
+      if (!url || isComparisonSite(url)) return null;
+
+      const text = `${source?.markdown || ""}\n${source?.description || ""}`;
+      const itemPrice = extractFirstGbpPrice(text);
+      if (itemPrice === null || Number.isNaN(itemPrice)) return null;
+
+      let hostname = "";
+      try {
+        hostname = new URL(url).hostname.replace(/^www\./, "");
+      } catch {
+        return null;
+      }
+
+      const isUk = hostname.endsWith(".uk") || hostname.includes(".co.uk");
+      const shipping = isUk ? 4.99 : 12.99;
+      const duties = isUk ? 0 : Number((itemPrice * 0.2).toFixed(2));
+
+      return {
+        retailer: retailerNameFromUrl(url),
+        country: isUk ? "UK" : "International",
+        flag: isUk ? "🇬🇧" : "🌍",
+        itemPrice,
+        shipping,
+        duties,
+        totalYouPay: Number((itemPrice + shipping + duties).toFixed(2)),
+        originalPrice: null,
+        delivery: isUk ? "2-5 days" : "7-14 days",
+        trustRating: 4.0,
+        currency: "GBP",
+        url,
+      };
+    })
+    .filter(Boolean);
 }
 
 serve(async (req) => {
@@ -25,8 +125,19 @@ serve(async (req) => {
   try {
     const { product_name, retailers } = await req.json();
 
-    if (!product_name || !retailers?.length) {
+    if (!product_name || !Array.isArray(retailers) || !retailers.length) {
       return new Response(JSON.stringify({ error: "product_name and retailers are required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const normalizedRetailers = Array.from(
+      new Set((retailers as string[]).map(normalizeRetailerDomain).filter(Boolean) as string[])
+    );
+
+    if (!normalizedRetailers.length) {
+      return new Response(JSON.stringify({ error: "No valid retailer domains provided" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -45,14 +156,21 @@ serve(async (req) => {
       .gte("created_at", new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
       .maybeSingle();
 
-    if (cached) {
-      console.log("Cache hit for:", cacheKey);
-      return new Response(JSON.stringify({ success: true, results: cached.results, cached: true }), {
+    const cachedResults = Array.isArray(cached?.results) ? cached.results : [];
+    const hasSufficientCachedResults = cachedResults.length >= MIN_CACHE_RESULTS;
+
+    if (hasSufficientCachedResults) {
+      console.log(`Cache hit for: ${cacheKey} (${cachedResults.length} results)`);
+      return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    console.log("Cache miss for:", cacheKey);
+    if (cachedResults.length > 0) {
+      console.log(`Low-quality cache hit for: ${cacheKey} (${cachedResults.length} results), refreshing`);
+    } else {
+      console.log("Cache miss for:", cacheKey);
+    }
 
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     if (!FIRECRAWL_API_KEY) throw new Error("FIRECRAWL_API_KEY not configured");
@@ -60,37 +178,49 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Search each retailer individually for best results
-    const doSearch = (query: string, limit: number) =>
-      fetch("https://api.firecrawl.dev/v1/search", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query,
-          limit,
-          lang: "en",
-          country: "gb",
-          scrapeOptions: { formats: ["markdown"] },
-        }),
-      }).then(r => r.json()).catch(() => ({ data: [] }));
+    const doSearch = async (query: string, limit: number) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
 
-    // Batch retailers into groups of 5 for fewer API calls
+      try {
+        const response = await fetch("https://api.firecrawl.dev/v1/search", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            query,
+            limit,
+            lang: "en",
+            country: "gb",
+            scrapeOptions: { formats: ["markdown"] },
+          }),
+        });
+
+        return await response.json();
+      } catch {
+        return { data: [] };
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    // Batch retailers into groups for efficient API fan-out
     const allResults: any[] = [];
     const seenUrls = new Set<string>();
 
     const BATCH_SIZE = 8;
     const retailerBatches: string[][] = [];
-    for (let i = 0; i < retailers.length; i += BATCH_SIZE) {
-      retailerBatches.push(retailers.slice(i, i + BATCH_SIZE));
+    for (let i = 0; i < normalizedRetailers.length; i += BATCH_SIZE) {
+      retailerBatches.push(normalizedRetailers.slice(i, i + BATCH_SIZE));
     }
 
     // Build batched queries: "product site:a.com OR site:b.com OR site:c.com"
     const batchPromises = retailerBatches.map((batch: string[]) => {
       const siteQuery = batch.map((r: string) => `site:${r}`).join(" OR ");
-      return doSearch(`${product_name} buy price £ ${siteQuery}`, batch.length * 3);
+      return doSearch(`${product_name} buy price £ ${siteQuery}`, Math.min(batch.length * 3, 24));
     });
     // Two broad fallback searches for wider coverage
     const broadPromise1 = doSearch(`${product_name} buy UK price GBP £`, 15);
@@ -107,7 +237,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Found ${allResults.length} direct retailer sources from ${retailers.length} retailers`);
+    console.log(`Found ${allResults.length} direct retailer sources from ${normalizedRetailers.length} retailers`);
 
     // Deduplicate by domain to keep one result per retailer, limit total to avoid timeouts
     const byDomain = new Map<string, any>();
@@ -124,7 +254,7 @@ serve(async (req) => {
     console.log(`Deduped to ${dedupedResults.length} unique retailer domains`);
 
     const scrapedContent = dedupedResults
-      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${r.markdown?.slice(0, 1500) || r.description || "No content"}`)
+      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${buildSourceSnippet(r)}`)
       .join("\n\n---\n\n");
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -134,7 +264,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           {
             role: "system",
@@ -221,48 +351,72 @@ CRITICAL RULES:
     const aiData = await aiResponse.json();
     const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
 
+
+    const { results: aiRawResults = [] } = toolCall?.function?.arguments
+      ? JSON.parse(toolCall.function.arguments)
+      : { results: [] };
+
     if (!toolCall?.function?.arguments) {
-      throw new Error("No price extraction result");
+      console.warn("No AI tool-call output, using deterministic fallback extraction");
     }
 
-    const { results } = JSON.parse(toolCall.function.arguments);
-
     // Final filter: remove any comparison sites that slipped through
-    const filtered = results.filter((r: any) => !isComparisonSite(r.url || ""));
+    const filtered = Array.isArray(aiRawResults)
+      ? aiRawResults.filter((r: any) => !isComparisonSite(r.url || ""))
+      : [];
 
-    // Sort by total price ascending
-    const mapped = filtered
-      .map((r: any) => ({
-        retailer: (r.retailer || "Unknown").replace(/[,:].*?(retailer|item_price|shipping|total|flag|country)[:\s]*/gi, "").trim(),
-        country: r.country || "Unknown",
-        flag: r.flag || "🌍",
-        itemPrice: r.item_price,
-        shipping: r.shipping || 0,
-        duties: r.duties || 0,
-        totalYouPay: r.total || r.item_price + (r.shipping || 0) + (r.duties || 0),
-        originalPrice: r.original_price || null,
-        delivery: r.delivery || "5-10 days",
-        trustRating: r.trust_rating || 4.0,
-        currency: r.currency || "GBP",
-        url: r.url || "#",
-      }))
-      .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay);
+    const mapped = filtered.map((r: any) => ({
+      retailer: (r.retailer || "Unknown").replace(/[,:].*?(retailer|item_price|shipping|total|flag|country)[:\s]*/gi, "").trim(),
+      country: r.country || "Unknown",
+      flag: r.flag || "🌍",
+      itemPrice: r.item_price,
+      shipping: r.shipping || 0,
+      duties: r.duties || 0,
+      totalYouPay: r.total || r.item_price + (r.shipping || 0) + (r.duties || 0),
+      originalPrice: r.original_price || null,
+      delivery: r.delivery || "5-10 days",
+      trustRating: r.trust_rating || 4.0,
+      currency: r.currency || "GBP",
+      url: r.url || "#",
+    }));
 
-    // Deduplicate: keep only the cheapest entry per retailer name
-    const seenRetailers = new Set<string>();
-    const deduped = mapped.filter((r: any) => {
-      const key = r.retailer.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (seenRetailers.has(key)) return false;
-      seenRetailers.add(key);
-      return true;
+    const fallbackMapped = buildFallbackResults(dedupedResults);
+
+    // Merge AI + deterministic fallback, keep cheapest per retailer
+    const mergedByRetailer = new Map<string, any>();
+    for (const entry of [...mapped, ...fallbackMapped]) {
+      const key = normalizeRetailerName(entry.retailer);
+      if (!key) continue;
+      const existing = mergedByRetailer.get(key);
+      if (!existing || entry.totalYouPay < existing.totalYouPay) {
+        mergedByRetailer.set(key, entry);
+      }
+    }
+
+    const sorted = Array.from(mergedByRetailer.values())
+      .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay)
+      .map((r: any, i: number) => ({ ...r, rank: i + 1 }));
+
+    if (sorted.length < MIN_CACHE_RESULTS && cachedResults.length > sorted.length) {
+      console.log(`Returning better stale cache for ${cacheKey}: ${cachedResults.length} > ${sorted.length}`);
+      return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, stale: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (sorted.length > 0) {
+      // Save to cache (fire and forget)
+      sb.from("price_cache")
+        .upsert(
+          { product_key: cacheKey, results: sorted, product_info: { product_name, retailers: normalizedRetailers } },
+          { onConflict: "product_key" }
+        )
+        .then(({ error }) => { if (error) console.error("Cache write error:", error); });
+    }
+
+    return new Response(JSON.stringify({ success: true, results: sorted }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-
-    const sorted = deduped.map((r: any, i: number) => ({ ...r, rank: i + 1 }));
-
-    // Save to cache (fire and forget)
-    sb.from("price_cache")
-      .upsert({ product_key: cacheKey, results: sorted, product_info: { product_name, retailers } }, { onConflict: "product_key" })
-      .then(({ error }) => { if (error) console.error("Cache write error:", error); });
 
     return new Response(JSON.stringify({ success: true, results: sorted }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
