@@ -123,7 +123,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { product_name, retailers } = await req.json();
+    const { product_name, retailers, skip_cache } = await req.json();
 
     if (!product_name || !Array.isArray(retailers) || !retailers.length) {
       return new Response(JSON.stringify({ error: "product_name and retailers are required" }), {
@@ -157,15 +157,22 @@ serve(async (req) => {
     const sb = createClient(supabaseUrl, supabaseKey);
     const cacheKey = searchName.toLowerCase().trim();
 
-    const { data: cached } = await sb
-      .from("price_cache")
-      .select("results, created_at")
-      .eq("product_key", cacheKey)
-      .gte("created_at", new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
-      .maybeSingle();
+    let cachedResults: any[] = [];
+    let hasSufficientCachedResults = false;
 
-    const cachedResults = Array.isArray(cached?.results) ? cached.results : [];
-    const hasSufficientCachedResults = cachedResults.length >= MIN_CACHE_RESULTS;
+    if (!skip_cache) {
+      const { data: cached } = await sb
+        .from("price_cache")
+        .select("results, created_at")
+        .eq("product_key", cacheKey)
+        .gte("created_at", new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
+        .maybeSingle();
+
+      cachedResults = Array.isArray(cached?.results) ? cached.results : [];
+      hasSufficientCachedResults = cachedResults.length >= MIN_CACHE_RESULTS;
+    } else {
+      console.log(`Cache bypass requested for: ${cacheKey}`);
+    }
 
     if (hasSufficientCachedResults) {
       console.log(`Cache hit for: ${cacheKey} (${cachedResults.length} results)`);

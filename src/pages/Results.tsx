@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Star, Loader2, ExternalLink, Heart } from "lucide-react";
+import { Star, Loader2, ExternalLink, Heart, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,28 @@ const Results = () => {
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<"identifying" | "scraping" | "done">("identifying");
   const { add: addToWatchlist, isInWatchlist } = useWatchlist();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const refreshResults = useCallback(async () => {
+    if (!product || isRefreshing) return;
+    setIsRefreshing(true);
+    setIsLoading(true);
+    setPhase("scraping");
+    setProgress(5);
+    try {
+      const sizeStr = stateSizing ? ` ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}` : "";
+      const data = await scrapePrices(product.product_name + sizeStr, product.retailers, true);
+      setPhase("done");
+      setProgress(100);
+      setResults(data);
+      toast({ title: "Prices refreshed", description: `Found ${data.length} results.` });
+    } catch (e: any) {
+      toast({ title: "Refresh failed", description: e.message || "Try again.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [product, stateSizing, isRefreshing, toast]);
   useEffect(() => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
@@ -154,25 +176,37 @@ const Results = () => {
             </p>
           </div>
           {product && !isLoading && (
-            <Button
-              variant={isInWatchlist(product.product_name) ? "default" : "outline"}
-              size="sm"
-              className="gap-1.5 shrink-0"
-              onClick={() => {
-                if (!isInWatchlist(product.product_name)) {
-                  addToWatchlist({
-                    product_name: product.product_name,
-                    brand: product.brand,
-                    category: product.category,
-                    best_price: sorted[0]?.totalYouPay,
-                  });
-                }
-              }}
-              disabled={isInWatchlist(product.product_name)}
-            >
-              <Heart className={`h-4 w-4 ${isInWatchlist(product.product_name) ? "fill-current" : ""}`} />
-              {isInWatchlist(product.product_name) ? "Saved" : "Save"}
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={refreshResults}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <Button
+                variant={isInWatchlist(product.product_name) ? "default" : "outline"}
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  if (!isInWatchlist(product.product_name)) {
+                    addToWatchlist({
+                      product_name: product.product_name,
+                      brand: product.brand,
+                      category: product.category,
+                      best_price: sorted[0]?.totalYouPay,
+                    });
+                  }
+                }}
+                disabled={isInWatchlist(product.product_name)}
+              >
+                <Heart className={`h-4 w-4 ${isInWatchlist(product.product_name) ? "fill-current" : ""}`} />
+                {isInWatchlist(product.product_name) ? "Saved" : "Save"}
+              </Button>
+            </div>
           )}
         </div>
 

@@ -44,10 +44,11 @@ export async function searchProduct(query: string, imageBase64?: string): Promis
 
 export async function scrapePrices(
   productName: string,
-  retailers: string[]
+  retailers: string[],
+  skipCache = false
 ): Promise<PriceResult[]> {
   const { data, error } = await supabase.functions.invoke("price-scrape", {
-    body: { product_name: productName, retailers },
+    body: { product_name: productName, retailers, skip_cache: skipCache },
   });
 
   if (error) throw new Error(error.message || "Price scrape failed");
