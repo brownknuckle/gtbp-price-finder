@@ -30,6 +30,7 @@ const Index = () => {
   const [gender, setGender] = useState<"men" | "women" | "unisex">("men");
   const [sizeType, setSizeType] = useState<"clothing" | "shoes">("shoes");
   const [sizeRegion, setSizeRegion] = useState<SizeRegion>("UK");
+  const [size, setSize] = useState(sizeType === "shoes" ? "9" : "M");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -129,7 +130,7 @@ const Index = () => {
       }
 
       navigate(`/results?q=${encodeURIComponent(product.product_name || q)}`, {
-        state: { product },
+        state: { product, sizing: { gender, sizeType, sizeRegion, size } },
       });
     } catch (e: any) {
       toast({
@@ -146,7 +147,7 @@ const Index = () => {
     if (!pendingProduct) return;
     const finalProduct = { ...pendingProduct, product_name: editedName || pendingProduct.product_name };
     navigate(`/results?q=${encodeURIComponent(finalProduct.product_name)}`, {
-      state: { product: finalProduct },
+      state: { product: finalProduct, sizing: { gender, sizeType, sizeRegion, size } },
     });
   };
 
@@ -161,7 +162,7 @@ const Index = () => {
       try {
         const product = await searchProduct(editedName);
         navigate(`/results?q=${encodeURIComponent(product.product_name)}`, {
-          state: { product },
+          state: { product, sizing: { gender, sizeType, sizeRegion, size } },
         });
       } catch (e: any) {
         toast({ title: "Search failed", description: e.message, variant: "destructive" });
@@ -367,7 +368,7 @@ const Index = () => {
 
               {/* Size selectors - secondary row on mobile */}
               <div className="mt-2 flex flex-wrap gap-2 sm:mt-0 sm:hidden">
-                <Select defaultValue="men" onValueChange={(v) => setGender(v as "men" | "women" | "unisex")}>
+                <Select value={gender} onValueChange={(v) => setGender(v as "men" | "women" | "unisex")}>
                   <SelectTrigger className="h-10 flex-1 rounded-md text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -378,7 +379,7 @@ const Index = () => {
                   </SelectContent>
                 </Select>
 
-                <Select defaultValue="shoes" onValueChange={(v) => setSizeType(v as "clothing" | "shoes")}>
+                <Select value={sizeType} onValueChange={(v) => setSizeType(v as "clothing" | "shoes")}>
                   <SelectTrigger className="h-10 flex-1 rounded-md text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -389,7 +390,7 @@ const Index = () => {
                 </Select>
 
                 {sizeType === "shoes" && (
-                  <Select defaultValue="UK" onValueChange={(v) => setSizeRegion(v as SizeRegion)}>
+                  <Select value={sizeRegion} onValueChange={(v) => setSizeRegion(v as SizeRegion)}>
                     <SelectTrigger className="h-10 w-16 rounded-md text-xs">
                       <SelectValue />
                     </SelectTrigger>
@@ -401,15 +402,15 @@ const Index = () => {
                   </Select>
                 )}
 
-                <Select defaultValue={sizeType === "shoes" ? "9" : "M"}>
+                <Select value={size} onValueChange={setSize}>
                   <SelectTrigger className="h-10 w-20 rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {(sizeType === "clothing" ? sizeOptions.clothing : shoeSizes[sizeRegion]).map(
-                      (size) => (
-                        <SelectItem key={size} value={size}>
-                          {size}
+                      (s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
                         </SelectItem>
                       )
                     )}
@@ -419,7 +420,7 @@ const Index = () => {
 
               {/* Desktop size selectors inline - hidden on mobile */}
               <div className="hidden sm:mt-3 sm:flex sm:gap-2">
-                <Select defaultValue="men" onValueChange={(v) => setGender(v as "men" | "women" | "unisex")}>
+                <Select value={gender} onValueChange={(v) => setGender(v as "men" | "women" | "unisex")}>
                   <SelectTrigger className="h-10 w-28 rounded-md text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -430,7 +431,7 @@ const Index = () => {
                   </SelectContent>
                 </Select>
 
-                <Select defaultValue="shoes" onValueChange={(v) => setSizeType(v as "clothing" | "shoes")}>
+                <Select value={sizeType} onValueChange={(v) => setSizeType(v as "clothing" | "shoes")}>
                   <SelectTrigger className="h-10 w-24 rounded-md text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -441,7 +442,7 @@ const Index = () => {
                 </Select>
 
                 {sizeType === "shoes" && (
-                  <Select defaultValue="UK" onValueChange={(v) => setSizeRegion(v as SizeRegion)}>
+                  <Select value={sizeRegion} onValueChange={(v) => setSizeRegion(v as SizeRegion)}>
                     <SelectTrigger className="h-10 w-16 rounded-md text-xs">
                       <SelectValue />
                     </SelectTrigger>
@@ -453,15 +454,15 @@ const Index = () => {
                   </Select>
                 )}
 
-                <Select defaultValue={sizeType === "shoes" ? "9" : "M"}>
+                <Select value={size} onValueChange={setSize}>
                   <SelectTrigger className="h-10 w-20 rounded-md">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {(sizeType === "clothing" ? sizeOptions.clothing : shoeSizes[sizeRegion]).map(
-                      (size) => (
-                        <SelectItem key={size} value={size}>
-                          {size}
+                      (s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
                         </SelectItem>
                       )
                     )}
