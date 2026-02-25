@@ -11,7 +11,7 @@ const EXCLUDED_DOMAINS = [
   "pricespy", "pricerunner", "idealo", "shopzilla", "bizrate",
   "google.com/shopping", "shopping.google", "kelkoo", "nextag",
   "pricegrabber", "shopbot", "skinflint", "camelcamelcamel",
-  "keepa.com", "prisjakt",
+  "keepa.com", "prisjakt", "pricehunter",
 ];
 
 const MIN_CACHE_RESULTS = 6;
@@ -80,6 +80,8 @@ function buildSourceSnippet(source: any): string {
   return (relevant.length ? relevant.join("\n") : raw).slice(0, 900);
 }
 
+const MIN_REALISTIC_PRICE = 30; // No legitimate adult shoe/clothing costs less than £30
+
 function buildFallbackResults(sources: any[]): any[] {
   return sources
     .map((source: any) => {
@@ -88,7 +90,7 @@ function buildFallbackResults(sources: any[]): any[] {
 
       const text = `${source?.markdown || ""}\n${source?.description || ""}`;
       const itemPrice = extractFirstGbpPrice(text);
-      if (itemPrice === null || Number.isNaN(itemPrice)) return null;
+      if (itemPrice === null || Number.isNaN(itemPrice) || itemPrice < MIN_REALISTIC_PRICE) return null;
 
       let hostname = "";
       try {
@@ -301,7 +303,9 @@ CRITICAL RULES:
 - For trust_rating, use the retailer's Trustpilot score (1-5). Estimate if unknown.
 - Always prefer UK versions of retailers (nike.com/gb, endclothing.com/gb, etc.)
 - The retailer field must contain ONLY the store name (e.g. "Nike UK", "JD Sports", "END."). Do NOT include prices, fields, or metadata in the retailer name.
-- If a page shows "SOLD OUT" or "OUT OF STOCK", do NOT include that retailer.`,
+- If a page shows "SOLD OUT" or "OUT OF STOCK", do NOT include that retailer.
+- EXCLUDE children's, baby, toddler, or infant versions of the product. Only include ADULT sizes.
+- Prices below £30 for shoes or £15 for accessories are almost certainly wrong — skip them.`,
           },
           {
             role: "user",
@@ -383,7 +387,9 @@ CRITICAL RULES:
       ? aiRawResults.filter((r: any) => !isComparisonSite(r.url || ""))
       : [];
 
-    const mapped = filtered.map((r: any) => ({
+    const mapped = filtered
+      .filter((r: any) => r.item_price >= MIN_REALISTIC_PRICE)
+      .map((r: any) => ({
       retailer: (r.retailer || "Unknown").replace(/[,:].*?(retailer|item_price|shipping|total|flag|country)[:\s]*/gi, "").trim(),
       country: r.country || "Unknown",
       flag: r.flag || "🌍",
@@ -431,10 +437,6 @@ CRITICAL RULES:
         )
         .then(({ error }) => { if (error) console.error("Cache write error:", error); });
     }
-
-    return new Response(JSON.stringify({ success: true, results: sorted }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
 
     return new Response(JSON.stringify({ success: true, results: sorted }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
