@@ -27,6 +27,7 @@ const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [query, setQuery] = useState("");
+  const [gender, setGender] = useState<"men" | "women" | "unisex">("men");
   const [sizeType, setSizeType] = useState<"clothing" | "shoes">("shoes");
   const [sizeRegion, setSizeRegion] = useState<SizeRegion>("UK");
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -354,7 +355,18 @@ const Index = () => {
               </div>
 
               {/* Size selectors - secondary row on mobile */}
-              <div className="mt-2 flex gap-2 sm:mt-0 sm:hidden">
+              <div className="mt-2 flex flex-wrap gap-2 sm:mt-0 sm:hidden">
+                <Select defaultValue="men" onValueChange={(v) => setGender(v as "men" | "women" | "unisex")}>
+                  <SelectTrigger className="h-10 flex-1 rounded-md text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="men">👨 Men's</SelectItem>
+                    <SelectItem value="women">👩 Women's</SelectItem>
+                    <SelectItem value="unisex">⚡ Unisex</SelectItem>
+                  </SelectContent>
+                </Select>
+
                 <Select defaultValue="shoes" onValueChange={(v) => setSizeType(v as "clothing" | "shoes")}>
                   <SelectTrigger className="h-10 flex-1 rounded-md text-xs">
                     <SelectValue />
@@ -396,6 +408,17 @@ const Index = () => {
 
               {/* Desktop size selectors inline - hidden on mobile */}
               <div className="hidden sm:mt-3 sm:flex sm:gap-2">
+                <Select defaultValue="men" onValueChange={(v) => setGender(v as "men" | "women" | "unisex")}>
+                  <SelectTrigger className="h-10 w-28 rounded-md text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="men">👨 Men's</SelectItem>
+                    <SelectItem value="women">👩 Women's</SelectItem>
+                    <SelectItem value="unisex">⚡ Unisex</SelectItem>
+                  </SelectContent>
+                </Select>
+
                 <Select defaultValue="shoes" onValueChange={(v) => setSizeType(v as "clothing" | "shoes")}>
                   <SelectTrigger className="h-10 w-24 rounded-md text-xs">
                     <SelectValue />
