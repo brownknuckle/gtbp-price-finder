@@ -10,6 +10,7 @@ export interface ProductInfo {
   confidence: number;
   identification_notes: string;
   suggestions: string[];
+  image_url?: string;
 }
 
 export interface PriceResult {
