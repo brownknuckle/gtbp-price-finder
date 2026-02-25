@@ -43,6 +43,8 @@ const NON_PRODUCT_PATH_PATTERNS = [
   /\/cat\?/i,
   /\/silhouette\//i,  // GOAT silhouette listing pages
   /\/refine\//i,
+  /^\/b\/bn_/i,       // eBay browse/category pages (/b/bn_xxxx)
+  /^\/b\/[^/]+$/i,    // eBay bare browse pages (/b/something)
 ];
 
 function isLikelyProductPage(url: string): boolean {
@@ -129,8 +131,10 @@ const PRODUCT_STOPWORDS = new Set([
 const COLOR_TOKENS = new Set([
   "black", "white", "red", "blue", "green", "yellow", "orange", "purple", "pink",
   "brown", "grey", "gray", "beige", "cream", "navy", "khaki", "tan", "silver", "gold",
-  "cloud", "core",
 ]);
+
+// Adjective/qualifier tokens that often prefix colors but shouldn't count as colors themselves
+const COLOR_QUALIFIERS = new Set(["core", "cloud", "dark", "light", "bright", "pale", "deep"]);
 
 function extractAllGbpPrices(text: string): number[] {
   const normalized = (text || "").replace(/,/g, "");
@@ -169,18 +173,22 @@ function matchesRequestedProduct(productName: string, url: string, pageText: str
   const tokens = tokenizeProductName(productName);
   if (!tokens.length) return true;
 
-  const matchedTokens = tokens.filter((token) => haystack.includes(token));
-  const requiredTokenMatches = tokens.length <= 3
-    ? tokens.length
-    : Math.max(2, Math.ceil(tokens.length * 0.5));
+  // Filter out color qualifiers from main token matching
+  const mainTokens = tokens.filter((t) => !COLOR_QUALIFIERS.has(t));
+  const matchedTokens = mainTokens.filter((token) => haystack.includes(token));
+
+  // Need at least the brand + model name tokens
+  const requiredTokenMatches = mainTokens.length <= 3
+    ? Math.max(1, mainTokens.length - 1)
+    : Math.max(2, Math.ceil(mainTokens.length * 0.4));
 
   if (matchedTokens.length < requiredTokenMatches) return false;
 
-  const colors = tokens.filter((token) => COLOR_TOKENS.has(token));
+  // Color check: require at least 1 actual color (not qualifier) to match
+  const colors = mainTokens.filter((token) => COLOR_TOKENS.has(token));
   if (colors.length > 0) {
     const matchedColors = colors.filter((color) => haystack.includes(color));
-    const requiredColors = colors.length === 1 ? 1 : Math.min(2, colors.length);
-    if (matchedColors.length < requiredColors) return false;
+    if (matchedColors.length === 0) return false;
   }
 
   return true;
@@ -626,17 +634,29 @@ PRODUCT MATCHING — VERY IMPORTANT:
       .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay)
       .map((r: any, i: number) => ({ ...r, rank: i + 1 }));
 
-    const VERIFY_LIMIT = 12;
-    const VERIFY_BATCH_SIZE = 6;
+    const VERIFY_LIMIT = 10;
 
     const verifySingleResult = async (entry: any): Promise<any | null> => {
       const pageText = await scrapeProductPage(entry.url || "");
-      if (!pageText) return null;
-      if (isOutOfStock(pageText)) return null;
-      if (!matchesRequestedProduct(searchName, entry.url || "", pageText)) return null;
+      // If scrape fails (bot-blocked, JS-heavy), keep the result but don't verify price
+      if (!pageText) {
+        console.log(`Verification: Could not scrape ${entry.url}, keeping as unverified`);
+        return { ...entry, verified: false };
+      }
+      if (isOutOfStock(pageText)) {
+        console.log(`Verification: ${entry.url} is out of stock`);
+        return null;
+      }
+      if (!matchesRequestedProduct(searchName, entry.url || "", pageText)) {
+        console.log(`Verification: ${entry.url} does not match product`);
+        return null;
+      }
 
       const pagePrices = extractAllGbpPrices(pageText).filter((p) => p >= priceFloor);
-      if (!pagePrices.length) return null;
+      if (!pagePrices.length) {
+        // Page matched product but no GBP price found — keep with original price
+        return { ...entry, verified: true };
+      }
 
       const closestPrice = pagePrices.reduce((best, p) =>
         Math.abs(p - entry.itemPrice) < Math.abs(best - entry.itemPrice) ? p : best,
@@ -644,24 +664,24 @@ PRODUCT MATCHING — VERY IMPORTANT:
       );
 
       const priceDelta = Math.abs(closestPrice - entry.itemPrice) / Math.max(entry.itemPrice, 1);
-      if (priceDelta > 0.4) return null;
-      if (priceDelta > 0.18) {
+      // If price is wildly different (>60%), reject
+      if (priceDelta > 0.6) {
+        console.log(`Verification: ${entry.url} price mismatch (expected ~£${entry.itemPrice}, page has £${closestPrice})`);
+        return null;
+      }
+      // If moderately different (>20%), correct to page price
+      if (priceDelta > 0.2) {
         const itemPrice = Number(closestPrice.toFixed(2));
         const totalYouPay = Number((itemPrice + (entry.shipping || 0) + (entry.duties || 0)).toFixed(2));
-        return { ...entry, itemPrice, totalYouPay };
+        return { ...entry, itemPrice, totalYouPay, verified: true };
       }
 
-      return entry;
+      return { ...entry, verified: true };
     };
 
     const candidatesForVerification = sorted.slice(0, VERIFY_LIMIT);
-    const verifiedResults: any[] = [];
-
-    for (let i = 0; i < candidatesForVerification.length; i += VERIFY_BATCH_SIZE) {
-      const batch = candidatesForVerification.slice(i, i + VERIFY_BATCH_SIZE);
-      const checked = await Promise.all(batch.map(verifySingleResult));
-      verifiedResults.push(...checked.filter(Boolean));
-    }
+    const checked = await Promise.all(candidatesForVerification.map(verifySingleResult));
+    const verifiedResults = checked.filter(Boolean);
 
     const finalSorted = verifiedResults
       .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay)
