@@ -118,8 +118,25 @@ const Results = () => {
     <PageTransition>
       <div className="mx-auto max-w-3xl px-4 py-6">
         {/* Header */}
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
+        <div className="mb-6 flex items-start gap-4">
+          {/* Product image */}
+          {product?.image_url && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="hidden sm:block shrink-0"
+            >
+              <div className="h-20 w-20 overflow-hidden rounded-xl border bg-secondary">
+                <img
+                  src={product.image_url}
+                  alt={product.product_name}
+                  className="h-full w-full object-contain p-1"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              </div>
+            </motion.div>
+          )}
+          <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-foreground">
               {product?.product_name || query}
             </h1>

@@ -82,7 +82,8 @@ Return ONLY valid JSON with this schema:
   "estimated_retail_price": 120,
   "confidence": 0.95,
   "identification_notes": "Brief explanation of how the product was identified",
-  "suggestions": ["Similar product 1", "Similar product 2", "Similar product 3"]
+  "suggestions": ["Similar product 1", "Similar product 2", "Similar product 3"],
+  "image_url": "Direct URL to a high-quality product image from an official retailer or brand website (e.g. from nike.com, adidas.co.uk, newbalance.co.uk CDN). Must be a real, publicly accessible image URL ending in .jpg/.png/.webp or from a known CDN. Do NOT fabricate URLs."
 }
 
 The "confidence" field should be a number between 0 and 1 indicating how confident you are in the identification. If confidence < 0.7, still provide your best guess but note uncertainty in identification_notes.
@@ -116,8 +117,9 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
                   confidence: { type: "number", description: "0-1 confidence score for identification accuracy" },
                   identification_notes: { type: "string", description: "Brief explanation of how the product was identified" },
                   suggestions: { type: "array", items: { type: "string" } },
+                  image_url: { type: "string", description: "Direct URL to a real product image from an official retailer CDN (e.g. nike.com, adidas.co.uk). Must be publicly accessible. Do not fabricate." },
                 },
-                required: ["product_name", "brand", "category", "search_queries", "retailers", "estimated_retail_price", "confidence", "identification_notes", "suggestions"],
+                required: ["product_name", "brand", "category", "search_queries", "retailers", "estimated_retail_price", "confidence", "identification_notes", "suggestions", "image_url"],
                 additionalProperties: false,
               },
             },
