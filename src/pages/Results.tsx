@@ -87,8 +87,23 @@ const Results = () => {
     return () => clearInterval(interval);
   }, [isLoading, product, phase]);
 
-  const sorted = [...results].sort((a, b) => {
+  const domesticCountries = ["UK", "United Kingdom", "GB"];
+
+  const filtered = results.filter((r) => {
+    if (!domesticOnly) return true;
+    return domesticCountries.some((c) => r.country?.toLowerCase() === c.toLowerCase()) || r.flag === "🇬🇧";
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
     if (sortBy === "price") return a.totalYouPay - b.totalYouPay;
+    if (sortBy === "delivery") {
+      // Parse delivery strings like "2-4 days" — sort by first number found
+      const parseDelivery = (d: string) => {
+        const m = d.match(/(\d+)/);
+        return m ? parseInt(m[1], 10) : 999;
+      };
+      return parseDelivery(a.delivery) - parseDelivery(b.delivery);
+    }
     if (sortBy === "trust") return b.trustRating - a.trustRating;
     return 0;
   });
@@ -109,28 +124,34 @@ const Results = () => {
         {/* Controls */}
         {!isLoading && results.length > 0 && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">All Retailers</span>
+            <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
+              <span className={`text-xs font-medium transition-colors ${!domesticOnly ? "text-foreground" : "text-muted-foreground"}`}>
+                🌍 All Retailers
+              </span>
               <Switch checked={domesticOnly} onCheckedChange={setDomesticOnly} />
-              <span className="text-sm text-muted-foreground">Domestic Only</span>
+              <span className={`text-xs font-medium transition-colors ${domesticOnly ? "text-foreground" : "text-muted-foreground"}`}>
+                🇬🇧 UK Only
+              </span>
             </div>
 
-            <div className="flex gap-1">
-              {([["price", "Price"], ["delivery", "Delivery"], ["trust", "Trust"]] as const).map(
-                ([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => setSortBy(key)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                      sortBy === key
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-secondary-foreground hover:bg-primary/10"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                )
-              )}
+            <div className="flex gap-1 rounded-full border border-border bg-card p-0.5">
+              {([
+                ["price", "💰 Cheapest"],
+                ["delivery", "🚚 Fastest"],
+                ["trust", "⭐ Most Trusted"],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setSortBy(key)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                    sortBy === key
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
         )}
