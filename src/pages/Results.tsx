@@ -36,6 +36,7 @@ const Results = () => {
   const [phase, setPhase] = useState<"identifying" | "scraping" | "done">("identifying");
   const { add: addToWatchlist, isInWatchlist } = useWatchlist();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dataSource, setDataSource] = useState<{ cached: boolean; cached_at?: string } | null>(null);
 
   const refreshResults = useCallback(async () => {
     if (!product || isRefreshing) return;
@@ -45,11 +46,12 @@ const Results = () => {
     setProgress(5);
     try {
       const sizeStr = stateSizing ? ` ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}` : "";
-      const data = await scrapePrices(product.product_name + sizeStr, product.retailers, true);
+      const resp = await scrapePrices(product.product_name + sizeStr, product.retailers, true);
       setPhase("done");
       setProgress(100);
-      setResults(data);
-      toast({ title: "Prices refreshed", description: `Found ${data.length} results.` });
+      setResults(resp.results);
+      setDataSource({ cached: false });
+      toast({ title: "Prices refreshed", description: `Found ${resp.results.length} results.` });
     } catch (e: any) {
       toast({ title: "Refresh failed", description: e.message || "Try again.", variant: "destructive" });
     } finally {
@@ -79,10 +81,11 @@ const Results = () => {
         setPhase("scraping");
         setProgress(5);
         const sizeStr = stateSizing ? ` ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}` : "";
-        const data = await scrapePrices(prod.product_name + sizeStr, prod.retailers);
+        const resp = await scrapePrices(prod.product_name + sizeStr, prod.retailers);
         setPhase("done");
         setProgress(100);
-        setResults(data);
+        setResults(resp.results);
+        setDataSource({ cached: resp.cached, cached_at: resp.cached_at });
       } catch (e: any) {
         toast({
           title: "Price search failed",
@@ -212,35 +215,61 @@ const Results = () => {
 
         {/* Controls */}
         {!isLoading && results.length > 0 && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
-              <span className={`text-xs font-medium transition-colors ${!domesticOnly ? "text-foreground" : "text-muted-foreground"}`}>
-                🌍 All Retailers
-              </span>
-              <Switch checked={domesticOnly} onCheckedChange={setDomesticOnly} />
-              <span className={`text-xs font-medium transition-colors ${domesticOnly ? "text-foreground" : "text-muted-foreground"}`}>
-                🇬🇧 UK Only
-              </span>
-            </div>
+          <div className="mb-4 space-y-3">
+            {/* Freshness badge */}
+            {dataSource && (
+              <div className="flex items-center gap-2">
+                <Badge variant={dataSource.cached ? "secondary" : "default"} className="text-[10px] gap-1">
+                  {dataSource.cached ? (
+                    <>
+                      🕐 Cached{" "}
+                      {dataSource.cached_at
+                        ? (() => {
+                            const mins = Math.round((Date.now() - new Date(dataSource.cached_at).getTime()) / 60000);
+                            return mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
+                          })()
+                        : ""}
+                    </>
+                  ) : (
+                    <>⚡ Live results</>
+                  )}
+                </Badge>
+                <span className="text-[10px] text-muted-foreground">
+                  {sorted.length} retailer{sorted.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+            )}
 
-            <div className="flex gap-1 rounded-full border border-border bg-card p-0.5">
-              {([
-                ["price", "💰 Cheapest"],
-                ["delivery", "🚚 Fastest"],
-                ["trust", "⭐ Most Trusted"],
-              ] as const).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => setSortBy(key)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                    sortBy === key
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
+                <span className={`text-xs font-medium transition-colors ${!domesticOnly ? "text-foreground" : "text-muted-foreground"}`}>
+                  🌍 All Retailers
+                </span>
+                <Switch checked={domesticOnly} onCheckedChange={setDomesticOnly} />
+                <span className={`text-xs font-medium transition-colors ${domesticOnly ? "text-foreground" : "text-muted-foreground"}`}>
+                  🇬🇧 UK Only
+                </span>
+              </div>
+
+              <div className="flex gap-1 rounded-full border border-border bg-card p-0.5">
+                {([
+                  ["price", "💰 Cheapest"],
+                  ["delivery", "🚚 Fastest"],
+                  ["trust", "⭐ Most Trusted"],
+                ] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setSortBy(key)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                      sortBy === key
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -329,7 +358,7 @@ const Results = () => {
                   setProgress(5);
                   if (product) {
                     scrapePrices(product.product_name, product.retailers)
-                      .then(setResults)
+                      .then((resp) => { setResults(resp.results); setDataSource({ cached: resp.cached, cached_at: resp.cached_at }); })
                       .catch(() => {})
                       .finally(() => setIsLoading(false));
                   }

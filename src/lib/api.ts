@@ -42,18 +42,24 @@ export async function searchProduct(query: string, imageBase64?: string): Promis
   return data.product;
 }
 
+export interface ScrapeResponse {
+  results: PriceResult[];
+  cached: boolean;
+  cached_at?: string;
+}
+
 export async function scrapePrices(
   productName: string,
   retailers: string[],
   skipCache = false
-): Promise<PriceResult[]> {
+): Promise<ScrapeResponse> {
   const { data, error } = await supabase.functions.invoke("price-scrape", {
     body: { product_name: productName, retailers, skip_cache: skipCache },
   });
 
   if (error) throw new Error(error.message || "Price scrape failed");
   if (!data?.success) throw new Error(data?.error || "Price scrape failed");
-  return data.results;
+  return { results: data.results, cached: !!data.cached, cached_at: data.cached_at };
 }
 
 export interface TrendingItem {
