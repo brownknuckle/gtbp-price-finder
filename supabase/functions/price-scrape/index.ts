@@ -120,6 +120,72 @@ function buildSourceSnippet(source: any): string {
 
 const MIN_REALISTIC_PRICE = 30; // Absolute floor — further refined by estimated_retail_price when available
 
+const PRODUCT_STOPWORDS = new Set([
+  "shoes", "shoe", "trainers", "trainer", "sneakers", "sneaker",
+  "mens", "men", "womens", "women", "unisex", "kids", "junior",
+  "adult", "size", "uk", "us", "eu", "new", "with", "and", "for", "the", "og",
+]);
+
+const COLOR_TOKENS = new Set([
+  "black", "white", "red", "blue", "green", "yellow", "orange", "purple", "pink",
+  "brown", "grey", "gray", "beige", "cream", "navy", "khaki", "tan", "silver", "gold",
+  "cloud", "core",
+]);
+
+function extractAllGbpPrices(text: string): number[] {
+  const normalized = (text || "").replace(/,/g, "");
+  const values: number[] = [];
+
+  const gbpSymbolMatches = normalized.matchAll(/£\s?(\d{1,4}(?:\.\d{1,2})?)/gi);
+  for (const match of gbpSymbolMatches) {
+    const value = Number(match[1]);
+    if (!Number.isNaN(value) && value >= MIN_REALISTIC_PRICE && value <= 5000) values.push(value);
+  }
+
+  const gbpCodeMatches = normalized.matchAll(/(\d{1,4}(?:\.\d{1,2})?)\s?(?:GBP)/gi);
+  for (const match of gbpCodeMatches) {
+    const value = Number(match[1]);
+    if (!Number.isNaN(value) && value >= MIN_REALISTIC_PRICE && value <= 5000) values.push(value);
+  }
+
+  return Array.from(new Set(values.map((v) => Number(v.toFixed(2)))));
+}
+
+function tokenizeProductName(productName: string): string[] {
+  return (productName || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s/-]/g, " ")
+    .replace(/[/-]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length > 1 && !PRODUCT_STOPWORDS.has(token));
+}
+
+function isOutOfStock(text: string): boolean {
+  return /\b(sold out|out of stock|currently unavailable|notify me when available)\b/i.test(text || "");
+}
+
+function matchesRequestedProduct(productName: string, url: string, pageText: string): boolean {
+  const haystack = `${url}\n${pageText}`.toLowerCase();
+  const tokens = tokenizeProductName(productName);
+  if (!tokens.length) return true;
+
+  const matchedTokens = tokens.filter((token) => haystack.includes(token));
+  const requiredTokenMatches = tokens.length <= 3
+    ? tokens.length
+    : Math.max(2, Math.ceil(tokens.length * 0.5));
+
+  if (matchedTokens.length < requiredTokenMatches) return false;
+
+  const colors = tokens.filter((token) => COLOR_TOKENS.has(token));
+  if (colors.length > 0) {
+    const matchedColors = colors.filter((color) => haystack.includes(color));
+    const requiredColors = colors.length === 1 ? 1 : Math.min(2, colors.length);
+    if (matchedColors.length < requiredColors) return false;
+  }
+
+  return true;
+}
+
 function buildFallbackResults(sources: any[], priceFloor: number = MIN_REALISTIC_PRICE): any[] {
   return sources
     .map((source: any) => {
@@ -199,6 +265,7 @@ serve(async (req) => {
 
     let cachedResults: any[] = [];
     let hasSufficientCachedResults = false;
+    let cachedCreatedAt: string | undefined;
 
     if (!skip_cache) {
       const { data: cached } = await sb
@@ -210,13 +277,14 @@ serve(async (req) => {
 
       cachedResults = Array.isArray(cached?.results) ? cached.results : [];
       hasSufficientCachedResults = cachedResults.length >= MIN_CACHE_RESULTS;
+      cachedCreatedAt = cached?.created_at;
     } else {
       console.log(`Cache bypass requested for: ${cacheKey}`);
     }
 
     if (hasSufficientCachedResults) {
       console.log(`Cache hit for: ${cacheKey} (${cachedResults.length} results)`);
-      return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cached!.created_at }), {
+      return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cachedCreatedAt }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -257,6 +325,38 @@ serve(async (req) => {
         return await response.json();
       } catch {
         return { data: [] };
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    const scrapeProductPage = async (url: string): Promise<string> => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+
+      try {
+        const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            url,
+            formats: ["markdown"],
+            onlyMainContent: true,
+            location: { country: "GB", languages: ["en"] },
+          }),
+        });
+
+        if (!response.ok) return "";
+        const data = await response.json();
+        const markdown = data?.data?.markdown || data?.markdown || "";
+        const description = data?.data?.metadata?.description || data?.metadata?.description || "";
+        return `${markdown}\n${description}`.slice(0, 14000);
+      } catch {
+        return "";
       } finally {
         clearTimeout(timeout);
       }
@@ -526,24 +626,67 @@ PRODUCT MATCHING — VERY IMPORTANT:
       .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay)
       .map((r: any, i: number) => ({ ...r, rank: i + 1 }));
 
-    if (sorted.length < MIN_CACHE_RESULTS && cachedResults.length > sorted.length) {
-      console.log(`Returning better stale cache for ${cacheKey}: ${cachedResults.length} > ${sorted.length}`);
+    const VERIFY_LIMIT = 12;
+    const VERIFY_BATCH_SIZE = 6;
+
+    const verifySingleResult = async (entry: any): Promise<any | null> => {
+      const pageText = await scrapeProductPage(entry.url || "");
+      if (!pageText) return null;
+      if (isOutOfStock(pageText)) return null;
+      if (!matchesRequestedProduct(searchName, entry.url || "", pageText)) return null;
+
+      const pagePrices = extractAllGbpPrices(pageText).filter((p) => p >= priceFloor);
+      if (!pagePrices.length) return null;
+
+      const closestPrice = pagePrices.reduce((best, p) =>
+        Math.abs(p - entry.itemPrice) < Math.abs(best - entry.itemPrice) ? p : best,
+        pagePrices[0]
+      );
+
+      const priceDelta = Math.abs(closestPrice - entry.itemPrice) / Math.max(entry.itemPrice, 1);
+      if (priceDelta > 0.4) return null;
+      if (priceDelta > 0.18) {
+        const itemPrice = Number(closestPrice.toFixed(2));
+        const totalYouPay = Number((itemPrice + (entry.shipping || 0) + (entry.duties || 0)).toFixed(2));
+        return { ...entry, itemPrice, totalYouPay };
+      }
+
+      return entry;
+    };
+
+    const candidatesForVerification = sorted.slice(0, VERIFY_LIMIT);
+    const verifiedResults: any[] = [];
+
+    for (let i = 0; i < candidatesForVerification.length; i += VERIFY_BATCH_SIZE) {
+      const batch = candidatesForVerification.slice(i, i + VERIFY_BATCH_SIZE);
+      const checked = await Promise.all(batch.map(verifySingleResult));
+      verifiedResults.push(...checked.filter(Boolean));
+    }
+
+    const finalSorted = verifiedResults
+      .sort((a: any, b: any) => a.totalYouPay - b.totalYouPay)
+      .map((r: any, i: number) => ({ ...r, rank: i + 1 }));
+
+    console.log(`Verification kept ${finalSorted.length}/${candidatesForVerification.length} results`);
+
+    if (finalSorted.length < MIN_CACHE_RESULTS && cachedResults.length > finalSorted.length) {
+      console.log(`Returning better stale cache for ${cacheKey}: ${cachedResults.length} > ${finalSorted.length}`);
       return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, stale: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (sorted.length > 0) {
+    if (finalSorted.length > 0) {
       // Save to cache (fire and forget)
       sb.from("price_cache")
         .upsert(
-          { product_key: cacheKey, results: sorted, product_info: { product_name, retailers: normalizedRetailers } },
+          { product_key: cacheKey, results: finalSorted, product_info: { product_name, retailers: normalizedRetailers } },
           { onConflict: "product_key" }
         )
         .then(({ error }) => { if (error) console.error("Cache write error:", error); });
     }
 
-    return new Response(JSON.stringify({ success: true, results: sorted }), {
+    return new Response(JSON.stringify({ success: true, results: finalSorted }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
