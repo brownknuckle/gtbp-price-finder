@@ -143,11 +143,19 @@ serve(async (req) => {
       });
     }
 
+    // Strip sizing info for search queries (keep for display only)
+    const searchName = product_name
+      .replace(/\b(men'?s?|women'?s?|unisex)\b/gi, "")
+      .replace(/\b(UK|US|EU)\s*\d+\.?\d*/gi, "")
+      .replace(/\bsize\s*\d+\.?\d*/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
     // Check cache first
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, supabaseKey);
-    const cacheKey = product_name.toLowerCase().trim();
+    const cacheKey = searchName.toLowerCase().trim();
 
     const { data: cached } = await sb
       .from("price_cache")
@@ -180,7 +188,7 @@ serve(async (req) => {
 
     const doSearch = async (query: string, limit: number) => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      const timeout = setTimeout(() => controller.abort(), 15000);
 
       try {
         const response = await fetch("https://api.firecrawl.dev/v1/search", {
@@ -207,6 +215,8 @@ serve(async (req) => {
       }
     };
 
+    console.log(`Searching for: "${searchName}" across ${normalizedRetailers.length} retailers`);
+
     // Batch retailers into groups for efficient API fan-out
     const allResults: any[] = [];
     const seenUrls = new Set<string>();
@@ -217,16 +227,17 @@ serve(async (req) => {
       retailerBatches.push(normalizedRetailers.slice(i, i + BATCH_SIZE));
     }
 
-    // Build batched queries: "product site:a.com OR site:b.com OR site:c.com"
+    // Build batched queries using cleaned search name (no sizing info)
     const batchPromises = retailerBatches.map((batch: string[]) => {
       const siteQuery = batch.map((r: string) => `site:${r}`).join(" OR ");
-      return doSearch(`${product_name} buy price £ ${siteQuery}`, Math.min(batch.length * 3, 24));
+      return doSearch(`${searchName} buy price £ ${siteQuery}`, Math.min(batch.length * 3, 24));
     });
-    // Two broad fallback searches for wider coverage
-    const broadPromise1 = doSearch(`${product_name} buy UK price GBP £`, 15);
-    const broadPromise2 = doSearch(`"${product_name}" shop price £`, 10);
+    // Three broad fallback searches for wider coverage
+    const broadPromise1 = doSearch(`${searchName} buy UK price GBP £`, 15);
+    const broadPromise2 = doSearch(`"${searchName}" shop price £`, 10);
+    const broadPromise3 = doSearch(`${searchName} trainers price`, 8);
 
-    const allSearchResults = await Promise.all([...batchPromises, broadPromise1, broadPromise2]);
+    const allSearchResults = await Promise.all([...batchPromises, broadPromise1, broadPromise2, broadPromise3]);
 
     for (const result of allSearchResults) {
       for (const item of (result.data || [])) {
@@ -287,7 +298,7 @@ CRITICAL RULES:
           },
           {
             role: "user",
-            content: `Product: ${product_name}\n\nScraped retailer pages:\n${scrapedContent}\n\nExtract prices from direct retailers only. Exclude any comparison or aggregator sites.`,
+            content: `Product: ${searchName}\n\nScraped retailer pages:\n${scrapedContent}\n\nExtract prices from direct retailers only. Exclude any comparison or aggregator sites.`,
           },
         ],
         tools: [
