@@ -142,71 +142,75 @@ const Results = () => {
   return (
     <PageTransition>
       <div className="mx-auto max-w-3xl px-4 py-6">
-        {/* Header with large product image */}
-        <div className="mb-6 flex flex-col sm:flex-row items-center gap-5">
-          {/* Large product image */}
+        {/* Header */}
+        <div className="mb-6 flex items-start gap-4">
+          {/* Product image */}
           {product?.image_url && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="shrink-0"
+              className="hidden sm:block shrink-0"
             >
-              <div className="h-48 w-48 sm:h-56 sm:w-56 overflow-hidden rounded-2xl border bg-secondary flex items-center justify-center">
-                <img
-                  src={product.image_url}
-                  alt={product.product_name}
-                  className="h-full w-full object-contain p-3"
-                  onError={(e) => {
-                    const img = e.target as HTMLImageElement;
-                    img.style.display = "none";
-                    img.parentElement!.innerHTML = `<span class="text-5xl">${product.category === "shoes" ? "👟" : product.category === "clothing" ? "👕" : "🎒"}</span>`;
-                  }}
-                />
+              <div className="h-20 w-20 overflow-hidden rounded-xl border bg-secondary flex items-center justify-center">
+                {product.image_url ? (
+                  <img
+                    src={product.image_url}
+                    alt={product.product_name}
+                    className="h-full w-full object-contain p-1"
+                    onError={(e) => {
+                      const img = e.target as HTMLImageElement;
+                      img.style.display = "none";
+                      img.parentElement!.innerHTML = `<span class="text-3xl">${product.category === "shoes" ? "👟" : product.category === "clothing" ? "👕" : "🎒"}</span>`;
+                    }}
+                  />
+                ) : (
+                  <span className="text-3xl">{product.category === "shoes" ? "👟" : product.category === "clothing" ? "👕" : "🎒"}</span>
+                )}
               </div>
             </motion.div>
           )}
-          <div className="flex-1 min-w-0 text-center sm:text-left">
-            <h1 className="text-2xl font-bold text-foreground">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-foreground">
               {product?.product_name || query}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {product?.brand} · {product?.category}
               {stateSizing && ` · ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}`}
             </p>
-            {product && !isLoading && (
-              <div className="mt-3 flex items-center gap-2 justify-center sm:justify-start">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={refreshResults}
-                  disabled={isRefreshing}
-                >
-                  <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                  Refresh
-                </Button>
-                <Button
-                  variant={isInWatchlist(product.product_name) ? "default" : "outline"}
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => {
-                    if (!isInWatchlist(product.product_name)) {
-                      addToWatchlist({
-                        product_name: product.product_name,
-                        brand: product.brand,
-                        category: product.category,
-                        best_price: sorted[0]?.totalYouPay,
-                      });
-                    }
-                  }}
-                  disabled={isInWatchlist(product.product_name)}
-                >
-                  <Heart className={`h-4 w-4 ${isInWatchlist(product.product_name) ? "fill-current" : ""}`} />
-                  {isInWatchlist(product.product_name) ? "Saved" : "Save"}
-                </Button>
-              </div>
-            )}
           </div>
+          {product && !isLoading && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={refreshResults}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <Button
+                variant={isInWatchlist(product.product_name) ? "default" : "outline"}
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  if (!isInWatchlist(product.product_name)) {
+                    addToWatchlist({
+                      product_name: product.product_name,
+                      brand: product.brand,
+                      category: product.category,
+                      best_price: sorted[0]?.totalYouPay,
+                    });
+                  }
+                }}
+                disabled={isInWatchlist(product.product_name)}
+              >
+                <Heart className={`h-4 w-4 ${isInWatchlist(product.product_name) ? "fill-current" : ""}`} />
+                {isInWatchlist(product.product_name) ? "Saved" : "Save"}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Controls */}
