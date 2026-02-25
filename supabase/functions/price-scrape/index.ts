@@ -41,7 +41,7 @@ const COLOR_TOKENS = new Set([
 
 const COLOR_QUALIFIERS = new Set(["core", "cloud", "dark", "light", "bright", "pale", "deep"]);
 
-const MIN_REALISTIC_PRICE = 30;
+const MIN_REALISTIC_PRICE = 20;
 const MIN_CACHE_RESULTS = 6;
 
 // Known Trustpilot ratings for popular retailers
@@ -67,13 +67,16 @@ function isLikelyProductPage(url: string): boolean {
     const { pathname, search } = parsed;
     if (NON_PRODUCT_PATH_PATTERNS.some((p) => p.test(pathname))) return false;
     const segments = pathname.split("/").filter(Boolean);
-    if (segments.length < 2) return false;
+    if (segments.length < 1) return false;
     // Reject search result pages (e.g. ?q=xxx, ?search=xxx)
     if (/[?&](q|query|search|s)=/i.test(search)) return false;
-    // Reject brand-only category pages like /adidas/adidas-originals (no product slug with numbers/SKU)
+    // Accept pages with at least 2 segments, or 1 segment with product-like identifiers
     const lastSegment = segments[segments.length - 1];
-    const hasProductIdentifier = /\d/.test(lastSegment) || lastSegment.length > 15 || segments.length >= 3;
-    if (!hasProductIdentifier) return false;
+    if (segments.length === 1) {
+      // Single segment must look like a product slug (has numbers or is long)
+      const hasProductIdentifier = /\d/.test(lastSegment) || lastSegment.length > 20;
+      if (!hasProductIdentifier) return false;
+    }
     return true;
   } catch {
     return false;
@@ -130,25 +133,27 @@ function tokenizeProductName(productName: string): string[] {
 }
 
 function matchesProduct(productName: string, url: string, text: string, title?: string): boolean {
-  const fullHaystack = `${url}\n${text}`.toLowerCase();
+  const fullHaystack = `${url}\n${title || ""}\n${text}`.toLowerCase();
   const tokens = tokenizeProductName(productName);
   if (!tokens.length) return true;
 
   const mainTokens = tokens.filter((t) => !COLOR_QUALIFIERS.has(t));
-  const matchedTokens = mainTokens.filter((t) => fullHaystack.includes(t));
+  const nonColorTokens = mainTokens.filter((t) => !COLOR_TOKENS.has(t));
+  const matchedNonColor = nonColorTokens.filter((t) => fullHaystack.includes(t));
 
-  // Need brand + model at minimum
-  const required = mainTokens.length <= 3
-    ? Math.max(1, mainTokens.length - 1)
-    : Math.max(2, Math.ceil(mainTokens.length * 0.4));
-  if (matchedTokens.length < required) return false;
+  // Need brand + model at minimum (relaxed: 40% of non-color tokens)
+  const required = nonColorTokens.length <= 3
+    ? Math.max(1, nonColorTokens.length - 1)
+    : Math.max(2, Math.ceil(nonColorTokens.length * 0.4));
+  if (matchedNonColor.length < required) return false;
 
-  // Color check: use URL + title + first 300 chars of text (NOT full markdown which may mention other colorways)
+  // Color check: require MAJORITY of colors (not all) — check URL + title + first 500 chars
   const colors = mainTokens.filter((t) => COLOR_TOKENS.has(t));
   if (colors.length > 0) {
-    const colorHaystack = `${url}\n${title || ""}\n${text.slice(0, 300)}`.toLowerCase();
+    const colorHaystack = `${url}\n${title || ""}\n${text.slice(0, 500)}`.toLowerCase();
     const matchedColors = colors.filter((c) => colorHaystack.includes(c));
-    if (matchedColors.length < colors.length) return false;
+    // Require at least half the colors to match (was: all)
+    if (matchedColors.length < Math.ceil(colors.length / 2)) return false;
   }
 
   return true;
@@ -313,12 +318,14 @@ serve(async (req) => {
     });
 
     // Broad searches for coverage
+    const searchNameShort = searchName.split(/[-–\/]/).map(s => s.trim()).filter(Boolean)[0] || searchName;
     const broadSearches = [
-      doSearch(`${searchName} buy UK price GBP £`, 15),
-      doSearch(`"${searchName}" shop price £`, 10),
-      doSearch(`${searchName} trainers price`, 8),
-      doSearch(`"${searchName}" buy £ site:.co.uk`, 20),
-      doSearch(`${searchName} price £ site:.co.uk OR site:.uk`, 15),
+      doSearch(`${searchName} buy UK price GBP £`, 20),
+      doSearch(`"${searchName}" shop price £`, 15),
+      doSearch(`${searchName} price £`, 15),
+      doSearch(`"${searchNameShort}" buy £ site:.co.uk`, 20),
+      doSearch(`${searchName} price £ site:.co.uk OR site:.uk`, 20),
+      doSearch(`${searchName} buy online UK`, 15),
     ];
 
     const allSearchResults = await Promise.all([...batchPromises, ...broadSearches]);
@@ -363,7 +370,7 @@ serve(async (req) => {
 
     // ── Extract prices deterministically ──
     const priceFloor = estimated_retail_price
-      ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.35))
+      ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.2))
       : MIN_REALISTIC_PRICE;
 
     console.log(`Price floor: £${priceFloor} (RRP: ${estimated_retail_price || "unknown"})`);
