@@ -81,7 +81,7 @@ serve(async (req) => {
     const allResults: any[] = [];
     const seenUrls = new Set<string>();
 
-    const BATCH_SIZE = 5;
+    const BATCH_SIZE = 8;
     const retailerBatches: string[][] = [];
     for (let i = 0; i < retailers.length; i += BATCH_SIZE) {
       retailerBatches.push(retailers.slice(i, i + BATCH_SIZE));
@@ -90,12 +90,13 @@ serve(async (req) => {
     // Build batched queries: "product site:a.com OR site:b.com OR site:c.com"
     const batchPromises = retailerBatches.map((batch: string[]) => {
       const siteQuery = batch.map((r: string) => `site:${r}`).join(" OR ");
-      return doSearch(`${product_name} buy ${siteQuery}`, batch.length * 2);
+      return doSearch(`${product_name} buy price £ ${siteQuery}`, batch.length * 3);
     });
-    // One broad fallback
-    const broadPromise = doSearch(`${product_name} buy UK price GBP £`, 8);
+    // Two broad fallback searches for wider coverage
+    const broadPromise1 = doSearch(`${product_name} buy UK price GBP £`, 15);
+    const broadPromise2 = doSearch(`"${product_name}" shop price £`, 10);
 
-    const allSearchResults = await Promise.all([...batchPromises, broadPromise]);
+    const allSearchResults = await Promise.all([...batchPromises, broadPromise1, broadPromise2]);
 
     for (const result of allSearchResults) {
       for (const item of (result.data || [])) {
@@ -118,12 +119,12 @@ serve(async (req) => {
         }
       } catch { /* skip invalid URLs */ }
     }
-    const dedupedResults = Array.from(byDomain.values()).slice(0, 30);
+    const dedupedResults = Array.from(byDomain.values()).slice(0, 40);
 
     console.log(`Deduped to ${dedupedResults.length} unique retailer domains`);
 
     const scrapedContent = dedupedResults
-      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${r.markdown?.slice(0, 800) || r.description || "No content"}`)
+      .map((r: any, i: number) => `[Source ${i + 1}: ${r.url}]\n${r.markdown?.slice(0, 1500) || r.description || "No content"}`)
       .join("\n\n---\n\n");
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
