@@ -53,3 +53,17 @@ export async function scrapePrices(
   if (!data?.success) throw new Error(data?.error || "Price scrape failed");
   return data.results;
 }
+
+export interface TrendingItem {
+  name: string;
+  category: "shoes" | "clothing" | "accessories";
+  emoji: string;
+}
+
+export async function fetchTrending(): Promise<TrendingItem[]> {
+  const { data, error } = await supabase.functions.invoke("trending");
+
+  if (error) throw new Error(error.message || "Trending fetch failed");
+  if (!data?.success) throw new Error(data?.error || "Trending fetch failed");
+  return data.trending;
+}

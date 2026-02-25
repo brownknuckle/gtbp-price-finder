@@ -12,11 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { sizeOptions, shoeSizes, type SizeRegion } from "@/lib/mockData";
-import { searchProduct, type ProductInfo } from "@/lib/api";
+import { searchProduct, fetchTrending, type ProductInfo, type TrendingItem } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import PageTransition from "@/components/PageTransition";
 
-const trendingSearches = [
+const fallbackTrending = [
   "Nike Air Max 1",
   "New Balance 550",
   "Stone Island Jacket",
@@ -38,9 +38,20 @@ const Index = () => {
   const [pendingProduct, setPendingProduct] = useState<ProductInfo | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
+  const [trendingItems, setTrendingItems] = useState<TrendingItem[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch trending items on mount
+  useEffect(() => {
+    fetchTrending()
+      .then((items) => setTrendingItems(items))
+      .catch(() => {
+        // Use fallback if trending fetch fails
+        setTrendingItems(fallbackTrending.map((name) => ({ name, category: "shoes" as const, emoji: "👟" })));
+      });
+  }, []);
 
   // Predictive text: fetch suggestions as user types
   useEffect(() => {
@@ -464,27 +475,36 @@ const Index = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.55, duration: 0.4 }}
-              className="flex flex-wrap justify-center gap-2"
+              className="space-y-2"
             >
-              {trendingSearches.map((term, i) => (
-                <motion.button
-                  key={term}
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.97 }}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 + i * 0.07 }}
-                  disabled={isSearching}
-                  onClick={() => {
-                    setQuery(term);
-                    handleSearch(term);
-                  }}
-                  className="group flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground shadow-xs transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground hover:shadow-sm disabled:opacity-50 sm:px-4 sm:text-sm"
-                >
-                  {term}
-                  <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
-                </motion.button>
-              ))}
+              <p className="text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                🔥 Trending Now
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {(trendingItems.length > 0
+                  ? trendingItems
+                  : fallbackTrending.map((name) => ({ name, category: "shoes" as const, emoji: "👟" }))
+                ).map((item, i) => (
+                  <motion.button
+                    key={item.name}
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.97 }}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 + i * 0.07 }}
+                    disabled={isSearching}
+                    onClick={() => {
+                      setQuery(item.name);
+                      handleSearch(item.name);
+                    }}
+                    className="group flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground shadow-xs transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground hover:shadow-sm disabled:opacity-50 sm:px-4 sm:text-sm"
+                  >
+                    <span>{item.emoji}</span>
+                    {item.name}
+                    <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                  </motion.button>
+                ))}
+              </div>
             </motion.div>
           </div>
         </div>
