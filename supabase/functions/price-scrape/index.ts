@@ -28,6 +28,33 @@ function isComparisonSite(url: string): boolean {
   return EXCLUDED_DOMAINS.some(d => lower.includes(d));
 }
 
+// URL path patterns that indicate category/collection/brand listing pages, NOT product pages
+const NON_PRODUCT_PATH_PATTERNS = [
+  /\/collection\//i,
+  /\/collections\//i,
+  /\/category\//i,
+  /\/categories\//i,
+  /\/brand\//i,
+  /\/brands\//i,
+  /\/release-dates?\//i,
+  /\/search[?/]/i,
+  /\/shop\/[^/]*$/i, // bare /shop/brand but not /shop/brand/product
+];
+
+function isLikelyProductPage(url: string): boolean {
+  try {
+    const { pathname } = new URL(url);
+    // If path matches a known non-product pattern, reject
+    if (NON_PRODUCT_PATH_PATTERNS.some(p => p.test(pathname))) return false;
+    // Very short paths like /brand or /adidas are almost never product pages
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments.length < 2) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeRetailerDomain(input: string): string | null {
   const cleaned = (input || "")
     .trim()
@@ -93,7 +120,7 @@ function buildFallbackResults(sources: any[]): any[] {
   return sources
     .map((source: any) => {
       const url = source?.url || "";
-      if (!url || isComparisonSite(url)) return null;
+      if (!url || isComparisonSite(url) || !isLikelyProductPage(url)) return null;
 
       const text = `${source?.markdown || ""}\n${source?.description || ""}`;
       const itemPrice = extractFirstGbpPrice(text);
@@ -262,7 +289,7 @@ serve(async (req) => {
 
     for (const result of allSearchResults) {
       for (const item of (result.data || [])) {
-        if (item.url && !seenUrls.has(item.url) && !isComparisonSite(item.url)) {
+        if (item.url && !seenUrls.has(item.url) && !isComparisonSite(item.url) && isLikelyProductPage(item.url)) {
           seenUrls.add(item.url);
           allResults.push(item);
         }
@@ -349,7 +376,10 @@ CRITICAL RULES:
 - If a page shows both a sale price and original price, ALWAYS use the SALE / current price as item_price and set original_price to the higher original/RRP price.
 - ONLY return results from actual retailers (e.g. Nike, JD Sports, Foot Locker, END., ASOS, Size?, Offspring, Schuh, Selfridges, Flannels, StockX, GOAT, etc.)
 - NEVER include price comparison or aggregator sites (PriceSpy, Pricerunner, Idealo, Google Shopping, Kelkoo, etc.)
-- Each result must link to a product page where the user can actually buy the item.
+- Each result must link to a SPECIFIC PRODUCT PAGE where the user can actually buy the item.
+- NEVER return URLs that point to category pages, collection pages, brand listing pages, search results, or release-date pages. The URL must be for ONE specific product, not a list of products.
+- URLs containing /collection/, /category/, /brand/, /brands/, /release-dates/ are NOT product pages — exclude them.
+- Verify the product in the URL matches the searched product. Do NOT return results for different products (e.g. returning a Gazelle link when searching for Samba).
 - The user is based in the UK. Convert all prices to GBP (£).
 - For UK retailers, duties = £0 (VAT included). For non-UK retailers, estimate shipping + duties to UK.
 - For trust_rating, use the retailer's Trustpilot score (1-5). Estimate if unknown.
@@ -434,9 +464,9 @@ CRITICAL RULES:
       console.warn("No AI tool-call output, using deterministic fallback extraction");
     }
 
-    // Final filter: remove any comparison sites that slipped through
+    // Final filter: remove comparison sites and non-product-page URLs
     const filtered = Array.isArray(aiRawResults)
-      ? aiRawResults.filter((r: any) => !isComparisonSite(r.url || ""))
+      ? aiRawResults.filter((r: any) => !isComparisonSite(r.url || "") && isLikelyProductPage(r.url || ""))
       : [];
 
     const mapped = filtered
