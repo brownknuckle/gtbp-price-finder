@@ -51,10 +51,11 @@ export interface ScrapeResponse {
 export async function scrapePrices(
   productName: string,
   retailers: string[],
-  skipCache = false
+  skipCache = false,
+  estimatedRetailPrice?: number
 ): Promise<ScrapeResponse> {
   const { data, error } = await supabase.functions.invoke("price-scrape", {
-    body: { product_name: productName, retailers, skip_cache: skipCache },
+    body: { product_name: productName, retailers, skip_cache: skipCache, estimated_retail_price: estimatedRetailPrice },
   });
 
   if (error) throw new Error(error.message || "Price scrape failed");

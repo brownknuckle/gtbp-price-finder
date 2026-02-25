@@ -39,6 +39,10 @@ const NON_PRODUCT_PATH_PATTERNS = [
   /\/release-dates?\//i,
   /\/search[?/]/i,
   /\/shop\/[^/]*$/i, // bare /shop/brand but not /shop/brand/product
+  /\/cat\//i,         // ASOS-style category pages
+  /\/cat\?/i,
+  /\/silhouette\//i,  // GOAT silhouette listing pages
+  /\/refine\//i,
 ];
 
 function isLikelyProductPage(url: string): boolean {
@@ -114,9 +118,9 @@ function buildSourceSnippet(source: any): string {
   return (relevant.length ? relevant.join("\n") : raw).slice(0, 900);
 }
 
-const MIN_REALISTIC_PRICE = 30; // No legitimate adult shoe/clothing costs less than £30
+const MIN_REALISTIC_PRICE = 30; // Absolute floor — further refined by estimated_retail_price when available
 
-function buildFallbackResults(sources: any[]): any[] {
+function buildFallbackResults(sources: any[], priceFloor: number = MIN_REALISTIC_PRICE): any[] {
   return sources
     .map((source: any) => {
       const url = source?.url || "";
@@ -124,7 +128,7 @@ function buildFallbackResults(sources: any[]): any[] {
 
       const text = `${source?.markdown || ""}\n${source?.description || ""}`;
       const itemPrice = extractFirstGbpPrice(text);
-      if (itemPrice === null || Number.isNaN(itemPrice) || itemPrice < MIN_REALISTIC_PRICE) return null;
+      if (itemPrice === null || Number.isNaN(itemPrice) || itemPrice < priceFloor) return null;
 
       let hostname = "";
       try {
@@ -159,7 +163,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { product_name, retailers, skip_cache } = await req.json();
+    const { product_name, retailers, skip_cache, estimated_retail_price } = await req.json();
 
     if (!product_name || !Array.isArray(retailers) || !retailers.length) {
       return new Response(JSON.stringify({ error: "product_name and retailers are required" }), {
@@ -469,8 +473,14 @@ CRITICAL RULES:
       ? aiRawResults.filter((r: any) => !isComparisonSite(r.url || "") && isLikelyProductPage(r.url || ""))
       : [];
 
+    // Dynamic price floor: if we know the RRP, reject anything below 35% of it
+    const priceFloor = estimated_retail_price
+      ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.35))
+      : MIN_REALISTIC_PRICE;
+    console.log(`Price floor: £${priceFloor} (RRP: ${estimated_retail_price || "unknown"})`);
+
     const mapped = filtered
-      .filter((r: any) => r.item_price >= MIN_REALISTIC_PRICE)
+      .filter((r: any) => r.item_price >= priceFloor)
       .map((r: any) => ({
       retailer: (r.retailer || "Unknown").replace(/[,:].*?(retailer|item_price|shipping|total|flag|country)[:\s]*/gi, "").trim(),
       country: r.country || "Unknown",
@@ -486,7 +496,7 @@ CRITICAL RULES:
       url: r.url || "#",
     }));
 
-    const fallbackMapped = buildFallbackResults(dedupedResults);
+    const fallbackMapped = buildFallbackResults(dedupedResults, priceFloor);
 
     // Merge AI + deterministic fallback, keep cheapest per retailer
     const mergedByRetailer = new Map<string, any>();

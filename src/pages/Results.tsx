@@ -46,7 +46,7 @@ const Results = () => {
     setProgress(5);
     try {
       const sizeStr = stateSizing ? ` ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}` : "";
-      const resp = await scrapePrices(product.product_name + sizeStr, product.retailers, true);
+      const resp = await scrapePrices(product.product_name + sizeStr, product.retailers, true, product.estimated_retail_price);
       setPhase("done");
       setProgress(100);
       setResults(resp.results);
@@ -81,7 +81,7 @@ const Results = () => {
         setPhase("scraping");
         setProgress(5);
         const sizeStr = stateSizing ? ` ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}` : "";
-        const resp = await scrapePrices(prod.product_name + sizeStr, prod.retailers);
+        const resp = await scrapePrices(prod.product_name + sizeStr, prod.retailers, false, prod.estimated_retail_price);
         setPhase("done");
         setProgress(100);
         setResults(resp.results);
