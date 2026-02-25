@@ -149,22 +149,22 @@ const Results = () => {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="hidden sm:block shrink-0"
+              className="shrink-0"
             >
-              <div className="h-20 w-20 overflow-hidden rounded-xl border bg-secondary flex items-center justify-center">
+              <div className="h-28 w-28 sm:h-36 sm:w-36 overflow-hidden rounded-2xl border bg-secondary flex items-center justify-center">
                 {product.image_url ? (
                   <img
                     src={product.image_url}
                     alt={product.product_name}
-                    className="h-full w-full object-contain p-1"
+                    className="h-full w-full object-contain p-2"
                     onError={(e) => {
                       const img = e.target as HTMLImageElement;
                       img.style.display = "none";
-                      img.parentElement!.innerHTML = `<span class="text-3xl">${product.category === "shoes" ? "👟" : product.category === "clothing" ? "👕" : "🎒"}</span>`;
+                      img.parentElement!.innerHTML = `<span class="text-5xl">${product.category === "shoes" ? "👟" : product.category === "clothing" ? "👕" : "🎒"}</span>`;
                     }}
                   />
                 ) : (
-                  <span className="text-3xl">{product.category === "shoes" ? "👟" : product.category === "clothing" ? "👕" : "🎒"}</span>
+                  <span className="text-5xl">{product.category === "shoes" ? "👟" : product.category === "clothing" ? "👕" : "🎒"}</span>
                 )}
               </div>
             </motion.div>
