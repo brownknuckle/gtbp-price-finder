@@ -217,8 +217,12 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
               if (imgUrl.length < 50) continue;
               // Skip generic site assets
               if (/volumental|most_feet|size-guide|fit-finder|delivery|returns|footer|nav/i.test(imgUrl)) continue;
-              // Skip tiny thumbnails (eBay s-l96, s-l140, etc.)
+              // Skip tiny thumbnails (eBay s-l96, s-l140, etc.) and dimension-named files (e.g. jd-178x100.png)
               if (/s-l\d{2,3}\.|thumb|_thumb|_small|_tiny|width=1[0-4]\d|w_1[0-4]\d/i.test(imgUrl)) continue;
+              // Skip images with small dimensions encoded in filename (e.g. 178x100, 200x120)
+              if (/[-_]\d{2,3}x\d{2,3}\./i.test(imgUrl)) continue;
+              // Skip images with explicit small width/height params
+              if (/[?&](w|width|h|height)=([1-9]\d?|1\d{2}|2[0-4]\d)(&|$)/i.test(imgUrl)) continue;
               
               // Score this image
               let score = 0;
@@ -245,7 +249,7 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
             }
           }
 
-          if (bestImage && bestScore >= 2) {
+          if (bestImage && bestScore >= 3) {
             product.image_url = bestImage;
             console.log("Found real product image (score:", bestScore, "):", bestImage);
           } else {
