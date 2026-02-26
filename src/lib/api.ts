@@ -54,13 +54,23 @@ export async function scrapePrices(
   skipCache = false,
   estimatedRetailPrice?: number
 ): Promise<ScrapeResponse> {
-  const { data, error } = await supabase.functions.invoke("price-scrape", {
-    body: { product_name: productName, retailers, skip_cache: skipCache, estimated_retail_price: estimatedRetailPrice },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
-  if (error) throw new Error(error.message || "Price scrape failed");
-  if (!data?.success) throw new Error(data?.error || "Price scrape failed");
-  return { results: data.results, cached: !!data.cached, cached_at: data.cached_at };
+  try {
+    const { data, error } = await supabase.functions.invoke("price-scrape", {
+      body: { product_name: productName, retailers, skip_cache: skipCache, estimated_retail_price: estimatedRetailPrice },
+    });
+
+    if (error) throw new Error(error.message || "Price scrape failed");
+    if (!data?.success) throw new Error(data?.error || "Price scrape failed");
+    return { results: data.results, cached: !!data.cached, cached_at: data.cached_at };
+  } catch (e: any) {
+    if (e.name === "AbortError") throw new Error("Search timed out. Please try again.");
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export interface TrendingItem {
