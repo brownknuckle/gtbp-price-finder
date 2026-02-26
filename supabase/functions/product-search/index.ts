@@ -159,17 +159,23 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
     if (FIRECRAWL_API_KEY) {
       try {
         console.log("Searching for real product image for:", product.product_name);
+        
+        // Search specifically for official product images
+        const imgController = new AbortController();
+        const imgTimeout = setTimeout(() => imgController.abort(), 10000);
         const imgResp = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
           headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          signal: imgController.signal,
           body: JSON.stringify({
-            query: `${product.product_name} product page`,
-            limit: 8,
+            query: `${product.product_name} official product photo`,
+            limit: 10,
             lang: "en",
             country: "gb",
             scrapeOptions: { formats: ["markdown"] },
           }),
         });
+        clearTimeout(imgTimeout);
 
         if (!imgResp.ok) {
           console.error("Firecrawl image search HTTP error:", imgResp.status);
@@ -177,37 +183,75 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
         } else {
           const imgData = await imgResp.json();
           console.log("Firecrawl image search returned", (imgData.data || []).length, "results");
-          let foundImage = false;
+          
+          // Extract product name tokens for matching
+          const nameTokens = product.product_name.toLowerCase()
+            .replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
+            .filter((t: string) => t.length > 2 && !["the","and","for","with","shoes","shoe","trainers"].includes(t));
+          
+          let bestImage = "";
+          let bestScore = 0;
 
           for (const item of (imgData.data || [])) {
-            if (foundImage) break;
-            const md = (item.markdown || "") + "\n" + (item.description || "");
+            const md = (item.markdown || "") + "\n" + (item.description || "") + "\n" + (item.title || "");
+            const itemUrl = (item.url || "").toLowerCase();
+            
+            // Skip comparison/aggregator sites
+            if (/lyst|shopstyle|pricespy|pricerunner|idealo/i.test(itemUrl)) continue;
 
-            // Extract image URLs from markdown ![alt](url) and raw URLs
+            // Extract image URLs from markdown
             const imgMatches = [
               ...md.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s)]+\.(?:jpg|jpeg|png|webp)[^\s)]*)\)/gi),
-              ...md.matchAll(/(https?:\/\/[^\s"'<>\])+]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>\]]*)?)/gi),
+              ...md.matchAll(/(https?:\/\/[^\s"'<>\]]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>]*)?)/gi),
             ];
 
             for (const match of imgMatches) {
-              const imgUrl = match[1];
+              let imgUrl = match[1];
               if (!imgUrl) continue;
-              // Skip tiny icons, logos, favicons, tracking
-              if (/favicon|logo|icon|badge|sprite|1x1|pixel|\.gif|data:|analytics|tracking|thumbnail/i.test(imgUrl)) continue;
-              // Prefer images with product-like dimensions or CDN paths
-              if (/static\.nike\.com|images\.asos|i\.ebayimg|media\.jdsports|images\.footlocker|cdn\.|image.*product|product.*image|PDP|pdp/i.test(imgUrl) || imgUrl.length > 60) {
-                product.image_url = imgUrl;
-                foundImage = true;
-                console.log("Found real product image:", imgUrl);
-                break;
+              // Clean up malformed URLs — truncate at first `)` or `]` that's part of markdown syntax
+              imgUrl = imgUrl.replace(/[)\]]\(https?:\/\/.*$/, "").replace(/[)\]]$/, "");
+              
+              // Skip tiny icons, logos, favicons, tracking pixels
+              if (/favicon|logo|icon|badge|sprite|1x1|pixel|\.gif|data:|analytics|tracking|avatar|profile|banner|header/i.test(imgUrl)) continue;
+              // Skip very short URLs (likely not product images)
+              if (imgUrl.length < 50) continue;
+              // Skip generic site assets
+              if (/volumental|most_feet|size-guide|fit-finder|delivery|returns|footer|nav/i.test(imgUrl)) continue;
+              // Skip tiny thumbnails (eBay s-l96, s-l140, etc.)
+              if (/s-l\d{2,3}\.|thumb|_thumb|_small|_tiny|width=1[0-4]\d|w_1[0-4]\d/i.test(imgUrl)) continue;
+              
+              // Score this image
+              let score = 0;
+              const imgUrlLower = imgUrl.toLowerCase();
+              
+              // Bonus for known CDNs
+              if (/static\.nike\.com|images\.asos|i\.ebayimg|media\.jdsports|images\.footlocker|cdn\.|assets\.adidas|nb\.scene7|asics\.com.*image|cms-cdn\.thesolesupplier|images\.stockx|image\.goat/i.test(imgUrl)) score += 3;
+              
+              // Bonus for product-like paths
+              if (/product|pdp|PDP|item|catalog/i.test(imgUrl)) score += 2;
+              
+              // Bonus for product name tokens appearing in the image URL or surrounding text
+              const contextText = (md.slice(Math.max(0, md.indexOf(imgUrl) - 200), md.indexOf(imgUrl) + 200)).toLowerCase();
+              const tokenMatches = nameTokens.filter((t: string) => imgUrlLower.includes(t) || contextText.includes(t));
+              score += tokenMatches.length;
+              
+              // Bonus for large image indicators
+              if (/w_600|w_800|w_1200|width=|large|hero|main|primary|_01_|standard/i.test(imgUrl)) score += 1;
+              
+              if (score > bestScore) {
+                bestScore = score;
+                bestImage = imgUrl;
               }
             }
           }
 
-          if (!foundImage) {
-            console.log("No product image found in Firecrawl results, keeping AI suggestion if it looks valid");
-            // Only keep the AI URL if it's from a known CDN
-            if (product.image_url && /static\.nike\.com|images\.adidas|nb\.scene7|asics\.com.*image/i.test(product.image_url)) {
+          if (bestImage && bestScore >= 2) {
+            product.image_url = bestImage;
+            console.log("Found real product image (score:", bestScore, "):", bestImage);
+          } else {
+            console.log("No confident product image found (best score:", bestScore, ")");
+            // Only keep AI URL if from known CDN
+            if (product.image_url && /static\.nike\.com|assets\.adidas|nb\.scene7|asics\.com.*image/i.test(product.image_url)) {
               console.log("Keeping AI-suggested CDN image:", product.image_url);
             } else {
               product.image_url = "";
