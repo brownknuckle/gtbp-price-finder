@@ -26,6 +26,9 @@ const NON_PRODUCT_PATH_PATTERNS = [
   /\/brand\//i, /\/brands\//i, /\/release-dates?\//i, /\/search[?/]/i,
   /\/shop\/[^/]*$/i, /\/cat\//i, /\/cat\?/i, /\/silhouette\//i, /\/refine\//i,
   /^\/b\/bn_/i, /^\/b\/[^/]+$/i,
+  /\/w\?q=/i, /\/w\/[^/]*\?/i, /\/search\?/i, /\/s\?k=/i, /\/s\/ref=/i,
+  /\/browse\//i, /\/listing/i, /\/results\?/i, /\/shop\?/i,
+  /\/plp\//i, /\/c\//i,
 ];
 
 const PRODUCT_STOPWORDS = new Set([
