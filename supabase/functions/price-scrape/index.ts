@@ -50,7 +50,16 @@ const COLOR_TOKENS = new Set([
 const COLOR_QUALIFIERS = new Set(["core", "cloud", "dark", "light", "bright", "pale", "deep"]);
 
 const MIN_REALISTIC_PRICE = 30;
+const MAX_REALISTIC_PRICE = 2000; // Absolute ceiling — no legitimate shoe/clothing costs more
 const MIN_CACHE_RESULTS = 6;
+
+// Domains that are definitely not retailers
+const NON_RETAIL_DOMAINS = [
+  /\.org\b/, /\.edu\b/, /\.gov\b/, /\.nhs\b/, /charity/, /hospice/, /foundation/,
+  /wikipedia/, /reddit\.com/, /youtube\.com/, /facebook\.com/, /instagram\.com/,
+  /twitter\.com/, /x\.com/, /tiktok\.com/, /pinterest\.com/,
+  /trustpilot/, /glassdoor/, /indeed\.com/, /linkedin\.com/,
+];
 
 // Patterns that indicate kids/toddler/junior/infant products
 const KIDS_PATH_PATTERNS = [
@@ -99,9 +108,9 @@ function isLikelyProductPage(url: string): boolean {
 }
 
 function normalizeRetailerDomain(input: string): string | null {
-  const cleaned = (input || "").trim().toLowerCase()
-    .replace(/^https?:\/\//, "").replace(/^www\./, "")
-    .split("/")[0].replace(/\s+/g, "");
+  const cleaned = (input || "").replace(/\s+/g, "").trim().toLowerCase()
+    .replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/^m\./, "")
+    .split("/")[0];
   if (!cleaned || !cleaned.includes(".")) return null;
   if (!/^[a-z0-9.-]+$/.test(cleaned)) return null;
   return cleaned;
@@ -164,13 +173,24 @@ function matchesProduct(productName: string, url: string, text: string, title?: 
     : Math.max(2, Math.ceil(nonColorTokens.length * 0.4));
   if (matchedNonColor.length < required) return false;
 
-  // Color check: require MAJORITY of colors (not all) — check URL + title + first 500 chars
+  // Color check: require ALL colors when there's only 1 color, majority when multiple
   const colors = mainTokens.filter((t) => COLOR_TOKENS.has(t));
   if (colors.length > 0) {
     const colorHaystack = `${url}\n${title || ""}\n${text.slice(0, 500)}`.toLowerCase();
     const matchedColors = colors.filter((c) => colorHaystack.includes(c));
-    // Require at least half the colors to match (was: all)
-    if (matchedColors.length < Math.ceil(colors.length / 2)) return false;
+    // Single color must match exactly; multiple colors require at least 2/3
+    const required = colors.length === 1 ? 1 : Math.ceil(colors.length * 0.67);
+    if (matchedColors.length < required) return false;
+    
+    // If the product specifies "triple" or a single-color emphasis, reject pages with conflicting colors in URL/title
+    if (/triple|mono/i.test(productName) || colors.length === 1) {
+      const conflictColors = ["black", "red", "blue", "green", "yellow", "orange", "purple", "pink", "brown", "grey", "gray", "navy", "white"]
+        .filter(c => !colors.includes(c));
+      // Check URL slug and title for conflicting colors
+      const slugAndTitle = `${url}\n${title || ""}`.toLowerCase();
+      const conflictFound = conflictColors.filter(c => slugAndTitle.includes(c));
+      if (conflictFound.length > 0) return false;
+    }
   }
 
   return true;
@@ -207,18 +227,22 @@ function getTrustRating(domain: string): number {
 function extractResultFromSource(
   source: { url: string; markdown?: string; description?: string; title?: string },
   productName: string,
-  priceFloor: number
+  priceFloor: number,
+  estimated_retail_price?: number
 ): any | null {
   const url = source.url;
   if (!url || isComparisonSite(url) || !isLikelyProductPage(url)) return null;
 
   const domain = extractDomain(url);
   if (!domain) return null;
+  
+  // Reject non-retail domains (charities, social media, forums, etc.)
+  if (NON_RETAIL_DOMAINS.some((p) => p.test(domain))) return null;
 
   const content = `${source.title || ""}\n${source.markdown || ""}\n${source.description || ""}`;
 
-  // Check product match
-  if (!matchesProduct(productName, url, content)) return null;
+  // Check product match (pass title separately for color-in-title checks)
+  if (!matchesProduct(productName, url, content, source.title)) return null;
 
   // Check not sold out
   if (isOutOfStock(content)) return null;
@@ -227,7 +251,8 @@ function extractResultFromSource(
   if (isKidsProduct(url, content)) return null;
 
   // Extract prices from the ACTUAL scraped content
-  const prices = extractAllGbpPrices(content).filter((p) => p >= priceFloor);
+  const priceCeiling = estimated_retail_price ? estimated_retail_price * 3 : MAX_REALISTIC_PRICE;
+  const prices = extractAllGbpPrices(content).filter((p) => p >= priceFloor && p <= priceCeiling);
   if (!prices.length) return null;
 
   // Pick the most likely current/sale price (lowest reasonable price above floor)
@@ -357,14 +382,11 @@ serve(async (req) => {
     });
 
     // Broad searches for coverage
-    const searchNameShort = searchName.split(/[-–\/]/).map(s => s.trim()).filter(Boolean)[0] || searchName;
+    // Fewer, more targeted broad searches to reduce noise and API usage
     const broadSearches = [
-      doSearch(`${searchName} buy UK price GBP £`, 20),
-      doSearch(`"${searchName}" shop price £`, 15),
-      doSearch(`${searchName} price £`, 15),
-      doSearch(`"${searchNameShort}" buy £ site:.co.uk`, 20),
+      doSearch(`"${searchName}" buy price £`, 20),
       doSearch(`${searchName} price £ site:.co.uk OR site:.uk`, 20),
-      doSearch(`${searchName} buy online UK`, 15),
+      doSearch(`${searchName} buy UK shop £`, 15),
     ];
 
     const allSearchResults = await Promise.all([...batchPromises, ...broadSearches]);
@@ -416,7 +438,7 @@ serve(async (req) => {
 
     const extracted: any[] = [];
     for (const source of allSources) {
-      const result = extractResultFromSource(source, searchName, priceFloor);
+      const result = extractResultFromSource(source, searchName, priceFloor, estimated_retail_price);
       if (result) extracted.push(result);
     }
 
