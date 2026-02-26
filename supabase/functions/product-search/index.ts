@@ -154,6 +154,59 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
 
     const product = JSON.parse(toolCall.function.arguments);
 
+    // ── Find a REAL product image via Firecrawl search ──
+    const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+    if (FIRECRAWL_API_KEY) {
+      try {
+        const imgResp = await fetch("https://api.firecrawl.dev/v1/search", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: `${product.product_name} official product photo`,
+            limit: 5,
+            lang: "en",
+            country: "gb",
+            scrapeOptions: { formats: ["markdown"] },
+          }),
+        });
+        const imgData = await imgResp.json();
+        let foundImage = false;
+
+        for (const item of (imgData.data || [])) {
+          if (foundImage) break;
+          const md = (item.markdown || "") + "\n" + (item.description || "");
+          // Extract image URLs from markdown ![alt](url) or raw URLs
+          const imgMatches = [
+            ...md.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s)]+\.(?:jpg|jpeg|png|webp)[^\s)]*)\)/gi),
+            ...md.matchAll(/(https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>]*)?)/gi),
+          ];
+          for (const match of imgMatches) {
+            const imgUrl = match[1];
+            // Skip tiny icons, logos, favicons
+            if (/favicon|logo|icon|badge|sprite|1x1|pixel/i.test(imgUrl)) continue;
+            // Skip tracking pixels and data URIs
+            if (/\.gif|data:|analytics|tracking/i.test(imgUrl)) continue;
+            // Prefer images from known retailer CDNs
+            product.image_url = imgUrl;
+            foundImage = true;
+            console.log("Found real product image:", imgUrl);
+            break;
+          }
+        }
+
+        if (!foundImage) {
+          console.log("No real product image found via Firecrawl, clearing AI-hallucinated URL");
+          product.image_url = "";
+        }
+      } catch (e) {
+        console.error("Image search failed:", e);
+        product.image_url = "";
+      }
+    } else {
+      // Without Firecrawl, don't trust AI-generated URLs
+      product.image_url = "";
+    }
+
     return new Response(JSON.stringify({ success: true, product }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
