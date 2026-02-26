@@ -158,52 +158,68 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     if (FIRECRAWL_API_KEY) {
       try {
+        console.log("Searching for real product image for:", product.product_name);
         const imgResp = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
           headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            query: `${product.product_name} official product photo`,
-            limit: 5,
+            query: `${product.product_name} product page`,
+            limit: 8,
             lang: "en",
             country: "gb",
             scrapeOptions: { formats: ["markdown"] },
           }),
         });
-        const imgData = await imgResp.json();
-        let foundImage = false;
 
-        for (const item of (imgData.data || [])) {
-          if (foundImage) break;
-          const md = (item.markdown || "") + "\n" + (item.description || "");
-          // Extract image URLs from markdown ![alt](url) or raw URLs
-          const imgMatches = [
-            ...md.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s)]+\.(?:jpg|jpeg|png|webp)[^\s)]*)\)/gi),
-            ...md.matchAll(/(https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>]*)?)/gi),
-          ];
-          for (const match of imgMatches) {
-            const imgUrl = match[1];
-            // Skip tiny icons, logos, favicons
-            if (/favicon|logo|icon|badge|sprite|1x1|pixel/i.test(imgUrl)) continue;
-            // Skip tracking pixels and data URIs
-            if (/\.gif|data:|analytics|tracking/i.test(imgUrl)) continue;
-            // Prefer images from known retailer CDNs
-            product.image_url = imgUrl;
-            foundImage = true;
-            console.log("Found real product image:", imgUrl);
-            break;
-          }
-        }
-
-        if (!foundImage) {
-          console.log("No real product image found via Firecrawl, clearing AI-hallucinated URL");
+        if (!imgResp.ok) {
+          console.error("Firecrawl image search HTTP error:", imgResp.status);
           product.image_url = "";
+        } else {
+          const imgData = await imgResp.json();
+          console.log("Firecrawl image search returned", (imgData.data || []).length, "results");
+          let foundImage = false;
+
+          for (const item of (imgData.data || [])) {
+            if (foundImage) break;
+            const md = (item.markdown || "") + "\n" + (item.description || "");
+
+            // Extract image URLs from markdown ![alt](url) and raw URLs
+            const imgMatches = [
+              ...md.matchAll(/!\[[^\]]*\]\((https?:\/\/[^\s)]+\.(?:jpg|jpeg|png|webp)[^\s)]*)\)/gi),
+              ...md.matchAll(/(https?:\/\/[^\s"'<>\])+]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"'<>\]]*)?)/gi),
+            ];
+
+            for (const match of imgMatches) {
+              const imgUrl = match[1];
+              if (!imgUrl) continue;
+              // Skip tiny icons, logos, favicons, tracking
+              if (/favicon|logo|icon|badge|sprite|1x1|pixel|\.gif|data:|analytics|tracking|thumbnail/i.test(imgUrl)) continue;
+              // Prefer images with product-like dimensions or CDN paths
+              if (/static\.nike\.com|images\.asos|i\.ebayimg|media\.jdsports|images\.footlocker|cdn\.|image.*product|product.*image|PDP|pdp/i.test(imgUrl) || imgUrl.length > 60) {
+                product.image_url = imgUrl;
+                foundImage = true;
+                console.log("Found real product image:", imgUrl);
+                break;
+              }
+            }
+          }
+
+          if (!foundImage) {
+            console.log("No product image found in Firecrawl results, keeping AI suggestion if it looks valid");
+            // Only keep the AI URL if it's from a known CDN
+            if (product.image_url && /static\.nike\.com|images\.adidas|nb\.scene7|asics\.com.*image/i.test(product.image_url)) {
+              console.log("Keeping AI-suggested CDN image:", product.image_url);
+            } else {
+              product.image_url = "";
+            }
+          }
         }
       } catch (e) {
         console.error("Image search failed:", e);
         product.image_url = "";
       }
     } else {
-      // Without Firecrawl, don't trust AI-generated URLs
+      console.log("FIRECRAWL_API_KEY not available for image search");
       product.image_url = "";
     }
 

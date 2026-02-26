@@ -13,6 +13,8 @@ const EXCLUDED_DOMAINS = [
   "google.com/shopping", "shopping.google", "kelkoo", "nextag",
   "pricegrabber", "shopbot", "skinflint", "camelcamelcamel",
   "keepa.com", "prisjakt", "pricehunter",
+  "lyst.co.uk", "lyst.com", "shopstyle.co.uk", "shopstyle.com",
+  "pricecheck", "price-compare", "comparethemarket",
 ];
 
 const UK_COM_RETAILERS = new Set([
@@ -29,6 +31,9 @@ const NON_PRODUCT_PATH_PATTERNS = [
   /\/w\?q=/i, /\/w\/[^/]*\?/i, /\/search\?/i, /\/s\?k=/i, /\/s\/ref=/i,
   /\/browse\//i, /\/listing/i, /\/results\?/i, /\/shop\?/i,
   /\/plp\//i, /\/c\//i,
+  /\/campaign\//i, /\/best-sellers/i, /\/new-arrivals/i, /\/sale\//i,
+  /\/colour\//i, /\/color\//i, /\/gender\//i,
+  /\/p\/trainers/i, /\/p\/shoes/i, /\/p\/clothing/i,
 ];
 
 const PRODUCT_STOPWORDS = new Set([
@@ -97,14 +102,16 @@ function normalizeRetailerDomain(input: string): string | null {
 
 function extractDomain(url: string): string {
   try {
-    return new URL(url).hostname.replace(/^www\./, "");
+    return new URL(url).hostname.replace(/^www\./, "").replace(/^m\./, "");
   } catch {
     return "";
   }
 }
 
 function retailerNameFromDomain(domain: string): string {
-  const root = domain.split(".")[0].replace(/[-_]+/g, " ");
+  // Strip mobile subdomain prefix before extracting name
+  const cleanDomain = domain.replace(/^m\./, "");
+  const root = cleanDomain.split(".")[0].replace(/[-_]+/g, " ");
   return root.split(" ").filter(Boolean)
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join(" ") || "Unknown Retailer";
