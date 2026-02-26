@@ -49,8 +49,15 @@ const COLOR_TOKENS = new Set([
 
 const COLOR_QUALIFIERS = new Set(["core", "cloud", "dark", "light", "bright", "pale", "deep"]);
 
-const MIN_REALISTIC_PRICE = 20;
+const MIN_REALISTIC_PRICE = 30;
 const MIN_CACHE_RESULTS = 6;
+
+// Patterns that indicate kids/toddler/junior/infant products
+const KIDS_PATH_PATTERNS = [
+  /\/kids?\//i, /\/toddler/i, /\/junior/i, /\/infant/i, /\/youth/i,
+  /\/children/i, /\/boys?\//i, /\/girls?\//i, /\/baby/i,
+  /[-_](kids?|junior|toddler|infant|youth|child|baby)[-_]/i,
+];
 
 // Known Trustpilot ratings for popular retailers
 const TRUST_RATINGS: Record<string, number> = {
@@ -173,6 +180,25 @@ function isOutOfStock(text: string): boolean {
   return /\b(sold out|out of stock|currently unavailable|notify me when available)\b/i.test(text || "");
 }
 
+function isKidsProduct(url: string, text: string): boolean {
+  // Check URL path for kids indicators
+  if (KIDS_PATH_PATTERNS.some((p) => p.test(url))) return true;
+  // Check first 300 chars of content for kids/toddler in title context
+  const titleArea = text.slice(0, 300).toLowerCase();
+  if (/\b(toddler|infant|kids?|junior|youth|children'?s?)\b/.test(titleArea)) return true;
+  return false;
+}
+
+function cleanUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    // Remove tracking parameters
+    const trackingParams = ["srsltid", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "fbclid", "dclid", "msclkid", "ref", "affiliate"];
+    for (const p of trackingParams) parsed.searchParams.delete(p);
+    return parsed.toString();
+  } catch { return url; }
+}
+
 function getTrustRating(domain: string): number {
   return TRUST_RATINGS[domain] || 4.0;
 }
@@ -196,6 +222,9 @@ function extractResultFromSource(
 
   // Check not sold out
   if (isOutOfStock(content)) return null;
+
+  // Filter out kids/toddler/junior variants
+  if (isKidsProduct(url, content)) return null;
 
   // Extract prices from the ACTUAL scraped content
   const prices = extractAllGbpPrices(content).filter((p) => p >= priceFloor);
@@ -228,7 +257,7 @@ function extractResultFromSource(
     delivery: uk ? "2-5 days" : "7-14 days",
     trustRating: getTrustRating(domain),
     currency: "GBP",
-    url,  // ALWAYS the real URL from Firecrawl, never AI-generated
+    url: cleanUrl(url),
   };
 }
 
@@ -380,7 +409,7 @@ serve(async (req) => {
 
     // ── Extract prices deterministically ──
     const priceFloor = estimated_retail_price
-      ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.2))
+      ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.45))
       : MIN_REALISTIC_PRICE;
 
     console.log(`Price floor: £${priceFloor} (RRP: ${estimated_retail_price || "unknown"})`);
