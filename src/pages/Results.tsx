@@ -59,6 +59,15 @@ const Results = () => {
       setIsRefreshing(false);
     }
   }, [product, stateSizing, isRefreshing, toast]);
+  // Dynamic page title
+  useEffect(() => {
+    const title = product?.product_name
+      ? `${product.product_name} — Best Prices | GTBP`
+      : "Searching… | GTBP";
+    document.title = title;
+    return () => { document.title = "GTBP — Get The Best Price | Compare UK Prices Instantly"; };
+  }, [product]);
+
   useEffect(() => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
@@ -357,7 +366,7 @@ const Results = () => {
                   setPhase("scraping");
                   setProgress(5);
                   if (product) {
-                    scrapePrices(product.product_name, product.retailers)
+                    scrapePrices(product.product_name, product.retailers, false, product.estimated_retail_price)
                       .then((resp) => { setResults(resp.results); setDataSource({ cached: resp.cached, cached_at: resp.cached_at }); })
                       .catch(() => {})
                       .finally(() => setIsLoading(false));
@@ -436,7 +445,7 @@ const Results = () => {
                   <Button
                     size="sm"
                     className="gap-1"
-                    onClick={() => window.open(r.url, "_blank")}
+                    onClick={() => window.open(r.url, "_blank", "noopener,noreferrer")}
                   >
                     Buy Now
                     <ExternalLink className="h-3 w-3" />
