@@ -372,7 +372,7 @@ serve(async (req) => {
       }
       const gapResults = await Promise.all(gapBatches.map((batch) => {
         const siteQuery = batch.map((r) => `site:${r}`).join(" OR ");
-        return doSearch(`${fullSearch} ${siteQuery}`, batch.length * 3);
+        return doSearch(`${searchName} ${siteQuery}`, batch.length * 3);
       }));
       for (const result of gapResults) {
         for (const item of (result.data || [])) {
