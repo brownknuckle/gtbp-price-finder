@@ -353,56 +353,85 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Search WITH scraping — Firecrawl returns Google-cached page content
-    // which is reliable even for JS-heavy SPAs (unlike direct scraping)
-    const doSearch = async (query: string, limit: number) => {
+    // Targeted search WITH scraping — returns Google-cached content (reliable for SPAs)
+    const doSearchContent = async (query: string, limit: number) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
       try {
-        const response = await fetch("https://api.firecrawl.dev/v1/search", {
+        const r = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
           headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
           signal: controller.signal,
           body: JSON.stringify({ query, limit, lang: "en", country: "gb", scrapeOptions: { formats: ["markdown"] } }),
         });
-        return await response.json();
+        return await r.json();
+      } catch { return { data: [] }; }
+      finally { clearTimeout(timeout); }
+    };
+
+    // Broad search WITHOUT scraping — fast, gets many URLs + short snippets
+    const doSearchUrls = async (query: string, limit: number) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      try {
+        const r = await fetch("https://api.firecrawl.dev/v1/search", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ query, limit, lang: "en", country: "gb" }),
+        });
+        return await r.json();
       } catch { return { data: [] }; }
       finally { clearTimeout(timeout); }
     };
 
     console.log(`Searching for: "${searchName}" across ${normalizedRetailers.length} retailers`);
 
-    // Run 7 parallel queries to maximise result coverage
-    const searchQueries = [
+    // Content queries (with scraping) — targeted, fewer results but richer content
+    const contentQueries = [
       `${searchName} buy UK price £`,
       `${searchName} site:.co.uk in stock`,
-      `${searchName} buy new UK`,
-      `${searchName} jdsports size footlocker schuh asos`,
-      `${searchName} endclothing offspring footpatrol`,
-      `${searchName} stockx goat klekt laced`,
-      `${searchName} price GBP trainers`,
+      `${searchName} jdsports size schuh footlocker asos`,
+      `${searchName} endclothing stockx goat laced`,
     ];
 
-    const searchResults = await Promise.all(searchQueries.map(q => doSearch(q, 8)));
+    // URL queries (without scraping) — broader, more URLs, short snippets only
+    const urlQueries = [
+      `${searchName} buy new in stock`,
+      `${searchName} nike adidas offspring footpatrol`,
+      `${searchName} price GBP UK trainers`,
+    ];
+
+    // Run all searches in parallel
+    const [contentResultSets, urlResultSets] = await Promise.all([
+      Promise.all(contentQueries.map(q => doSearchContent(q, 8))),
+      Promise.all(urlQueries.map(q => doSearchUrls(q, 20))),
+    ]);
 
     const seenUrls = new Set<string>();
     const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
-    for (const result of searchResults) {
+    // Content results first (higher quality — markdown available for AI)
+    for (const result of contentResultSets) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
-          rawCandidates.push({
-            url: item.url,
-            title: item.title || "",
-            markdown: item.markdown || "",
-            description: item.description || "",
-          });
+          rawCandidates.push({ url: item.url, title: item.title || "", markdown: item.markdown || "", description: item.description || "" });
         }
       }
     }
 
-    console.log(`Found ${rawCandidates.length} unique URLs from search`);
+    // URL results next (description snippets may still contain prices)
+    for (const result of urlResultSets) {
+      for (const item of (result.data || [])) {
+        if (item.url && !seenUrls.has(item.url)) {
+          seenUrls.add(item.url);
+          rawCandidates.push({ url: item.url, title: item.title || "", markdown: "", description: item.description || "" });
+        }
+      }
+    }
+
+    console.log(`Found ${rawCandidates.length} unique URLs (${contentResultSets.flat().length} with content, ${urlResultSets.flat().length} URL-only)`);
 
     // Filter to clean product pages only
     const candidates = rawCandidates.filter((s) => {
