@@ -218,18 +218,37 @@ Be practical — if a page is clearly selling the right shoe at a real price, ma
     });
 
     if (!response.ok) {
-      console.error("AI price extraction HTTP error:", response.status);
+      const errText = await response.text();
+      console.error("AI price extraction HTTP error:", response.status, errText.slice(0, 500));
       return [];
     }
 
     const aiData = await response.json();
     const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) return [];
+    if (!toolCall?.function?.arguments) {
+      console.error("AI returned no tool call. Response keys:", Object.keys(aiData));
+      console.error("First choice:", JSON.stringify(aiData.choices?.[0]?.message || {}).slice(0, 500));
+      return [];
+    }
 
     const parsed = JSON.parse(toolCall.function.arguments);
-    return (parsed.results || []).filter((r: any) =>
+    const allResults = parsed.results || [];
+    const valid = allResults.filter((r: any) =>
       r.is_correct_product && r.in_stock && typeof r.current_price_gbp === "number"
     );
+    
+    // Log rejection reasons
+    if (valid.length === 0 && allResults.length > 0) {
+      const rejected = allResults.slice(0, 10).map((r: any) => ({
+        idx: r.index,
+        correct: r.is_correct_product,
+        stock: r.in_stock,
+        price: r.current_price_gbp,
+      }));
+      console.log("AI rejection sample:", JSON.stringify(rejected));
+    }
+    
+    return valid;
   } catch (e) {
     console.error("AI price extraction failed:", e);
     return [];
@@ -397,6 +416,10 @@ serve(async (req) => {
     }).slice(0, 35); // cap at 35 for AI call efficiency
 
     console.log(`${candidates.length} candidates after pre-filtering, sending to AI`);
+    // Log first 3 candidate URLs + snippet preview
+    candidates.slice(0, 3).forEach((c, i) => {
+      console.log(`Candidate[${i}]: ${c.url} | title: ${(c.title || "").slice(0, 80)} | markdown: ${(c.markdown || "").slice(0, 200)}`);
+    });
 
     // ── AI extracts and validates prices ──
     const aiResults = await extractPricesWithAI(candidates, searchName, LOVABLE_API_KEY, estimated_retail_price);
@@ -411,18 +434,21 @@ serve(async (req) => {
         ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.6))
         : MIN_REALISTIC_PRICE;
       const priceCeil = estimated_retail_price ? estimated_retail_price * 2 : MAX_REALISTIC_PRICE;
+      console.log(`Regex price range: £${priceFloor}-£${priceCeil}`);
 
       // Extract colour words from the search name so we can reject wrong colourways
       const COLOR_LIST = ["black","white","red","blue","green","yellow","orange","purple","pink","brown","grey","gray","beige","cream","navy","khaki","tan","silver","gold"];
       const searchColors = COLOR_LIST.filter(c => searchName.toLowerCase().includes(c));
       const conflictColors = COLOR_LIST.filter(c => !searchColors.includes(c));
+      console.log(`Search colors: [${searchColors}], conflict colors: [${conflictColors}]`);
 
+      let colorRejects = 0, noPriceRejects = 0;
       const regexExtracted: any[] = [];
       for (const s of candidates) {
         // Reject pages whose URL or title clearly show a different colourway
         if (searchColors.length > 0 && conflictColors.length > 0) {
           const slugAndTitle = `${s.url}\n${s.title || ""}`.toLowerCase();
-          if (conflictColors.some(c => slugAndTitle.includes(c))) continue;
+          if (conflictColors.some(c => slugAndTitle.includes(c))) { colorRejects++; continue; }
         }
 
         const text = `${s.title || ""}\n${(s.markdown || "").slice(0, 2000)}\n${s.description || ""}`;
@@ -432,7 +458,8 @@ serve(async (req) => {
           const v = Number(m[1]);
           if (!isNaN(v) && v >= priceFloor && v <= priceCeil) prices.push(v);
         }
-        if (!prices.length) continue;
+        if (!prices.length) { noPriceRejects++; continue; }
+
         prices.sort((a, b) => a - b);
         const itemPrice = estimated_retail_price
           ? prices.reduce((best, p) => Math.abs(p - estimated_retail_price) < Math.abs(best - estimated_retail_price) ? p : best, prices[0])
@@ -469,7 +496,7 @@ serve(async (req) => {
         .map((r, i) => ({ ...r, rank: i + 1 }));
 
       if (fallbackResults.length > 0) {
-        console.log(`Regex fallback found ${fallbackResults.length} results`);
+        console.log(`Regex fallback found ${fallbackResults.length} results (color rejects: ${colorRejects}, no-price rejects: ${noPriceRejects})`);
         if (fallbackResults.length > 0) {
           sb.from("price_cache").upsert(
             { product_key: cacheKey, results: fallbackResults, product_info: { product_name, retailers: normalizedRetailers } },
@@ -479,6 +506,8 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: true, results: fallbackResults }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      } else {
+        console.log(`Regex fallback found 0 results (color rejects: ${colorRejects}, no-price rejects: ${noPriceRejects})`);
       }
     }
 
