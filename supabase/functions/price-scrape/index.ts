@@ -434,6 +434,9 @@ serve(async (req) => {
       let colorRejects = 0, noPriceRejects = 0;
       const regexExtracted: any[] = [];
       for (const s of candidates) {
+        // Reject non-product pages (collection, category, browse pages)
+        if (!isLikelyProductPage(s.url)) continue;
+
         // Reject pages whose URL or title clearly show a different colourway
         if (searchColors.length > 0 && conflictColors.length > 0) {
           const slugAndTitle = `${s.url}\n${s.title || ""}`.toLowerCase();
