@@ -21,6 +21,7 @@ const UK_COM_RETAILERS = new Set([
   "asos.com", "flannels.com", "footasylum.com", "endclothing.com",
   "selfridges.com", "harveynichols.com", "mrporter.com", "matchesfashion.com",
   "farfetch.com", "sportsdirect.com", "jdsports.com", "very.co.uk",
+  "laced.com", "klekt.com", "thesolesupplier.co.uk",
 ]);
 
 const NON_PRODUCT_PATH_PATTERNS = [
@@ -28,12 +29,13 @@ const NON_PRODUCT_PATH_PATTERNS = [
   /\/brand\//i, /\/brands\//i, /\/release-dates?\//i, /\/search[?/]/i,
   /\/shop\/[^/]*$/i, /\/cat\//i, /\/cat\?/i, /\/silhouette\//i, /\/refine\//i,
   /^\/b\/bn_/i, /^\/b\/[^/]+$/i,
-  /\/w\?q=/i, /\/w\/[^/]*\?/i, /\/search\?/i, /\/s\?k=/i, /\/s\/ref=/i,
+  /\/w\?q=/i, /\/w\/[^/]*$/i, /\/w\/[^/]*\?/i, /\/search\?/i, /\/s\?k=/i, /\/s\/ref=/i,
   /\/browse\//i, /\/listing/i, /\/results\?/i, /\/shop\?/i,
   /\/plp\//i, /\/c\//i,
   /\/campaign\//i, /\/best-sellers/i, /\/new-arrivals/i, /\/sale\//i,
   /\/colour\//i, /\/color\//i, /\/gender\//i,
   /\/p\/trainers/i, /\/p\/shoes/i, /\/p\/clothing/i,
+  /\/shoes\/\?/i, /\/trainers\/\?/i, /\/footwear\/\?/i,
 ];
 
 const MIN_REALISTIC_PRICE = 20;
@@ -46,6 +48,13 @@ const NON_RETAIL_DOMAINS = [
   /twitter\.com/, /x\.com/, /tiktok\.com/, /pinterest\.com/,
   /trustpilot/, /glassdoor/, /indeed\.com/, /linkedin\.com/,
 ];
+
+// Unverified micro-resellers to exclude from results
+const BLOCKED_DOMAINS = new Set([
+  "findyourkicks.com", "luxurygoodslocker.com", "kicksmachine.com",
+  "limitedresell.com", "crepcollectionclub.co.uk", "flipsupply.co.uk",
+  "sportshowroom.co.uk",
+]);
 
 const KIDS_PATH_PATTERNS = [
   /\/kids?\//i, /\/toddler/i, /\/junior/i, /\/infant/i, /\/youth/i,
@@ -412,6 +421,8 @@ serve(async (req) => {
       if (!s.url || isComparisonSite(s.url)) return false;
       const domain = extractDomain(s.url);
       if (!domain || NON_RETAIL_DOMAINS.some((p) => p.test(domain))) return false;
+      if (BLOCKED_DOMAINS.has(domain)) return false;
+      if (!isLikelyProductPage(s.url)) return false;
       if (isKidsProduct(s.url, s.title + " " + s.description)) return false;
       if (isSecondhand(s.url, s.title + " " + s.description)) return false;
       return true;
