@@ -174,9 +174,10 @@ function matchesProduct(productName: string, url: string, text: string, title?: 
     if (!new RegExp(`\\b${num}\\b`).test(fullHaystack)) return false;
   }
 
-  // Require 80% of non-color tokens — tight enough to reject wrong models
+  // Require 70% of non-color tokens — strict enough to reject wrong models,
+  // loose enough to handle retailer colourway naming variations
   const matchedNonColor = nonColorTokens.filter((t) => fullHaystack.includes(t));
-  const required = Math.max(2, Math.ceil(nonColorTokens.length * 0.8));
+  const required = Math.max(2, Math.ceil(nonColorTokens.length * 0.7));
   if (matchedNonColor.length < required) return false;
 
   // Color check: require ALL colors when there's only 1 color, majority when multiple
@@ -396,15 +397,22 @@ serve(async (req) => {
       retailerBatches.push(normalizedRetailers.slice(i, i + BATCH_SIZE));
     }
 
+    // Quote only the first 3 words (brand + model) to stay on-product without
+    // being so strict that colourway variations get excluded
+    const searchWords = searchName.split(" ");
+    const quotedCore = `"${searchWords.slice(0, 3).join(" ")}"`;
+    const fullSearch = searchWords.length > 3
+      ? `${quotedCore} ${searchWords.slice(3).join(" ")}`
+      : quotedCore;
+
     const batchPromises = retailerBatches.map((batch) => {
       const siteQuery = batch.map((r) => `site:${r}`).join(" OR ");
-      // Quoted product name forces exact phrase match — prevents wrong models slipping through
-      return doSearch(`"${searchName}" buy price £ ${siteQuery}`, Math.min(batch.length * 3, 24));
+      return doSearch(`${fullSearch} buy price £ ${siteQuery}`, Math.min(batch.length * 3, 24));
     });
 
-    // Single broad search for coverage — quoted to stay on-product
+    // Single broad search for coverage
     const broadSearches = [
-      doSearch(`"${searchName}" price £ buy UK`, 20),
+      doSearch(`${fullSearch} price £ buy UK`, 20),
     ];
 
     const allSearchResults = await Promise.all([...batchPromises, ...broadSearches]);
@@ -436,7 +444,7 @@ serve(async (req) => {
       }
       const gapResults = await Promise.all(gapBatches.map((batch) => {
         const siteQuery = batch.map((r) => `site:${r}`).join(" OR ");
-        return doSearch(`"${searchName}" ${siteQuery}`, batch.length * 3);
+        return doSearch(`${fullSearch} ${siteQuery}`, batch.length * 3);
       }));
       for (const result of gapResults) {
         for (const item of (result.data || [])) {
