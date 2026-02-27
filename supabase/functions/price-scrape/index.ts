@@ -338,13 +338,13 @@ serve(async (req) => {
 
     const batchPromises = retailerBatches.map((batch) => {
       const siteQuery = batch.map((r) => `site:${r}`).join(" OR ");
-      return doSearch(`${fullSearch} buy price ${siteQuery}`, Math.min(batch.length * 3, 24));
+      return doSearch(`${fullSearch} buy price £ ${siteQuery}`, Math.min(batch.length * 3, 24));
     });
 
     // Broad searches for additional coverage
     const broadSearches = [
-      doSearch(`${fullSearch} buy price UK`, 20),
-      doSearch(`${fullSearch} site:.co.uk OR site:stockx.com OR site:goat.com`, 15),
+      doSearch(`${fullSearch} buy price £ UK`, 20),
+      doSearch(`${fullSearch} £ site:.co.uk OR site:stockx.com OR site:goat.com`, 15),
     ];
 
     const allSearchResults = await Promise.all([...batchPromises, ...broadSearches]);
@@ -404,6 +404,74 @@ serve(async (req) => {
     const aiResults = await extractPricesWithAI(candidates, searchName, LOVABLE_API_KEY, estimated_retail_price);
 
     console.log(`AI validated ${aiResults.length} results`);
+
+    // ── Regex fallback if AI returned nothing ──
+    // This ensures users always get some results even if the AI call fails
+    if (aiResults.length === 0 && candidates.length > 0) {
+      console.log("AI returned 0 results, falling back to regex extraction");
+      const priceFloor = estimated_retail_price
+        ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.6))
+        : MIN_REALISTIC_PRICE;
+      const priceCeil = estimated_retail_price ? estimated_retail_price * 2 : MAX_REALISTIC_PRICE;
+
+      const regexExtracted: any[] = [];
+      for (const s of candidates) {
+        const text = `${s.title || ""}\n${(s.markdown || "").slice(0, 2000)}\n${s.description || ""}`;
+        const normalized = text.replace(/,/g, "");
+        const prices: number[] = [];
+        for (const m of normalized.matchAll(/£\s?(\d{1,4}(?:\.\d{1,2})?)/gi)) {
+          const v = Number(m[1]);
+          if (!isNaN(v) && v >= priceFloor && v <= priceCeil) prices.push(v);
+        }
+        if (!prices.length) continue;
+        prices.sort((a, b) => a - b);
+        const itemPrice = estimated_retail_price
+          ? prices.reduce((best, p) => Math.abs(p - estimated_retail_price) < Math.abs(best - estimated_retail_price) ? p : best, prices[0])
+          : prices[0];
+        const domain = extractDomain(s.url);
+        const uk = isUkDomain(domain);
+        const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
+        const duties = uk ? 0 : Number((itemPrice * 0.2).toFixed(2));
+        regexExtracted.push({
+          retailer: retailerNameFromDomain(domain),
+          country: uk ? "UK" : "International",
+          flag: uk ? "🇬🇧" : "🌍",
+          itemPrice,
+          shipping,
+          duties,
+          totalYouPay: Number((itemPrice + shipping + duties).toFixed(2)),
+          originalPrice: null,
+          delivery: uk ? "2-5 days" : "7-14 days",
+          trustRating: getTrustRating(domain),
+          currency: "GBP",
+          url: cleanUrl(s.url),
+        });
+      }
+      // Deduplicate by domain
+      const fallbackByDomain = new Map<string, any>();
+      for (const e of regexExtracted) {
+        const d = extractDomain(e.url);
+        if (!fallbackByDomain.has(d) || e.totalYouPay < fallbackByDomain.get(d).totalYouPay) {
+          fallbackByDomain.set(d, e);
+        }
+      }
+      const fallbackResults = Array.from(fallbackByDomain.values())
+        .sort((a, b) => a.totalYouPay - b.totalYouPay)
+        .map((r, i) => ({ ...r, rank: i + 1 }));
+
+      if (fallbackResults.length > 0) {
+        console.log(`Regex fallback found ${fallbackResults.length} results`);
+        if (fallbackResults.length > 0) {
+          sb.from("price_cache").upsert(
+            { product_key: cacheKey, results: fallbackResults, product_info: { product_name, retailers: normalizedRetailers } },
+            { onConflict: "product_key" }
+          ).then(({ error }) => { if (error) console.error("Cache write error:", error); });
+        }
+        return new Response(JSON.stringify({ success: true, results: fallbackResults }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     // ── Build final results from AI output ──
     const priceCeiling = estimated_retail_price ? estimated_retail_price * 2.5 : MAX_REALISTIC_PRICE;
