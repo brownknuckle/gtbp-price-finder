@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.price-scrape]
 verify_jwt = false
+
+[functions.trending]
+verify_jwt = false
+
+[functions.price-alerts]
+verify_jwt = false
