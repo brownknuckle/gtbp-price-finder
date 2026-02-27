@@ -157,7 +157,7 @@ async function extractPricesWithAI(
   productName: string,
   apiKey: string,
   estimatedRrp?: number
-): Promise<Array<{ index: number; current_price_gbp: number; original_price_gbp: number | null; in_stock: boolean }>> {
+): Promise<Array<{ index: number; current_price_gbp: number; original_price_gbp: number | null; in_stock: boolean | null; coupon_code: string | null }>> {
   if (!candidates.length) return [];
 
   const candidateText = candidates.map((s, i) =>
@@ -244,20 +244,18 @@ Be practical — if a page is clearly selling the right shoe at a real price, ma
 
     const parsed = JSON.parse(toolCall.function.arguments);
     const allResults = parsed.results || [];
+    // Accept results where the AI confirms it's the right product and has a price.
+    // We accept in_stock: true OR null/undefined (unknown) — only reject explicit false.
     const valid = allResults.filter((r: any) =>
-      r.is_correct_product && r.in_stock && typeof r.current_price_gbp === "number"
+      r.is_correct_product && r.in_stock !== false && typeof r.current_price_gbp === "number"
     );
     
-    // Log rejection reasons
-    if (valid.length === 0 && allResults.length > 0) {
-      const rejected = allResults.slice(0, 10).map((r: any) => ({
-        idx: r.index,
-        correct: r.is_correct_product,
-        stock: r.in_stock,
-        price: r.current_price_gbp,
-      }));
-      console.log("AI rejection sample:", JSON.stringify(rejected));
-    }
+    // Log all AI results for debugging
+    console.log(`AI returned ${allResults.length} total, ${valid.length} valid. Sample:`, JSON.stringify(
+      allResults.slice(0, 8).map((r: any) => ({
+        idx: r.index, correct: r.is_correct_product, stock: r.in_stock, price: r.current_price_gbp,
+      }))
+    ));
     
     return valid;
   } catch (e) {
@@ -572,9 +570,9 @@ serve(async (req) => {
         trustRating: getTrustRating(domain),
         currency: "GBP",
         url: cleanUrl(source.url),
-        inStock: true,
+        inStock: aiResult.in_stock === true ? true : null,
         checkedAt: new Date().toISOString(),
-        couponCode: (aiResult as any).coupon_code || null,
+        couponCode: aiResult.coupon_code || null,
       });
     }
 
