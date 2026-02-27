@@ -205,6 +205,13 @@ function isOutOfStock(text: string): boolean {
   return /\b(sold out|out of stock|currently unavailable|notify me when available)\b/i.test(text || "");
 }
 
+function isSecondhand(url: string, text: string): boolean {
+  // Filter eBay and other marketplace used/pre-owned listings
+  if (/\/itm\/|\/p\/.*condition=used/i.test(url)) return true;
+  const topContent = text.slice(0, 600).toLowerCase();
+  return /\b(used|pre-?owned|second.?hand|worn|condition:\s*(good|fair|poor|acceptable|very good))\b/i.test(topContent);
+}
+
 function isKidsProduct(url: string, text: string): boolean {
   // Check URL path for kids indicators
   if (KIDS_PATH_PATTERNS.some((p) => p.test(url))) return true;
@@ -258,6 +265,9 @@ function extractResultFromSource(
 
   // Filter out kids/toddler/junior variants
   if (isKidsProduct(url, fullContent)) return null;
+
+  // Filter out secondhand/used/pre-owned listings
+  if (isSecondhand(url, fullContent)) return null;
 
   // Extract prices only from the top of the page (title + first 2500 chars of markdown)
   const priceCeiling = estimated_retail_price ? estimated_retail_price * 2 : MAX_REALISTIC_PRICE;
@@ -410,9 +420,10 @@ serve(async (req) => {
       return doSearch(`${fullSearch} buy price £ ${siteQuery}`, Math.min(batch.length * 3, 24));
     });
 
-    // Single broad search for coverage
+    // Two broad searches for coverage — one UK-focused, one global retailers
     const broadSearches = [
       doSearch(`${fullSearch} price £ buy UK`, 20),
+      doSearch(`${fullSearch} buy new price £ site:.co.uk OR site:stockx.com OR site:goat.com`, 15),
     ];
 
     const allSearchResults = await Promise.all([...batchPromises, ...broadSearches]);
