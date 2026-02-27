@@ -559,7 +559,7 @@ serve(async (req) => {
         url: cleanUrl(source.url),
         inStock: true,
         checkedAt: new Date().toISOString(),
-        couponCode: aiResult.coupon_code || null,
+        couponCode: (aiResult as any).coupon_code || null,
       });
     }
 
