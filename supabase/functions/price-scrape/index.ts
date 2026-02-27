@@ -172,13 +172,15 @@ async function extractPricesWithAI(
             role: "system",
             content: `You are a price extraction specialist for a UK price comparison website.${rrpHint}
 
-For each retailer page snippet provided, determine:
-1. Is this page selling EXACTLY "${productName}" — brand new, correct model, correct colourway? Be strict. Wrong model number, wrong colourway, kids/toddler version, or secondhand/used = mark as NOT in_stock and set current_price_gbp to null.
-2. What is the CURRENT selling price in GBP? This is the price a customer pays today. If the page shows a sale price, use that. If currency is not GBP, convert at approximate current rates (EUR: ×0.85, USD: ×0.79).
-3. Is there a crossed-out original/RRP price? If yes, record it as original_price_gbp.
-4. Is the item in stock and available to buy?
+The user is searching for: "${productName}"
 
-Only return results where you are confident the page is selling the correct product at a real price.`,
+For each retailer page snippet, determine:
+1. Is this page selling the correct product? Use common sense with colourway names — "Triple White" = all-white = "White/White/White" = "Cloud White". Accept reasonable colourway variations of the same product. Reject: wrong model number, kids/toddler/junior version, secondhand/used, clearly different product.
+2. What is the CURRENT selling price in GBP (£)? Use the sale price if shown. If currency is not GBP, convert (EUR ×0.85, USD ×0.79).
+3. Is there a crossed-out original/RRP price?
+4. Is the item available to buy (in stock)?
+
+Be practical — if a page is clearly selling the right shoe at a real price, mark it as correct. Only reject if it's clearly the wrong product.`,
           },
           { role: "user", content: candidateText },
         ],
@@ -388,11 +390,12 @@ serve(async (req) => {
     }
 
     // ── Pre-filter candidates with basic URL/content checks ──
+    // Keep this loose — the AI does the strict product validation
     const candidates = allSources.filter((s) => {
-      if (!s.url || isComparisonSite(s.url) || !isLikelyProductPage(s.url)) return false;
+      if (!s.url || isComparisonSite(s.url)) return false;
       const domain = extractDomain(s.url);
       if (!domain || NON_RETAIL_DOMAINS.some((p) => p.test(domain))) return false;
-      const snippet = `${s.title || ""}\n${(s.markdown || "").slice(0, 600)}`;
+      const snippet = `${s.title || ""}\n${(s.markdown || "").slice(0, 300)}`;
       if (isKidsProduct(s.url, snippet)) return false;
       if (isSecondhand(s.url, snippet)) return false;
       return true;
