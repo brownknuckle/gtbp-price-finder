@@ -179,6 +179,7 @@ For each retailer page snippet, determine:
 2. What is the CURRENT selling price in GBP (£)? Use the sale price if shown. If currency is not GBP, convert (EUR ×0.85, USD ×0.79).
 3. Is there a crossed-out original/RRP price?
 4. Is the item available to buy (in stock)?
+5. Is there a visible discount/promo code on the page? (e.g. "Use code SAVE10 at checkout", "Enter WELCOME15"). Extract the code exactly as shown. Do NOT guess or invent codes.
 
 Be practical — if a page is clearly selling the right shoe at a real price, mark it as correct. Only reject if it's clearly the wrong product.`,
           },
@@ -203,6 +204,7 @@ Be practical — if a page is clearly selling the right shoe at a real price, ma
                         current_price_gbp: { type: "number", description: "Current selling price in GBP, or null if not found/not correct product" },
                         original_price_gbp: { type: "number", description: "Crossed-out original/RRP price in GBP, or null if not shown" },
                         in_stock: { type: "boolean", description: "Whether the item is available to buy now" },
+                        coupon_code: { type: "string", description: "Exact promo/discount code visible on the page, or null if none" },
                       },
                       required: ["index", "is_correct_product", "in_stock"],
                     },
@@ -420,7 +422,7 @@ serve(async (req) => {
     if (aiResults.length === 0 && candidates.length > 0) {
       console.log("AI returned 0 results, falling back to regex extraction");
       const priceFloor = estimated_retail_price
-        ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.6))
+        ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.5))
         : MIN_REALISTIC_PRICE;
       const priceCeil = estimated_retail_price ? estimated_retail_price * 2 : MAX_REALISTIC_PRICE;
       console.log(`Regex price range: £${priceFloor}-£${priceCeil}`);
@@ -473,6 +475,9 @@ serve(async (req) => {
           trustRating: getTrustRating(domain),
           currency: "GBP",
           url: cleanUrl(s.url),
+          inStock: null,
+          checkedAt: new Date().toISOString(),
+          couponCode: null,
         });
       }
       // Deduplicate by domain
@@ -533,6 +538,9 @@ serve(async (req) => {
         trustRating: getTrustRating(domain),
         currency: "GBP",
         url: cleanUrl(source.url),
+        inStock: true,
+        checkedAt: new Date().toISOString(),
+        couponCode: aiResult.coupon_code || null,
       });
     }
 
@@ -552,6 +560,17 @@ serve(async (req) => {
       .map((r, i) => ({ ...r, rank: i + 1 }));
 
     console.log(`Final: ${finalResults.length} unique retailers`);
+
+    // ── Price history (fire-and-forget) ──
+    if (finalResults.length > 0) {
+      sb.from("price_history")
+        .insert({ product_key: cacheKey, results: finalResults })
+        .then(({ error }) => {
+          if (error && !error.message?.includes("does not exist")) {
+            console.error("History insert:", error.message);
+          }
+        });
+    }
 
     // Return stale cache if fresh results are worse
     if (finalResults.length < MIN_CACHE_RESULTS && cachedResults.length > finalResults.length) {

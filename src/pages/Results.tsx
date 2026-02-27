@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Star, Loader2, ExternalLink, Heart, RefreshCw } from "lucide-react";
+import { Star, Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,14 @@ const Results = () => {
   const { add: addToWatchlist, isInWatchlist } = useWatchlist();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dataSource, setDataSource] = useState<{ cached: boolean; cached_at?: string } | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const formatCheckedTime = (iso: string) => {
+    const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    return `${Math.round(mins / 60)}h ago`;
+  };
 
   const refreshResults = useCallback(async () => {
     if (!product || isRefreshing) return;
@@ -226,28 +234,31 @@ const Results = () => {
         {!isLoading && results.length > 0 && (
           <div className="mb-4 space-y-3">
             {/* Freshness badge */}
-            {dataSource && (
-              <div className="flex items-center gap-2">
-                <Badge variant={dataSource.cached ? "secondary" : "default"} className="text-[10px] gap-1">
-                  {dataSource.cached ? (
-                    <>
-                      🕐 Cached{" "}
-                      {dataSource.cached_at
-                        ? (() => {
-                            const mins = Math.round((Date.now() - new Date(dataSource.cached_at).getTime()) / 60000);
-                            return mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
-                          })()
-                        : ""}
-                    </>
-                  ) : (
-                    <>⚡ Live results</>
+            {dataSource && (() => {
+              const inStockCount = sorted.filter(r => r.inStock === true).length;
+              const ageLabel = dataSource.cached_at
+                ? (() => {
+                    const mins = Math.round((Date.now() - new Date(dataSource.cached_at).getTime()) / 60000);
+                    return mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
+                  })()
+                : "";
+              return (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant={dataSource.cached ? "secondary" : "default"} className="text-[10px] gap-1">
+                    {dataSource.cached ? `🕐 Prices from ${ageLabel}` : "⚡ Live prices"}
+                  </Badge>
+                  <span className="text-[10px] text-muted-foreground">
+                    {sorted.length} retailer{sorted.length !== 1 ? "s" : ""}
+                  </span>
+                  {inStockCount > 0 && (
+                    <span className="flex items-center gap-0.5 text-[10px] font-medium text-green-600">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {inStockCount} verified in stock
+                    </span>
                   )}
-                </Badge>
-                <span className="text-[10px] text-muted-foreground">
-                  {sorted.length} retailer{sorted.length !== 1 ? "s" : ""}
-                </span>
-              </div>
-            )}
+                </div>
+              );
+            })()}
 
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
@@ -402,7 +413,7 @@ const Results = () => {
                     {i + 1}
                   </span>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-foreground">
                         {r.flag} {r.retailer}
                       </span>
@@ -416,14 +427,24 @@ const Results = () => {
                           {Math.round((1 - r.itemPrice / r.originalPrice) * 100)}% Off
                         </Badge>
                       )}
+                      {r.inStock === true && (
+                        <span className="flex items-center gap-0.5 text-[10px] font-medium text-green-600">
+                          <CheckCircle2 className="h-3 w-3" /> In Stock
+                        </span>
+                      )}
                     </div>
+                    {r.checkedAt && (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground/60">
+                        Checked {formatCheckedTime(r.checkedAt)}
+                      </p>
+                    )}
                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                       {r.originalPrice && r.originalPrice > r.itemPrice && (
                         <span className="line-through text-muted-foreground/50">£{r.originalPrice.toFixed(2)}</span>
                       )}
                       <span>Item: £{r.itemPrice.toFixed(2)}</span>
-                      <span>Shipping: £{r.shipping.toFixed(2)}</span>
-                      <span>Duties: £{r.duties.toFixed(2)}</span>
+                      <span>Shipping: {r.shipping === 0 ? "Free" : `£${r.shipping.toFixed(2)}`}</span>
+                      {r.duties > 0 && <span>Duties: £{r.duties.toFixed(2)}</span>}
                     </div>
                     <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{r.delivery}</span>
@@ -432,6 +453,24 @@ const Results = () => {
                         {r.trustRating} Trustpilot
                       </span>
                     </div>
+                    {r.couponCode && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="flex items-center gap-1 rounded border border-green-200 bg-green-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-green-700">
+                          <Tag className="h-2.5 w-2.5" /> {r.couponCode}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(r.couponCode!);
+                            setCopiedCode(r.couponCode!);
+                            setTimeout(() => setCopiedCode(null), 2000);
+                          }}
+                          className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          {copiedCode === r.couponCode ? "✓ Copied" : "Copy"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 

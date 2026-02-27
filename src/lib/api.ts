@@ -27,6 +27,9 @@ export interface PriceResult {
   trustRating: number;
   currency: string;
   url: string;
+  inStock?: boolean | null;
+  checkedAt?: string;
+  couponCode?: string | null;
 }
 
 export async function searchProduct(query: string, imageBase64?: string): Promise<ProductInfo> {
