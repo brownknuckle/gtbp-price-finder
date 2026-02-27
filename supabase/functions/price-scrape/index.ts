@@ -353,71 +353,59 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    // Phase 1: Search WITHOUT scraping — fast, cheap, gets many URLs
-    const doSearchUrls = async (query: string, limit: number) => {
+    // Search WITH scraping — Firecrawl returns Google-cached page content
+    // which is reliable even for JS-heavy SPAs (unlike direct scraping)
+    const doSearch = async (query: string, limit: number) => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
+      const timeout = setTimeout(() => controller.abort(), 15000);
       try {
         const response = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
           headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
           signal: controller.signal,
-          // No scrapeOptions — just URLs, titles, descriptions from search index
-          body: JSON.stringify({ query, limit, lang: "en", country: "gb" }),
+          body: JSON.stringify({ query, limit, lang: "en", country: "gb", scrapeOptions: { formats: ["markdown"] } }),
         });
         return await response.json();
       } catch { return { data: [] }; }
       finally { clearTimeout(timeout); }
     };
 
-    // Phase 2: Scrape a specific URL for full page content
-    const doScrapeUrl = async (url: string) => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-      try {
-        const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
-        });
-        const data = await response.json();
-        return { url, markdown: data?.data?.markdown || "", title: data?.data?.metadata?.title || "" };
-      } catch { return { url, markdown: "", title: "" }; }
-      finally { clearTimeout(timeout); }
-    };
-
     console.log(`Searching for: "${searchName}" across ${normalizedRetailers.length} retailers`);
 
-    // ── Phase 1: Wide search to collect candidate URLs ──
-    const seenUrls = new Set<string>();
-    const candidateUrls: Array<{ url: string; title: string; description: string }> = [];
-
+    // Run 7 parallel queries to maximise result coverage
     const searchQueries = [
-      `${searchName} buy UK`,
-      `${searchName} price £`,
-      `${searchName} site:.co.uk`,
-      `${searchName} buy new in stock`,
-      `${searchName} stockx goat klekt`,
-      `${searchName} jdsports size footlocker schuh`,
-      `${searchName} nike adidas endclothing asos`,
+      `${searchName} buy UK price £`,
+      `${searchName} site:.co.uk in stock`,
+      `${searchName} buy new UK`,
+      `${searchName} jdsports size footlocker schuh asos`,
+      `${searchName} endclothing offspring footpatrol`,
+      `${searchName} stockx goat klekt laced`,
+      `${searchName} price GBP trainers`,
     ];
 
-    const searchResults = await Promise.all(searchQueries.map(q => doSearchUrls(q, 20)));
+    const searchResults = await Promise.all(searchQueries.map(q => doSearch(q, 8)));
+
+    const seenUrls = new Set<string>();
+    const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
     for (const result of searchResults) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
-          candidateUrls.push({ url: item.url, title: item.title || "", description: item.description || "" });
+          rawCandidates.push({
+            url: item.url,
+            title: item.title || "",
+            markdown: item.markdown || "",
+            description: item.description || "",
+          });
         }
       }
     }
 
-    console.log(`Phase 1: ${candidateUrls.length} unique URLs from search`);
+    console.log(`Found ${rawCandidates.length} unique URLs from search`);
 
-    // ── Phase 2: Filter URLs to retailers, then scrape the best ones ──
-    const filteredUrls = candidateUrls.filter((s) => {
+    // Filter to clean product pages only
+    const candidates = rawCandidates.filter((s) => {
       if (!s.url || isComparisonSite(s.url)) return false;
       const domain = extractDomain(s.url);
       if (!domain || NON_RETAIL_DOMAINS.some((p) => p.test(domain))) return false;
@@ -426,22 +414,9 @@ serve(async (req) => {
       if (isKidsProduct(s.url, s.title + " " + s.description)) return false;
       if (isSecondhand(s.url, s.title + " " + s.description)) return false;
       return true;
-    }).slice(0, 30); // scrape top 30 candidates
+    });
 
-    console.log(`Phase 2: Scraping ${filteredUrls.length} candidate pages`);
-
-    // Scrape all candidates in parallel for full page content
-    const scrapedPages = await Promise.all(filteredUrls.map(u => doScrapeUrl(u.url)));
-
-    // Build candidates with full content for AI
-    const candidates = scrapedPages.map((page, i) => ({
-      url: page.url,
-      title: page.title || filteredUrls[i].title,
-      markdown: page.markdown,
-      description: filteredUrls[i].description,
-    })).filter(s => s.markdown.length > 100 || s.title.length > 10);
-
-    console.log(`${candidates.length} candidates with content, sending to AI`);
+    console.log(`${candidates.length} candidates after filtering, sending to AI`);
 
     // ── AI extracts and validates prices ──
     const aiResults = await extractPricesWithAI(candidates, searchName, LOVABLE_API_KEY, estimated_retail_price);
