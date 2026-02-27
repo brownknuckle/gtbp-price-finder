@@ -39,7 +39,7 @@ const NON_PRODUCT_PATH_PATTERNS = [
 const PRODUCT_STOPWORDS = new Set([
   "shoes", "shoe", "trainers", "trainer", "sneakers", "sneaker",
   "mens", "men", "womens", "women", "unisex", "kids", "junior",
-  "adult", "size", "uk", "us", "eu", "new", "with", "and", "for", "the", "og",
+  "adult", "size", "with", "and", "for", "the",
 ]);
 
 const COLOR_TOKENS = new Set([
@@ -155,7 +155,8 @@ function tokenizeProductName(productName: string): string[] {
   return (productName || "").toLowerCase()
     .replace(/[^a-z0-9\s/-]/g, " ").replace(/[/-]/g, " ")
     .split(/\s+/)
-    .filter((t) => t.length > 1 && !PRODUCT_STOPWORDS.has(t));
+    // Keep numeric tokens (model numbers like "1", "90") regardless of length
+    .filter((t) => (t.length > 1 || /^\d+$/.test(t)) && !PRODUCT_STOPWORDS.has(t));
 }
 
 function matchesProduct(productName: string, url: string, text: string, title?: string): boolean {
@@ -165,12 +166,17 @@ function matchesProduct(productName: string, url: string, text: string, title?: 
 
   const mainTokens = tokens.filter((t) => !COLOR_QUALIFIERS.has(t));
   const nonColorTokens = mainTokens.filter((t) => !COLOR_TOKENS.has(t));
-  const matchedNonColor = nonColorTokens.filter((t) => fullHaystack.includes(t));
 
-  // Need brand + model at minimum (relaxed: 40% of non-color tokens)
-  const required = nonColorTokens.length <= 3
-    ? Math.max(1, nonColorTokens.length - 1)
-    : Math.max(2, Math.ceil(nonColorTokens.length * 0.4));
+  // Numeric model identifiers (e.g. "1" in Air Max 1, "90", "550") must ALL match
+  // as whole words to avoid "1" matching "10" or "19"
+  const numericTokens = nonColorTokens.filter((t) => /^\d+$/.test(t));
+  for (const num of numericTokens) {
+    if (!new RegExp(`\\b${num}\\b`).test(fullHaystack)) return false;
+  }
+
+  // Require 80% of non-color tokens — tight enough to reject wrong models
+  const matchedNonColor = nonColorTokens.filter((t) => fullHaystack.includes(t));
+  const required = Math.max(2, Math.ceil(nonColorTokens.length * 0.8));
   if (matchedNonColor.length < required) return false;
 
   // Color check: require ALL colors when there's only 1 color, majority when multiple
@@ -179,17 +185,15 @@ function matchesProduct(productName: string, url: string, text: string, title?: 
     const colorHaystack = `${url}\n${title || ""}\n${text.slice(0, 500)}`.toLowerCase();
     const matchedColors = colors.filter((c) => colorHaystack.includes(c));
     // Single color must match exactly; multiple colors require at least 2/3
-    const required = colors.length === 1 ? 1 : Math.ceil(colors.length * 0.67);
-    if (matchedColors.length < required) return false;
-    
+    const colorRequired = colors.length === 1 ? 1 : Math.ceil(colors.length * 0.67);
+    if (matchedColors.length < colorRequired) return false;
+
     // If the product specifies "triple" or a single-color emphasis, reject pages with conflicting colors in URL/title
     if (/triple|mono/i.test(productName) || colors.length === 1) {
       const conflictColors = ["black", "red", "blue", "green", "yellow", "orange", "purple", "pink", "brown", "grey", "gray", "navy", "white"]
         .filter(c => !colors.includes(c));
-      // Check URL slug and title for conflicting colors
       const slugAndTitle = `${url}\n${title || ""}`.toLowerCase();
-      const conflictFound = conflictColors.filter(c => slugAndTitle.includes(c));
-      if (conflictFound.length > 0) return false;
+      if (conflictColors.some(c => slugAndTitle.includes(c))) return false;
     }
   }
 
@@ -239,31 +243,47 @@ function extractResultFromSource(
   // Reject non-retail domains (charities, social media, forums, etc.)
   if (NON_RETAIL_DOMAINS.some((p) => p.test(domain))) return null;
 
-  const content = `${source.title || ""}\n${source.markdown || ""}\n${source.description || ""}`;
+  // Use full content for product matching and OOS checks, but limit markdown
+  // for price extraction — "You may also like" / related products appear later
+  // in the page and contain prices that have nothing to do with this product
+  const fullContent = `${source.title || ""}\n${source.markdown || ""}\n${source.description || ""}`;
+  const priceContent = `${source.title || ""}\n${(source.markdown || "").slice(0, 2500)}\n${source.description || ""}`;
 
   // Check product match (pass title separately for color-in-title checks)
-  if (!matchesProduct(productName, url, content, source.title)) return null;
+  if (!matchesProduct(productName, url, fullContent, source.title)) return null;
 
   // Check not sold out
-  if (isOutOfStock(content)) return null;
+  if (isOutOfStock(fullContent)) return null;
 
   // Filter out kids/toddler/junior variants
-  if (isKidsProduct(url, content)) return null;
+  if (isKidsProduct(url, fullContent)) return null;
 
-  // Extract prices from the ACTUAL scraped content
-  const priceCeiling = estimated_retail_price ? estimated_retail_price * 3 : MAX_REALISTIC_PRICE;
-  const prices = extractAllGbpPrices(content).filter((p) => p >= priceFloor && p <= priceCeiling);
+  // Extract prices only from the top of the page (title + first 2500 chars of markdown)
+  const priceCeiling = estimated_retail_price ? estimated_retail_price * 2 : MAX_REALISTIC_PRICE;
+  const prices = extractAllGbpPrices(priceContent).filter((p) => p >= priceFloor && p <= priceCeiling);
   if (!prices.length) return null;
 
-  // Pick the most likely current/sale price (lowest reasonable price above floor)
   const sortedPrices = prices.sort((a, b) => a - b);
-  const itemPrice = sortedPrices[0];
 
-  // Check if there's an original/RRP price (must be plausible — within 3x of item price)
-  const candidateOriginal = sortedPrices.length > 1 ? sortedPrices[sortedPrices.length - 1] : null;
-  const originalPrice = candidateOriginal && candidateOriginal > itemPrice * 1.1 && candidateOriginal < itemPrice * 3
-    ? candidateOriginal
-    : null;
+  // When RRP is known, pick the price closest to it (not the minimum).
+  // The minimum is often an accessory or unrelated item visible on the page.
+  // A genuine sale price should be within 35% of RRP; anything lower is suspect.
+  let itemPrice: number;
+  if (estimated_retail_price && sortedPrices.length > 1) {
+    const plausible = sortedPrices.filter((p) => p >= estimated_retail_price * 0.65);
+    itemPrice = plausible.length > 0
+      ? plausible.reduce((best, p) =>
+          Math.abs(p - estimated_retail_price) < Math.abs(best - estimated_retail_price) ? p : best,
+          plausible[0]
+        )
+      : sortedPrices[sortedPrices.length - 1]; // fallback: highest remaining price
+  } else {
+    itemPrice = sortedPrices[0];
+  }
+
+  // Check if there's an original/RRP price (must be plausible — within 2x of item price)
+  const candidateOriginal = sortedPrices.find((p) => p > itemPrice * 1.05 && p <= itemPrice * 2) ?? null;
+  const originalPrice = candidateOriginal ?? null;
 
   const uk = isUkDomain(domain);
   const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
@@ -378,15 +398,13 @@ serve(async (req) => {
 
     const batchPromises = retailerBatches.map((batch) => {
       const siteQuery = batch.map((r) => `site:${r}`).join(" OR ");
-      return doSearch(`${searchName} buy price £ ${siteQuery}`, Math.min(batch.length * 3, 24));
+      // Quoted product name forces exact phrase match — prevents wrong models slipping through
+      return doSearch(`"${searchName}" buy price £ ${siteQuery}`, Math.min(batch.length * 3, 24));
     });
 
-    // Broad searches for coverage
-    // Fewer, more targeted broad searches to reduce noise and API usage
+    // Single broad search for coverage — quoted to stay on-product
     const broadSearches = [
-      doSearch(`"${searchName}" buy price £`, 20),
-      doSearch(`${searchName} price £ site:.co.uk OR site:.uk`, 20),
-      doSearch(`${searchName} buy UK shop £`, 15),
+      doSearch(`"${searchName}" price £ buy UK`, 20),
     ];
 
     const allSearchResults = await Promise.all([...batchPromises, ...broadSearches]);
@@ -402,13 +420,14 @@ serve(async (req) => {
 
     console.log(`Firecrawl returned ${allSources.length} unique URLs`);
 
-    // ── Gap-fill missing UK retailers ──
+    // ── Gap-fill missing UK retailers (only if results are thin) ──
     const coveredDomains = new Set(allSources.map((s) => extractDomain(s.url)).filter(Boolean));
     const missingUk = normalizedRetailers.filter(
       (r) => (r.endsWith(".uk") || r.includes(".co.uk")) && !coveredDomains.has(r)
     );
 
-    if (missingUk.length > 0) {
+    // Skip gap-fill if we already have plenty of sources — saves time and avoids noise
+    if (missingUk.length > 0 && allSources.length < 40) {
       console.log(`Gap-filling ${missingUk.length} missing UK retailers`);
       const GAP_BATCH = 4;
       const gapBatches: string[][] = [];
@@ -417,7 +436,7 @@ serve(async (req) => {
       }
       const gapResults = await Promise.all(gapBatches.map((batch) => {
         const siteQuery = batch.map((r) => `site:${r}`).join(" OR ");
-        return doSearch(`${searchName} ${siteQuery}`, batch.length * 3);
+        return doSearch(`"${searchName}" ${siteQuery}`, batch.length * 3);
       }));
       for (const result of gapResults) {
         for (const item of (result.data || [])) {
@@ -430,8 +449,10 @@ serve(async (req) => {
     }
 
     // ── Extract prices deterministically ──
+    // 65% of RRP = max realistic sale/discount for new trainers/clothing
+    // Anything lower is almost certainly from a related/accessory product on the page
     const priceFloor = estimated_retail_price
-      ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.45))
+      ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.65))
       : MIN_REALISTIC_PRICE;
 
     console.log(`Price floor: £${priceFloor} (RRP: ${estimated_retail_price || "unknown"})`);
