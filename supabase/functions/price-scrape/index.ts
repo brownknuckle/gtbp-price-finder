@@ -293,7 +293,26 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, supabaseKey);
-    const cacheKey = searchName.toLowerCase().trim();
+    // Include size in cache key so UK 9 and UK 10 don't share the same cache
+    const sizeMatch = product_name.match(/\b(UK|US|EU)\s*\d+\.?\d*/i) || product_name.match(/\bsize\s*\d+\.?\d*/i);
+    const sizeKey = sizeMatch ? `-${sizeMatch[0].toLowerCase().replace(/\s+/g, "")}` : "";
+    const cacheKey = `${searchName.toLowerCase().trim()}${sizeKey}`;
+
+    // Query 30-day historical low from price_history table
+    const getThirtyDayLow = async (key: string): Promise<number | null> => {
+      try {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const { data } = await sb.from("price_history").select("results")
+          .eq("product_key", key).gte("checked_at", thirtyDaysAgo).limit(50);
+        let low: number | null = null;
+        for (const row of (data || [])) {
+          for (const r of (row.results as any[] || [])) {
+            if (typeof r.totalYouPay === "number" && (low === null || r.totalYouPay < low)) low = r.totalYouPay;
+          }
+        }
+        return low;
+      } catch { return null; }
+    };
 
     let cachedResults: any[] = [];
     let cachedCreatedAt: string | undefined;
@@ -311,7 +330,8 @@ serve(async (req) => {
 
       if (cachedResults.length >= MIN_CACHE_RESULTS) {
         console.log(`Cache hit for: ${cacheKey} (${cachedResults.length} results)`);
-        return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cachedCreatedAt }), {
+        const thirtyDayLow = await getThirtyDayLow(cacheKey);
+        return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cachedCreatedAt, thirtyDayLow }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -494,13 +514,12 @@ serve(async (req) => {
 
       if (fallbackResults.length > 0) {
         console.log(`Regex fallback found ${fallbackResults.length} results (color rejects: ${colorRejects}, no-price rejects: ${noPriceRejects})`);
-        if (fallbackResults.length > 0) {
-          sb.from("price_cache").upsert(
-            { product_key: cacheKey, results: fallbackResults, product_info: { product_name, retailers: normalizedRetailers } },
-            { onConflict: "product_key" }
-          ).then(({ error }) => { if (error) console.error("Cache write error:", error); });
-        }
-        return new Response(JSON.stringify({ success: true, results: fallbackResults }), {
+        sb.from("price_cache").upsert(
+          { product_key: cacheKey, results: fallbackResults, product_info: { product_name, retailers: normalizedRetailers } },
+          { onConflict: "product_key" }
+        ).then(({ error }) => { if (error) console.error("Cache write error:", error); });
+        const thirtyDayLow = await getThirtyDayLow(cacheKey);
+        return new Response(JSON.stringify({ success: true, results: fallbackResults, thirtyDayLow }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } else {
@@ -561,6 +580,9 @@ serve(async (req) => {
 
     console.log(`Final: ${finalResults.length} unique retailers`);
 
+    // ── 30-day historical low ──
+    const thirtyDayLow = await getThirtyDayLow(cacheKey);
+
     // ── Price history (fire-and-forget) ──
     if (finalResults.length > 0) {
       sb.from("price_history")
@@ -575,7 +597,7 @@ serve(async (req) => {
     // Return stale cache if fresh results are worse
     if (finalResults.length < MIN_CACHE_RESULTS && cachedResults.length > finalResults.length) {
       console.log(`Returning stale cache (${cachedResults.length} > ${finalResults.length})`);
-      return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, stale: true }), {
+      return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, stale: true, thirtyDayLow }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -590,7 +612,7 @@ serve(async (req) => {
         .then(({ error }) => { if (error) console.error("Cache write error:", error); });
     }
 
-    return new Response(JSON.stringify({ success: true, results: finalResults }), {
+    return new Response(JSON.stringify({ success: true, results: finalResults, thirtyDayLow }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

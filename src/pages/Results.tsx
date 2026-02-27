@@ -37,6 +37,7 @@ const Results = () => {
   const { add: addToWatchlist, isInWatchlist } = useWatchlist();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dataSource, setDataSource] = useState<{ cached: boolean; cached_at?: string } | null>(null);
+  const [thirtyDayLow, setThirtyDayLow] = useState<number | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const formatCheckedTime = (iso: string) => {
@@ -59,6 +60,7 @@ const Results = () => {
       setProgress(100);
       setResults(resp.results);
       setDataSource({ cached: false });
+      if (resp.thirtyDayLow != null) setThirtyDayLow(resp.thirtyDayLow);
       toast({ title: "Prices refreshed", description: `Found ${resp.results.length} results.` });
     } catch (e: any) {
       toast({ title: "Refresh failed", description: e.message || "Try again.", variant: "destructive" });
@@ -103,6 +105,7 @@ const Results = () => {
         setProgress(100);
         setResults(resp.results);
         setDataSource({ cached: resp.cached, cached_at: resp.cached_at });
+        if (resp.thirtyDayLow != null) setThirtyDayLow(resp.thirtyDayLow);
       } catch (e: any) {
         toast({
           title: "Price search failed",
@@ -256,6 +259,21 @@ const Results = () => {
                       {inStockCount} verified in stock
                     </span>
                   )}
+                </div>
+              );
+            })()}
+
+            {/* 30-day low indicator */}
+            {thirtyDayLow != null && sorted.length > 0 && (() => {
+              const bestNow = sorted[0].totalYouPay;
+              const isAtLow = bestNow <= thirtyDayLow * 1.03;
+              return (
+                <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${
+                  isAtLow
+                    ? "border-green-200 bg-green-50 text-green-700"
+                    : "border-amber-200 bg-amber-50 text-amber-700"
+                }`}>
+                  {isAtLow ? "📉 At 30-day low price" : `📊 30-day low was £${thirtyDayLow.toFixed(2)}`}
                 </div>
               );
             })()}

@@ -49,6 +49,7 @@ export interface ScrapeResponse {
   results: PriceResult[];
   cached: boolean;
   cached_at?: string;
+  thirtyDayLow?: number | null;
 }
 
 export async function scrapePrices(
@@ -67,7 +68,7 @@ export async function scrapePrices(
 
     if (error) throw new Error(error.message || "Price scrape failed");
     if (!data?.success) throw new Error(data?.error || "Price scrape failed");
-    return { results: data.results, cached: !!data.cached, cached_at: data.cached_at };
+    return { results: data.results, cached: !!data.cached, cached_at: data.cached_at, thirtyDayLow: data.thirtyDayLow ?? null };
   } catch (e: any) {
     if (e.name === "AbortError") throw new Error("Search timed out. Please try again.");
     throw e;
