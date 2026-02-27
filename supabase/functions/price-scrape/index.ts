@@ -322,104 +322,93 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const doSearch = async (query: string, limit: number) => {
+    // Phase 1: Search WITHOUT scraping — fast, cheap, gets many URLs
+    const doSearchUrls = async (query: string, limit: number) => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      const timeout = setTimeout(() => controller.abort(), 12000);
       try {
         const response = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
           headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
           signal: controller.signal,
-          body: JSON.stringify({ query, limit, lang: "en", country: "gb", scrapeOptions: { formats: ["markdown"] } }),
+          // No scrapeOptions — just URLs, titles, descriptions from search index
+          body: JSON.stringify({ query, limit, lang: "en", country: "gb" }),
         });
         return await response.json();
       } catch { return { data: [] }; }
       finally { clearTimeout(timeout); }
     };
 
+    // Phase 2: Scrape a specific URL for full page content
+    const doScrapeUrl = async (url: string) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      try {
+        const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+        });
+        const data = await response.json();
+        return { url, markdown: data?.data?.markdown || "", title: data?.data?.metadata?.title || "" };
+      } catch { return { url, markdown: "", title: "" }; }
+      finally { clearTimeout(timeout); }
+    };
+
     console.log(`Searching for: "${searchName}" across ${normalizedRetailers.length} retailers`);
 
-    // ── Build search queries ──
+    // ── Phase 1: Wide search to collect candidate URLs ──
     const seenUrls = new Set<string>();
-    const allSources: any[] = [];
+    const candidateUrls: Array<{ url: string; title: string; description: string }> = [];
 
-    // Retailer-specific batch searches — unquoted for broader matching
-    const BATCH_SIZE = 6;
-    const retailerBatches: string[][] = [];
-    for (let i = 0; i < normalizedRetailers.length; i += BATCH_SIZE) {
-      retailerBatches.push(normalizedRetailers.slice(i, i + BATCH_SIZE));
-    }
-
-    const batchPromises = retailerBatches.map((batch) => {
-      const siteQuery = batch.map((r) => `site:${r}`).join(" OR ");
-      return doSearch(`${searchName} buy £ ${siteQuery}`, Math.min(batch.length * 4, 24));
-    });
-
-    // Multiple broad searches with varied query formats for maximum coverage
-    const broadSearches = [
-      doSearch(`${searchName} buy £ UK`, 25),
-      doSearch(`${searchName} price site:.co.uk`, 25),
-      doSearch(`${searchName} stockx goat klekt laced price`, 20),
-      doSearch(`buy ${searchName} new in stock`, 20),
+    const searchQueries = [
+      `${searchName} buy UK`,
+      `${searchName} price £`,
+      `${searchName} site:.co.uk`,
+      `${searchName} buy new in stock`,
+      `${searchName} stockx goat klekt`,
+      `${searchName} jdsports size footlocker schuh`,
+      `${searchName} nike adidas endclothing asos`,
     ];
 
-    const allSearchResults = await Promise.all([...batchPromises, ...broadSearches]);
+    const searchResults = await Promise.all(searchQueries.map(q => doSearchUrls(q, 20)));
 
-    for (const result of allSearchResults) {
+    for (const result of searchResults) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
-          allSources.push(item);
+          candidateUrls.push({ url: item.url, title: item.title || "", description: item.description || "" });
         }
       }
     }
 
-    console.log(`Firecrawl returned ${allSources.length} unique URLs`);
+    console.log(`Phase 1: ${candidateUrls.length} unique URLs from search`);
 
-    // ── Gap-fill missing UK retailers if sources are thin ──
-    const coveredDomains = new Set(allSources.map((s) => extractDomain(s.url)).filter(Boolean));
-    const missingUk = normalizedRetailers.filter(
-      (r) => (r.endsWith(".uk") || r.includes(".co.uk")) && !coveredDomains.has(r)
-    );
-
-    if (missingUk.length > 0 && allSources.length < 60) {
-      console.log(`Gap-filling ${missingUk.length} missing UK retailers`);
-      const GAP_BATCH = 4;
-      const gapBatches: string[][] = [];
-      for (let i = 0; i < missingUk.length; i += GAP_BATCH) {
-        gapBatches.push(missingUk.slice(i, i + GAP_BATCH));
-      }
-      const gapResults = await Promise.all(gapBatches.map((batch) => {
-        const siteQuery = batch.map((r) => `site:${r}`).join(" OR ");
-        return doSearch(`${searchName} ${siteQuery}`, batch.length * 3);
-      }));
-      for (const result of gapResults) {
-        for (const item of (result.data || [])) {
-          if (item.url && !seenUrls.has(item.url)) {
-            seenUrls.add(item.url);
-            allSources.push(item);
-          }
-        }
-      }
-    }
-
-    // ── Pre-filter candidates with basic URL/content checks ──
-    // Keep this loose — the AI does the strict product validation
-    const candidates = allSources.filter((s) => {
+    // ── Phase 2: Filter URLs to retailers, then scrape the best ones ──
+    const filteredUrls = candidateUrls.filter((s) => {
       if (!s.url || isComparisonSite(s.url)) return false;
       const domain = extractDomain(s.url);
       if (!domain || NON_RETAIL_DOMAINS.some((p) => p.test(domain))) return false;
-      const snippet = `${s.title || ""}\n${(s.markdown || "").slice(0, 300)}`;
-      if (isKidsProduct(s.url, snippet)) return false;
-      if (isSecondhand(s.url, snippet)) return false;
+      if (isKidsProduct(s.url, s.title + " " + s.description)) return false;
+      if (isSecondhand(s.url, s.title + " " + s.description)) return false;
       return true;
-    }).slice(0, 35); // cap at 35 for AI call efficiency
+    }).slice(0, 30); // scrape top 30 candidates
 
-    console.log(`${candidates.length} candidates after pre-filtering, sending to AI`);
-    // Log first 3 candidate URLs + snippet preview
-    candidates.slice(0, 3).forEach((c, i) => {
-      console.log(`Candidate[${i}]: ${c.url} | title: ${(c.title || "").slice(0, 80)} | markdown: ${(c.markdown || "").slice(0, 200)}`);
-    });
+    console.log(`Phase 2: Scraping ${filteredUrls.length} candidate pages`);
+
+    // Scrape all candidates in parallel for full page content
+    const scrapedPages = await Promise.all(filteredUrls.map(u => doScrapeUrl(u.url)));
+
+    // Build candidates with full content for AI
+    const candidates = scrapedPages.map((page, i) => ({
+      url: page.url,
+      title: page.title || filteredUrls[i].title,
+      markdown: page.markdown,
+      description: filteredUrls[i].description,
+    })).filter(s => s.markdown.length > 100 || s.title.length > 10);
+
+    console.log(`${candidates.length} candidates with content, sending to AI`);
 
     // ── AI extracts and validates prices ──
     const aiResults = await extractPricesWithAI(candidates, searchName, LOVABLE_API_KEY, estimated_retail_price);
