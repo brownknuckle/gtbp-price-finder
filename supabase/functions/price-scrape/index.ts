@@ -324,15 +324,8 @@ serve(async (req) => {
     const seenUrls = new Set<string>();
     const allSources: any[] = [];
 
-    // Quote first 3 words (brand + model) for precision without over-constraining colourway
-    const searchWords = searchName.split(" ");
-    const quotedCore = `"${searchWords.slice(0, 3).join(" ")}"`;
-    const fullSearch = searchWords.length > 3
-      ? `${quotedCore} ${searchWords.slice(3).join(" ")}`
-      : quotedCore;
-
-    // Retailer-specific batch searches
-    const BATCH_SIZE = 8;
+    // Retailer-specific batch searches — unquoted for broader matching
+    const BATCH_SIZE = 6;
     const retailerBatches: string[][] = [];
     for (let i = 0; i < normalizedRetailers.length; i += BATCH_SIZE) {
       retailerBatches.push(normalizedRetailers.slice(i, i + BATCH_SIZE));
@@ -340,13 +333,15 @@ serve(async (req) => {
 
     const batchPromises = retailerBatches.map((batch) => {
       const siteQuery = batch.map((r) => `site:${r}`).join(" OR ");
-      return doSearch(`${fullSearch} buy price £ ${siteQuery}`, Math.min(batch.length * 3, 24));
+      return doSearch(`${searchName} buy £ ${siteQuery}`, Math.min(batch.length * 4, 24));
     });
 
-    // Broad searches for additional coverage
+    // Multiple broad searches with varied query formats for maximum coverage
     const broadSearches = [
-      doSearch(`${fullSearch} buy price £ UK`, 20),
-      doSearch(`${fullSearch} £ site:.co.uk OR site:stockx.com OR site:goat.com`, 15),
+      doSearch(`${searchName} buy £ UK`, 25),
+      doSearch(`${searchName} price site:.co.uk`, 25),
+      doSearch(`${searchName} stockx goat klekt laced price`, 20),
+      doSearch(`buy ${searchName} new in stock`, 20),
     ];
 
     const allSearchResults = await Promise.all([...batchPromises, ...broadSearches]);
@@ -368,7 +363,7 @@ serve(async (req) => {
       (r) => (r.endsWith(".uk") || r.includes(".co.uk")) && !coveredDomains.has(r)
     );
 
-    if (missingUk.length > 0 && allSources.length < 40) {
+    if (missingUk.length > 0 && allSources.length < 60) {
       console.log(`Gap-filling ${missingUk.length} missing UK retailers`);
       const GAP_BATCH = 4;
       const gapBatches: string[][] = [];
@@ -399,7 +394,7 @@ serve(async (req) => {
       if (isKidsProduct(s.url, snippet)) return false;
       if (isSecondhand(s.url, snippet)) return false;
       return true;
-    }).slice(0, 25); // cap at 25 for AI call efficiency
+    }).slice(0, 35); // cap at 35 for AI call efficiency
 
     console.log(`${candidates.length} candidates after pre-filtering, sending to AI`);
 
