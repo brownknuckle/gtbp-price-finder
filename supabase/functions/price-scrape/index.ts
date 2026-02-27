@@ -414,8 +414,19 @@ serve(async (req) => {
         : MIN_REALISTIC_PRICE;
       const priceCeil = estimated_retail_price ? estimated_retail_price * 2 : MAX_REALISTIC_PRICE;
 
+      // Extract colour words from the search name so we can reject wrong colourways
+      const COLOR_LIST = ["black","white","red","blue","green","yellow","orange","purple","pink","brown","grey","gray","beige","cream","navy","khaki","tan","silver","gold"];
+      const searchColors = COLOR_LIST.filter(c => searchName.toLowerCase().includes(c));
+      const conflictColors = COLOR_LIST.filter(c => !searchColors.includes(c));
+
       const regexExtracted: any[] = [];
       for (const s of candidates) {
+        // Reject pages whose URL or title clearly show a different colourway
+        if (searchColors.length > 0 && conflictColors.length > 0) {
+          const slugAndTitle = `${s.url}\n${s.title || ""}`.toLowerCase();
+          if (conflictColors.some(c => slugAndTitle.includes(c))) continue;
+        }
+
         const text = `${s.title || ""}\n${(s.markdown || "").slice(0, 2000)}\n${s.description || ""}`;
         const normalized = text.replace(/,/g, "");
         const prices: number[] = [];
