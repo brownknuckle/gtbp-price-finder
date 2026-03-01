@@ -34,6 +34,7 @@ const Index = () => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [pendingProduct, setPendingProduct] = useState<ProductInfo | null>(null);
@@ -100,6 +101,44 @@ const Index = () => {
     reader.readAsDataURL(file);
     // Reset input so the same file can be re-selected
     e.target.value = "";
+  };
+
+  const processDroppedFile = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please drop an image file.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Max 10MB image size.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setImagePreview(result);
+      setImageBase64(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processDroppedFile(file);
   };
 
   const clearImage = () => {
@@ -202,8 +241,27 @@ const Index = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.35, duration: 0.5 }}
-              className="relative mb-5"
+              className={`relative mb-5 rounded-xl transition-all duration-200 ${isDraggingOver ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
             >
+              {/* Drag overlay */}
+              <AnimatePresence>
+                {isDraggingOver && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-primary/10 backdrop-blur-sm"
+                  >
+                    <div className="flex flex-col items-center gap-2">
+                      <Camera className="h-8 w-8 text-primary" />
+                      <p className="text-sm font-semibold text-primary">Drop image to search</p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               {/* Image preview */}
               <AnimatePresence>
                 {imagePreview && !pendingProduct && (
