@@ -11,6 +11,7 @@ export interface WatchlistEntry {
   search_query: string | null;
   best_price: number | null;
   previous_price: number | null;
+  sort_order: number;
   created_at: string;
 }
 
@@ -25,8 +26,8 @@ export function useWatchlist() {
     setLoading(true);
     const { data, error } = await supabase
       .from("watchlist")
-      .select("id, product_name, brand, category, search_query, best_price, previous_price, created_at")
-      .order("created_at", { ascending: false });
+      .select("id, product_name, brand, category, search_query, best_price, previous_price, sort_order, created_at")
+      .order("sort_order", { ascending: true });
     if (!error && data) setItems(data as WatchlistEntry[]);
     setLoading(false);
   }, [user]);
@@ -43,6 +44,8 @@ export function useWatchlist() {
       toast({ title: "Sign in required", description: "Sign in to save items to your watchlist.", variant: "destructive" });
       return false;
     }
+    // New items get a sort_order higher than the current max
+    const maxOrder = items.length > 0 ? Math.max(...items.map(i => i.sort_order)) : 0;
     const { error } = await supabase.from("watchlist").upsert(
       {
         user_id: user.id,
@@ -50,6 +53,7 @@ export function useWatchlist() {
         brand: product.brand || null,
         category: product.category || null,
         best_price: product.best_price || null,
+        sort_order: maxOrder + 1,
       },
       { onConflict: "user_id,product_name" }
     );
@@ -72,8 +76,25 @@ export function useWatchlist() {
     toast({ title: "Removed from watchlist" });
   };
 
+  const reorder = async (reorderedItems: WatchlistEntry[]) => {
+    // Optimistically update local state
+    setItems(reorderedItems);
+
+    // Persist new sort_order values
+    const updates = reorderedItems.map((item, index) => ({
+      id: item.id,
+      sort_order: index,
+      user_id: user!.id,
+      product_name: item.product_name,
+    }));
+
+    for (const u of updates) {
+      await supabase.from("watchlist").update({ sort_order: u.sort_order }).eq("id", u.id);
+    }
+  };
+
   const isInWatchlist = (productName: string) =>
     items.some((i) => i.product_name.toLowerCase() === productName.toLowerCase());
 
-  return { items, loading, add, remove, isInWatchlist, refresh: fetch };
+  return { items, loading, add, remove, reorder, isInWatchlist, refresh: fetch };
 }
