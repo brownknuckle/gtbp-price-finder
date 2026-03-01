@@ -49,6 +49,7 @@ export type Database = {
           product_name: string
           retailers: Json | null
           search_query: string | null
+          sort_order: number
           updated_at: string
           user_id: string
         }
@@ -62,6 +63,7 @@ export type Database = {
           product_name: string
           retailers?: Json | null
           search_query?: string | null
+          sort_order?: number
           updated_at?: string
           user_id: string
         }
@@ -75,6 +77,7 @@ export type Database = {
           product_name?: string
           retailers?: Json | null
           search_query?: string | null
+          sort_order?: number
           updated_at?: string
           user_id?: string
         }
