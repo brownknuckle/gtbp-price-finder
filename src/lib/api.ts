@@ -52,6 +52,7 @@ export interface ScrapeResponse {
   cached: boolean;
   cached_at?: string;
   thirtyDayLow?: number | null;
+  serviceDegraded?: boolean;
 }
 
 export async function scrapePrices(
@@ -69,8 +70,18 @@ export async function scrapePrices(
     });
 
     if (error) throw new Error(error.message || "Price scrape failed");
+    // service_degraded with no results means Firecrawl is down and there's no cache
+    if (data?.service_degraded && !data?.success) {
+      throw new Error(data?.error || "Price search is temporarily unavailable. Please try again shortly.");
+    }
     if (!data?.success) throw new Error(data?.error || "Price scrape failed");
-    return { results: data.results, cached: !!data.cached, cached_at: data.cached_at, thirtyDayLow: data.thirtyDayLow ?? null };
+    return {
+      results: data.results,
+      cached: !!data.cached,
+      cached_at: data.cached_at,
+      thirtyDayLow: data.thirtyDayLow ?? null,
+      serviceDegraded: !!data.service_degraded,
+    };
   } catch (e: any) {
     if (e.name === "AbortError") throw new Error("Search timed out. Please try again.");
     throw e;

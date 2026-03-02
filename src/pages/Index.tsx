@@ -584,7 +584,7 @@ const Index = () => {
                 {
                   icon: Globe,
                   title: "We Search 30+ Retailers",
-                  desc: "We search Nike, JD Sports, Size?, Foot Locker, END., StockX, ASOS, Schuh, GOAT, Farfetch and 20+ more to find every listing.",
+                  desc: "We search Nike, JD Sports, Size?, Foot Locker, END., StockX, ASOS, Schuh, GOAT, Farfetch and more — results vary by product availability.",
                 },
                 {
                   icon: Zap,
@@ -616,8 +616,8 @@ const Index = () => {
           <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-8 text-center">
             {[
               { icon: ShieldCheck, label: "No sign-up required" },
-              { icon: Zap, label: "Results in under 30s" },
-              { icon: Globe, label: "30+ UK & EU retailers" },
+              { icon: Zap, label: "Fast real-time search" },
+              { icon: Globe, label: "Up to 30+ retailers searched" },
             ].map((item) => (
               <div key={item.label} className="flex items-center gap-2 text-sm text-muted-foreground">
                 <item.icon className="h-4 w-4 text-primary" />
@@ -641,11 +641,11 @@ const Index = () => {
                 },
                 {
                   q: "How do you find the prices?",
-                  a: "We use AI to search across 30+ UK and international retailers in real-time, extracting actual product page prices — not estimates.",
+                  a: "We use AI to search up to 30+ UK and international retailers, extracting prices directly from product pages. Results vary by product and availability.",
                 },
                 {
                   q: "Are shipping costs included?",
-                  a: "Yes. We estimate shipping and import duties for non-UK retailers so the 'Total You Pay' is the real landed cost.",
+                  a: "Yes. We include estimated shipping and import duties so the 'Total You Pay' gives you a realistic landed cost. Actual charges at checkout may differ.",
                 },
                 {
                   q: "Do you sell products?",

@@ -36,7 +36,7 @@ const Results = () => {
   const [phase, setPhase] = useState<"identifying" | "scraping" | "done">("identifying");
   const { add: addToWatchlist, isInWatchlist } = useWatchlist();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [dataSource, setDataSource] = useState<{ cached: boolean; cached_at?: string } | null>(null);
+  const [dataSource, setDataSource] = useState<{ cached: boolean; cached_at?: string; serviceDegraded?: boolean } | null>(null);
   const [thirtyDayLow, setThirtyDayLow] = useState<number | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
@@ -60,7 +60,7 @@ const Results = () => {
       setPhase("done");
       setProgress(100);
       setResults(resp.results);
-      setDataSource({ cached: false });
+      setDataSource({ cached: false, serviceDegraded: resp.serviceDegraded });
       if (resp.thirtyDayLow != null) setThirtyDayLow(resp.thirtyDayLow);
       toast({ title: "Prices refreshed", description: `Found ${resp.results.length} results.` });
     } catch (e: any) {
@@ -105,7 +105,7 @@ const Results = () => {
         setPhase("done");
         setProgress(100);
         setResults(resp.results);
-        setDataSource({ cached: resp.cached, cached_at: resp.cached_at });
+        setDataSource({ cached: resp.cached, cached_at: resp.cached_at, serviceDegraded: resp.serviceDegraded });
         if (resp.thirtyDayLow != null) setThirtyDayLow(resp.thirtyDayLow);
       } catch (e: any) {
         toast({
@@ -230,6 +230,14 @@ const Results = () => {
           )}
         </div>
 
+        {/* Service degraded banner */}
+        {!isLoading && dataSource?.serviceDegraded && results.length > 0 && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+            <span className="shrink-0 text-sm">⚠️</span>
+            <span>Our search service is currently experiencing issues. Showing the most recently cached prices — click Refresh to try again when available.</span>
+          </div>
+        )}
+
         {/* Controls */}
         {!isLoading && results.length > 0 && (
           <div className="mb-4 space-y-3">
@@ -244,7 +252,7 @@ const Results = () => {
                 : "";
               return (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant={dataSource.cached ? "secondary" : "default"} className="text-[10px] gap-1">
+                  <Badge variant={dataSource.cached ? "secondary" : "default"} className="text-[10px] gap-1" title={dataSource.cached ? "These prices were fetched earlier and cached. Click Refresh for live prices." : undefined}>
                     {dataSource.cached ? `🕐 Prices from ${ageLabel}` : "⚡ Live prices"}
                   </Badge>
                   <span className="text-[10px] text-muted-foreground">
@@ -381,7 +389,9 @@ const Results = () => {
         {!isLoading && results.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20">
             <p className="text-sm font-medium text-muted-foreground">
-              No prices found. This can happen if the search timed out.
+              {dataSource?.serviceDegraded
+                ? "Price search is temporarily unavailable — our data provider is experiencing issues. Please try again shortly."
+                : "No prices found. This can happen if the search timed out."}
             </p>
             <div className="mt-4 flex gap-3">
               <Button
@@ -471,8 +481,8 @@ const Results = () => {
                         <span className="line-through text-muted-foreground/50">£{r.originalPrice.toFixed(2)}</span>
                       )}
                       <span>Item: £{r.itemPrice.toFixed(2)}</span>
-                      <span>Shipping: {r.shipping === 0 ? "Free" : `£${r.shipping.toFixed(2)}`}</span>
-                      {r.duties > 0 && <span>Duties: £{r.duties.toFixed(2)}</span>}
+                      <span>Shipping: {r.shipping === 0 ? "Free" : `~£${r.shipping.toFixed(2)}`}</span>
+                      {r.duties > 0 && <span>Duties: ~£{r.duties.toFixed(2)}</span>}
                     </div>
                     <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{r.delivery}</span>
@@ -513,6 +523,9 @@ const Results = () => {
                     Buy Now
                     <ExternalLink className="h-3 w-3" />
                   </Button>
+                  <p className="text-[9px] text-muted-foreground/50 text-right leading-tight max-w-[100px]">
+                    Price may vary at checkout
+                  </p>
                 </div>
               </div>
             </motion.div>

@@ -13,6 +13,7 @@ export interface WatchlistEntry {
   previous_price: number | null;
   sort_order: number;
   created_at: string;
+  updated_at: string;
 }
 
 export function useWatchlist() {
@@ -26,7 +27,7 @@ export function useWatchlist() {
     setLoading(true);
     const { data, error } = await supabase
       .from("watchlist")
-      .select("id, product_name, brand, category, search_query, best_price, previous_price, sort_order, created_at")
+      .select("id, product_name, brand, category, search_query, best_price, previous_price, sort_order, created_at, updated_at")
       .order("sort_order", { ascending: true });
     if (!error && data) setItems(data as WatchlistEntry[]);
     setLoading(false);

@@ -381,10 +381,15 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
+    // Track whether every Firecrawl call has failed so we can return a useful error
+    let firecrawlFailCount = 0;
+    let firecrawlCallCount = 0;
+
     // Targeted search WITH scraping — returns Google-cached content (reliable for SPAs)
     const doSearchContent = async (query: string, limit: number) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
+      firecrawlCallCount++;
       try {
         const r = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
@@ -392,8 +397,17 @@ serve(async (req) => {
           signal: controller.signal,
           body: JSON.stringify({ query, limit, lang: "en", country: "gb", scrapeOptions: { formats: ["markdown"] } }),
         });
+        if (!r.ok) {
+          console.warn(`Firecrawl content search HTTP ${r.status} for query: ${query.slice(0, 60)}`);
+          firecrawlFailCount++;
+          return { data: [] };
+        }
         return await r.json();
-      } catch { return { data: [] }; }
+      } catch (e) {
+        console.warn(`Firecrawl content search failed for query: ${query.slice(0, 60)}`, e instanceof Error ? e.message : e);
+        firecrawlFailCount++;
+        return { data: [] };
+      }
       finally { clearTimeout(timeout); }
     };
 
@@ -401,6 +415,7 @@ serve(async (req) => {
     const doSearchUrls = async (query: string, limit: number) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 12000);
+      firecrawlCallCount++;
       try {
         const r = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
@@ -408,8 +423,17 @@ serve(async (req) => {
           signal: controller.signal,
           body: JSON.stringify({ query, limit, lang: "en", country: "gb" }),
         });
+        if (!r.ok) {
+          console.warn(`Firecrawl URL search HTTP ${r.status} for query: ${query.slice(0, 60)}`);
+          firecrawlFailCount++;
+          return { data: [] };
+        }
         return await r.json();
-      } catch { return { data: [] }; }
+      } catch (e) {
+        console.warn(`Firecrawl URL search failed for query: ${query.slice(0, 60)}`, e instanceof Error ? e.message : e);
+        firecrawlFailCount++;
+        return { data: [] };
+      }
       finally { clearTimeout(timeout); }
     };
 
@@ -460,6 +484,31 @@ serve(async (req) => {
     }
 
     console.log(`Found ${rawCandidates.length} unique URLs (${contentResultSets.flat().length} with content, ${urlResultSets.flat().length} URL-only)`);
+
+    // ── Firecrawl outage detection ──
+    const firecrawlDown = firecrawlCallCount > 0 && firecrawlFailCount === firecrawlCallCount;
+    if (firecrawlDown) {
+      console.error(`Firecrawl appears down: ${firecrawlFailCount}/${firecrawlCallCount} calls failed`);
+      // Return stale cache if we have any — better than nothing
+      if (cachedResults.length > 0) {
+        console.log(`Returning stale cache (${cachedResults.length} results) due to Firecrawl outage`);
+        const thirtyDayLow = await getThirtyDayLow(cacheKey);
+        return new Response(JSON.stringify({
+          success: true,
+          results: cachedResults,
+          cached: true,
+          stale: true,
+          service_degraded: true,
+          cached_at: cachedCreatedAt,
+          thirtyDayLow,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      // No cache at all — return a clear service-unavailable error
+      return new Response(JSON.stringify({
+        error: "Price search is temporarily unavailable. Please try again in a few minutes.",
+        service_degraded: true,
+      }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     // Filter to clean product pages only
     const candidates = rawCandidates.filter((s) => {

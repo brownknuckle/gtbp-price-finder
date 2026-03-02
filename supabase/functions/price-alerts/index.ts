@@ -163,7 +163,7 @@ serve(async (req) => {
                   <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 500px; margin: 0 auto; background: #ffffff; padding: 32px;">
                     <h1 style="font-size: 28px; font-weight: 800; letter-spacing: 2px; color: #1A3A6B; margin: 0 0 4px;">GTBP</h1>
                     <p style="font-size: 10px; text-transform: uppercase; letter-spacing: 3px; color: #999; margin: 0 0 24px;">Get The Best Price</p>
-                    
+
                     <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                       <p style="font-size: 13px; color: #16a34a; font-weight: 600; margin: 0 0 8px;">📉 Price Drop Detected!</p>
                       <h2 style="font-size: 18px; color: #111; margin: 0 0 12px;">${item.product_name}</h2>
@@ -178,7 +178,7 @@ serve(async (req) => {
                        style="display: block; text-align: center; background: #1A3A6B; color: white; padding: 14px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
                       Search Current Prices →
                     </a>
-                    
+
                     <p style="font-size: 11px; color: #aaa; margin-top: 24px; text-align: center;">
                       You're receiving this because you saved this product on GTBP.
                     </p>
@@ -189,16 +189,22 @@ serve(async (req) => {
               notificationsSent++;
             }
 
-            // Update watchlist with new price
+            // Update watchlist with new price and mark when last checked
             await sb
               .from("watchlist")
-              .update({ previous_price: previousPrice, best_price: currentBestPrice })
+              .update({ previous_price: previousPrice, best_price: currentBestPrice, updated_at: new Date().toISOString() })
               .eq("id", item.id);
           } else if (currentBestPrice > previousPrice) {
-            // Price went up — still update but don't email
+            // Price went up — update price and mark when last checked
             await sb
               .from("watchlist")
-              .update({ previous_price: previousPrice, best_price: currentBestPrice })
+              .update({ previous_price: previousPrice, best_price: currentBestPrice, updated_at: new Date().toISOString() })
+              .eq("id", item.id);
+          } else {
+            // Price unchanged — still mark as checked so the UI knows alerts are running
+            await sb
+              .from("watchlist")
+              .update({ updated_at: new Date().toISOString() })
               .eq("id", item.id);
           }
         }

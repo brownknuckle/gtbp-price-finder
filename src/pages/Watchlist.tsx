@@ -78,6 +78,25 @@ const SortableWatchlistItem = ({ item, index, onSearch, onRemove }: SortableItem
             </span>
           )}
         </p>
+        {(() => {
+          const lastChecked = item.updated_at || item.created_at;
+          const hoursAgo = (Date.now() - new Date(lastChecked).getTime()) / 3600000;
+          if (hoursAgo > 25) {
+            return (
+              <p className="mt-0.5 text-[10px] text-amber-600">
+                ⚠ Alerts paused — last checked {Math.round(hoursAgo)}h ago
+              </p>
+            );
+          }
+          if (item.best_price != null) {
+            return (
+              <p className="mt-0.5 text-[10px] text-muted-foreground/60">
+                Checked {hoursAgo < 1 ? "< 1h ago" : `${Math.round(hoursAgo)}h ago`}
+              </p>
+            );
+          }
+          return null;
+        })()}
       </div>
       <div className="flex items-center gap-2">
         <Button
