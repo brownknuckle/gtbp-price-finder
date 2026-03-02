@@ -271,10 +271,32 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { product_name, retailers, skip_cache, estimated_retail_price } = await req.json();
+    const body = await req.json();
+    const { product_name, retailers, skip_cache, estimated_retail_price } = body;
 
-    if (!product_name || !Array.isArray(retailers) || !retailers.length) {
-      return new Response(JSON.stringify({ error: "product_name and retailers are required" }), {
+    // Input validation
+    if (!product_name || typeof product_name !== "string") {
+      return new Response(JSON.stringify({ error: "product_name is required and must be a string" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (product_name.length > 300) {
+      return new Response(JSON.stringify({ error: "product_name too long (max 300 chars)" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!Array.isArray(retailers) || !retailers.length) {
+      return new Response(JSON.stringify({ error: "retailers array is required" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (retailers.length > 100) {
+      return new Response(JSON.stringify({ error: "Too many retailers (max 100)" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (estimated_retail_price !== undefined && (typeof estimated_retail_price !== "number" || estimated_retail_price < 0 || estimated_retail_price > 100000)) {
+      return new Response(JSON.stringify({ error: "Invalid estimated_retail_price" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

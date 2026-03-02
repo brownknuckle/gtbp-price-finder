@@ -38,6 +38,30 @@ export type Database = {
         }
         Relationships: []
       }
+      price_history: {
+        Row: {
+          checked_at: string
+          created_at: string
+          id: string
+          product_key: string
+          results: Json
+        }
+        Insert: {
+          checked_at?: string
+          created_at?: string
+          id?: string
+          product_key: string
+          results: Json
+        }
+        Update: {
+          checked_at?: string
+          created_at?: string
+          id?: string
+          product_key?: string
+          results?: Json
+        }
+        Relationships: []
+      }
       watchlist: {
         Row: {
           best_price: number | null
