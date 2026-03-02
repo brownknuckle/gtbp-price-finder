@@ -36,6 +36,8 @@ const NON_PRODUCT_PATH_PATTERNS = [
   /\/colour\//i, /\/color\//i, /\/gender\//i,
   /\/p\/trainers/i, /\/p\/shoes/i, /\/p\/clothing/i,
   /\/shoes\/\?/i, /\/trainers\/\?/i, /\/footwear\/\?/i,
+  // Category paths: /footwear/brand-name or /clothing/brand-name with no product ID (no digits or .html)
+  /\/footwear\/[a-z-]+$/i, /\/clothing\/[a-z-]+$/i, /\/accessories\/[a-z-]+$/i,
 ];
 
 const MIN_REALISTIC_PRICE = 20;
@@ -53,7 +55,7 @@ const NON_RETAIL_DOMAINS = [
 const BLOCKED_DOMAINS = new Set([
   "findyourkicks.com", "luxurygoodslocker.com", "kicksmachine.com",
   "limitedresell.com", "crepcollectionclub.co.uk", "flipsupply.co.uk",
-  "sportshowroom.co.uk",
+  "sportshowroom.co.uk", "hypedeconomy.co.uk", "4feetshoes.com",
 ]);
 
 const KIDS_PATH_PATTERNS = [
