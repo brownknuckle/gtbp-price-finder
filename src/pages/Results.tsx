@@ -39,6 +39,7 @@ const Results = () => {
   const [dataSource, setDataSource] = useState<{ cached: boolean; cached_at?: string } | null>(null);
   const [thirtyDayLow, setThirtyDayLow] = useState<number | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
 
   const formatCheckedTime = (iso: string) => {
     const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -171,17 +172,13 @@ const Results = () => {
               animate={{ opacity: 1, scale: 1 }}
               className="shrink-0"
             >
-              <div className="h-28 w-28 sm:h-36 sm:w-36 overflow-hidden rounded-2xl border bg-secondary flex items-center justify-center">
-                {product.image_url ? (
+               <div className="h-28 w-28 sm:h-36 sm:w-36 overflow-hidden rounded-2xl border bg-secondary flex items-center justify-center">
+                {product.image_url && !imageError ? (
                   <img
                     src={product.image_url}
                     alt={product.product_name}
                     className="h-full w-full object-contain p-2"
-                    onError={(e) => {
-                      const img = e.target as HTMLImageElement;
-                      img.style.display = "none";
-                      img.parentElement!.innerHTML = `<span class="text-5xl">${product.category === "shoes" ? "👟" : product.category === "clothing" ? "👕" : "🎒"}</span>`;
-                    }}
+                    onError={() => setImageError(true)}
                   />
                 ) : (
                   <span className="text-5xl">{product.category === "shoes" ? "👟" : product.category === "clothing" ? "👕" : "🎒"}</span>
