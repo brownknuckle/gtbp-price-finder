@@ -90,6 +90,34 @@ export async function scrapePrices(
   }
 }
 
+export interface PriceHistoryPoint {
+  date: string; // formatted label e.g. "Feb 10"
+  checkedAt: string; // ISO timestamp
+  bestPrice: number;
+}
+
+export async function fetchPriceHistory(productKey: string): Promise<PriceHistoryPoint[]> {
+  const { data, error } = await supabase
+    .from("price_history")
+    .select("checked_at, results")
+    .eq("product_key", productKey)
+    .order("checked_at", { ascending: true })
+    .limit(60);
+
+  if (error) throw new Error(error.message || "Price history fetch failed");
+
+  return (data ?? []).map((row) => {
+    const results = (row.results as Array<{ totalYouPay: number }>) ?? [];
+    const bestPrice = results.reduce(
+      (min, r) => (r.totalYouPay < min ? r.totalYouPay : min),
+      results[0]?.totalYouPay ?? 0
+    );
+    const d = new Date(row.checked_at);
+    const date = d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    return { date, checkedAt: row.checked_at, bestPrice };
+  });
+}
+
 export interface TrendingItem {
   name: string;
   category: "shoes" | "clothing" | "accessories";

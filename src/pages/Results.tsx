@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag, ShieldCheck, AlertTriangle, ChevronDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { scrapePrices, searchProduct, type PriceResult, type ProductInfo } from "@/lib/api";
+import PriceHistoryChart from "@/components/PriceHistoryChart";
 import { useToast } from "@/hooks/use-toast";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import PageTransition from "@/components/PageTransition";
@@ -46,6 +47,7 @@ const Results = () => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
   const [pendingBuyUrl, setPendingBuyUrl] = useState<{ url: string; retailer: string; ageHours: number } | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const formatCheckedTime = (iso: string) => {
     const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -421,6 +423,28 @@ const Results = () => {
                 New Search
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* Price history */}
+        {!isLoading && product && (
+          <div className="mt-4">
+            <button
+              onClick={() => setHistoryOpen((o) => !o)}
+              className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
+            >
+              <span>📈 Price History</span>
+              <ChevronDown
+                className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${historyOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            {historyOpen && (
+              <div className="mt-1 rounded-xl border px-4 py-3">
+                <PriceHistoryChart
+                  productKey={product.product_name.toLowerCase().trim()}
+                />
+              </div>
+            )}
           </div>
         )}
 
