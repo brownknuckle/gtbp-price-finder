@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Search, ArrowRight, Loader2, ShieldCheck, Zap, Globe, Camera, X, CheckCircle, AlertTriangle, Edit3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -615,7 +615,7 @@ const Index = () => {
         <section className="border-t px-4 py-12">
           <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-8 text-center">
             {[
-              { icon: ShieldCheck, label: "No sign-up required" },
+              { icon: ShieldCheck, label: "Search free, no account needed" },
               { icon: Zap, label: "Fast real-time search" },
               { icon: Globe, label: "Up to 30+ retailers searched" },
             ].map((item) => (
@@ -648,6 +648,10 @@ const Index = () => {
                   a: "Yes. We include estimated shipping and import duties so the 'Total You Pay' gives you a realistic landed cost. Actual charges at checkout may differ.",
                 },
                 {
+                  q: "Do I need an account?",
+                  a: "No account needed to search. Sign in with Google or Apple to save products to your watchlist and receive price drop alerts by email.",
+                },
+                {
                   q: "Do you sell products?",
                   a: "No. GTBP is a price comparison tool. When you click 'Buy Now', you go directly to the retailer's website.",
                 },
@@ -668,9 +672,11 @@ const Index = () => {
             <p className="mt-1 text-xs text-muted-foreground">
               Get The Best Price — Compare prices across UK retailers instantly.
             </p>
-            <p className="mt-4 text-xs text-muted-foreground/60">
-              © {new Date().getFullYear()} GTBP. All rights reserved. Prices are indicative and may vary.
-            </p>
+            <div className="mt-4 flex items-center justify-center gap-4 text-xs text-muted-foreground/60">
+              <span>© {new Date().getFullYear()} GTBP. Prices are indicative and may vary.</span>
+              <Link to="/privacy" className="hover:text-muted-foreground underline underline-offset-2">Privacy</Link>
+              <Link to="/terms" className="hover:text-muted-foreground underline underline-offset-2">Terms</Link>
+            </div>
           </div>
         </footer>
       </div>

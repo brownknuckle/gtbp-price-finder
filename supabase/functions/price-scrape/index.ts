@@ -279,8 +279,18 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // ── Rate limiting: require auth to bypass cache ──
+    // Anonymous users get the cached result; only signed-in users can force a fresh scrape.
+    // This prevents anonymous callers from hammering Firecrawl/AI APIs via the Refresh button.
+    const authHeader = req.headers.get("authorization") || "";
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const isAnonymous = !authHeader || authHeader === `Bearer ${anonKey}`;
+
     const body = await req.json();
-    const { product_name, retailers, skip_cache, estimated_retail_price } = body;
+    const { product_name, retailers, skip_cache: rawSkipCache, estimated_retail_price } = body;
+    // Silently downgrade skip_cache for anonymous requests rather than hard-erroring,
+    // so the UI degrades gracefully (just shows cached result with no complaint).
+    const skip_cache = rawSkipCache && !isAnonymous;
 
     // Input validation
     if (!product_name || typeof product_name !== "string") {

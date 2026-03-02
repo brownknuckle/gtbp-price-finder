@@ -2,6 +2,19 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 
+async function generateUnsubscribeToken(itemId: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(itemId));
+  return btoa(String.fromCharCode(...new Uint8Array(sig)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -34,6 +47,9 @@ serve(async (req) => {
 
     const sb = createClient(supabaseUrl, supabaseKey);
     const resend = new Resend(resendKey);
+    const siteUrl = Deno.env.get("SITE_URL") || "https://gtbp.lovable.app";
+    const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
+    const fromName = Deno.env.get("RESEND_FROM_NAME") || "GTBP Price Alerts";
 
     // Get all watchlist items grouped by user
     const { data: watchlistItems, error: wlError } = await sb
@@ -155,10 +171,14 @@ serve(async (req) => {
             if (userEmail) {
               console.log(`Price drop for ${item.product_name}: £${previousPrice} → £${currentBestPrice} (-${percentDrop}%). Emailing ${userEmail}`);
 
+              const unsubToken = await generateUnsubscribeToken(item.id, supabaseKey);
+              const unsubUrl = `${siteUrl}/unsubscribe?item=${encodeURIComponent(item.id)}&token=${encodeURIComponent(unsubToken)}`;
+
               await resend.emails.send({
-                from: "GTBP Price Alerts <onboarding@resend.dev>",
+                from: `${fromName} <${fromEmail}>`,
                 to: [userEmail],
                 subject: `💰 Price Drop: ${item.product_name} now £${currentBestPrice.toFixed(2)} (-${percentDrop}%)`,
+                headers: { "List-Unsubscribe": `<${unsubUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
                 html: `
                   <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 500px; margin: 0 auto; background: #ffffff; padding: 32px;">
                     <h1 style="font-size: 28px; font-weight: 800; letter-spacing: 2px; color: #1A3A6B; margin: 0 0 4px;">GTBP</h1>
@@ -174,13 +194,14 @@ serve(async (req) => {
                       </div>
                     </div>
 
-                    <a href="${Deno.env.get("SITE_URL") || "https://gtbp.lovable.app"}/results?q=${encodeURIComponent(item.product_name)}"
+                    <a href="${siteUrl}/results?q=${encodeURIComponent(item.product_name)}"
                        style="display: block; text-align: center; background: #1A3A6B; color: white; padding: 14px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
                       Search Current Prices →
                     </a>
 
                     <p style="font-size: 11px; color: #aaa; margin-top: 24px; text-align: center;">
-                      You're receiving this because you saved this product on GTBP.
+                      You're receiving this because you saved this product on GTBP.<br>
+                      <a href="${unsubUrl}" style="color: #aaa;">Remove from watchlist &amp; unsubscribe</a>
                     </p>
                   </div>
                 `,

@@ -10,6 +10,9 @@ import Index from "./pages/Index";
 import Results from "./pages/Results";
 
 import Watchlist from "./pages/Watchlist";
+import Unsubscribe from "./pages/Unsubscribe";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +25,9 @@ const AnimatedRoutes = () => {
         <Route path="/" element={<Index />} />
         <Route path="/results" element={<Results />} />
         <Route path="/watchlist" element={<Watchlist />} />
+        <Route path="/unsubscribe" element={<Unsubscribe />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>

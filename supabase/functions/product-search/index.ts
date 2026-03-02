@@ -49,13 +49,19 @@ serve(async (req) => {
       text: query || "Identify this product from the image",
     });
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const aiController = new AbortController();
+    const aiTimeout = setTimeout(() => aiController.abort(), 30000);
+
+    let response: Response;
+    try {
+      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        signal: aiController.signal,
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
         model: image ? "google/gemini-2.5-pro" : "google/gemini-2.5-flash-lite",
         messages: [
           {
@@ -143,6 +149,20 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
         tool_choice: { type: "function", function: { name: "identify_product" } },
       }),
     });
+    } catch (fetchErr: any) {
+      clearTimeout(aiTimeout);
+      if (fetchErr.name === "AbortError") {
+        return new Response(JSON.stringify({ error: "Product identification timed out. Please try a more specific query." }), {
+          status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      console.error("AI gateway network error:", fetchErr);
+      return new Response(JSON.stringify({ error: "Product identification is temporarily unavailable. Please try again shortly." }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } finally {
+      clearTimeout(aiTimeout);
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -153,6 +173,12 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
       if (response.status === 402) {
         return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds." }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (response.status >= 500) {
+        console.error("AI gateway server error:", response.status);
+        return new Response(JSON.stringify({ error: "Product identification is temporarily unavailable. Please try again shortly." }), {
+          status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const text = await response.text();

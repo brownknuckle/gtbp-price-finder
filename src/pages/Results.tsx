@@ -1,12 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag, ShieldCheck } from "lucide-react";
+import { Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { scrapePrices, searchProduct, type PriceResult, type ProductInfo } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useWatchlist } from "@/hooks/useWatchlist";
@@ -40,6 +45,7 @@ const Results = () => {
   const [thirtyDayLow, setThirtyDayLow] = useState<number | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
+  const [pendingBuyUrl, setPendingBuyUrl] = useState<{ url: string; retailer: string; ageHours: number } | null>(null);
 
   const formatCheckedTime = (iso: string) => {
     const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -518,7 +524,16 @@ const Results = () => {
                   <Button
                     size="sm"
                     className="gap-1"
-                    onClick={() => window.open(r.url, "_blank", "noopener,noreferrer")}
+                    onClick={() => {
+                      const ageHours = dataSource?.cached_at
+                        ? (Date.now() - new Date(dataSource.cached_at).getTime()) / 3600000
+                        : 0;
+                      if (dataSource?.cached && ageHours > 2) {
+                        setPendingBuyUrl({ url: r.url, retailer: r.retailer, ageHours });
+                      } else {
+                        window.open(r.url, "_blank", "noopener,noreferrer");
+                      }
+                    }}
                   >
                     Buy Now
                     <ExternalLink className="h-3 w-3" />
@@ -532,6 +547,34 @@ const Results = () => {
           ))}
         </div>
       </div>
+
+      {/* Stale price interstitial */}
+      <AlertDialog open={!!pendingBuyUrl} onOpenChange={(open) => !open && setPendingBuyUrl(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              Prices may have changed
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This price for <strong>{pendingBuyUrl?.retailer}</strong> was checked{" "}
+              {pendingBuyUrl ? Math.round(pendingBuyUrl.ageHours) : 0}h ago.
+              The actual price and availability may differ at checkout.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingBuyUrl) window.open(pendingBuyUrl.url, "_blank", "noopener,noreferrer");
+                setPendingBuyUrl(null);
+              }}
+            >
+              Continue to {pendingBuyUrl?.retailer}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageTransition>
   );
 };
