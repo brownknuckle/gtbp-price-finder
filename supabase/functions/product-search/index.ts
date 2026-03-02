@@ -10,9 +10,24 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { query, image } = await req.json();
+    const body = await req.json();
+    const { query, image } = body;
+
+    // Input validation
     if (!query && !image) {
       return new Response(JSON.stringify({ error: "Query or image is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (query !== undefined && (typeof query !== "string" || query.length > 500)) {
+      return new Response(JSON.stringify({ error: "query must be a string (max 500 chars)" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (image !== undefined && (typeof image !== "string" || image.length > 14_000_000)) {
+      return new Response(JSON.stringify({ error: "image too large (max ~10MB)" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
