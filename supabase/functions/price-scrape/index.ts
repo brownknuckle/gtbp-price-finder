@@ -58,6 +58,23 @@ const BLOCKED_DOMAINS = new Set([
   "sportshowroom.co.uk", "hypedeconomy.co.uk", "4feetshoes.com",
 ]);
 
+const AUTHORISED_RETAILERS = new Set([
+  "nike.com", "adidas.co.uk", "adidas.com", "jdsports.co.uk",
+  "footlocker.co.uk", "asos.com", "schuh.co.uk", "size.co.uk",
+  "endclothing.com", "selfridges.com", "harveynichols.com",
+  "mrporter.com", "flannels.com", "footasylum.com", "office.co.uk",
+  "zalando.co.uk", "offspring.co.uk", "sneakersnstuff.com",
+  "solebox.com", "stockx.com", "goat.com",
+]);
+
+const FREE_RETURNS_RETAILERS = new Set([
+  "nike.com", "adidas.co.uk", "adidas.com", "jdsports.co.uk",
+  "footlocker.co.uk", "asos.com", "schuh.co.uk", "size.co.uk",
+  "endclothing.com", "selfridges.com", "harveynichols.com",
+  "mrporter.com", "flannels.com", "footasylum.com", "office.co.uk",
+  "zalando.co.uk",
+]);
+
 const KIDS_PATH_PATTERNS = [
   /\/kids?\//i, /\/toddler/i, /\/junior/i, /\/infant/i, /\/youth/i,
   /\/children/i, /\/boys?\//i, /\/girls?\//i, /\/baby/i,
@@ -92,6 +109,13 @@ function isLikelyProductPage(url: string): boolean {
     if (segments.length === 1) {
       const hasProductIdentifier = /\d/.test(lastSegment) || lastSegment.length > 20;
       if (!hasProductIdentifier) return false;
+    }
+    // Adidas filter/category pages use underscore separators (e.g. /samba-trainers-leather_upper)
+    // Real product pages have a numeric style code or end in .html
+    const hostname = parsed.hostname.replace(/^www\./, "");
+    if ((hostname === "adidas.co.uk" || hostname === "adidas.com")
+        && !pathname.match(/\d/) && !pathname.endsWith(".html")) {
+      return false;
     }
     return true;
   } catch {
@@ -167,6 +191,10 @@ async function extractPricesWithAI(
   ).join("\n---\n");
 
   const rrpHint = estimatedRrp ? ` The estimated retail price is £${estimatedRrp}.` : "";
+  const sizeHint = productName.match(/\b(UK|US|EU)\s*\d+\.?\d*/i)?.[0];
+  const sizeInstruction = sizeHint
+    ? ` The customer wants size ${sizeHint} — only mark in_stock: true if that specific size is available.`
+    : "";
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
@@ -181,7 +209,7 @@ async function extractPricesWithAI(
         messages: [
           {
             role: "system",
-            content: `You are a price extraction specialist for a UK price comparison website.${rrpHint}
+            content: `You are a price extraction specialist for a UK price comparison website.${rrpHint}${sizeInstruction}
 
 The user is searching for: "${productName}"
 
@@ -513,6 +541,10 @@ serve(async (req) => {
           inStock: null,
           checkedAt: new Date().toISOString(),
           couponCode: null,
+          retailerTier: AUTHORISED_RETAILERS.has(domain) ? "authorised"
+            : TRUST_RATINGS[domain] ? "trusted"
+            : "unverified",
+          freeReturns: FREE_RETURNS_RETAILERS.has(domain),
         });
       }
       // Deduplicate by domain
@@ -575,6 +607,10 @@ serve(async (req) => {
         inStock: aiResult.in_stock === true ? true : null,
         checkedAt: new Date().toISOString(),
         couponCode: aiResult.coupon_code || null,
+        retailerTier: AUTHORISED_RETAILERS.has(domain) ? "authorised"
+          : TRUST_RATINGS[domain] ? "trusted"
+          : "unverified",
+        freeReturns: FREE_RETURNS_RETAILERS.has(domain),
       });
     }
 
