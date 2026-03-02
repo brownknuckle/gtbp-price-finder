@@ -183,48 +183,19 @@ async function extractPricesWithAI(
 
 The user is searching for: "${productName}"
 
-For each retailer page snippet, determine:
-1. Is this page selling the correct product? Use common sense with colourway names — "Triple White" = all-white = "White/White/White" = "Cloud White". Accept reasonable colourway variations of the same product. Reject: wrong model number, kids/toddler/junior version, secondhand/used, clearly different product.
-2. What is the CURRENT selling price in GBP (£)? Use the sale price if shown. If currency is not GBP, convert (EUR ×0.85, USD ×0.79).
-3. Is there a crossed-out original/RRP price?
-4. Is the item available to buy (in stock)?
-5. Is there a visible discount/promo code on the page? (e.g. "Use code SAVE10 at checkout", "Enter WELCOME15"). Extract the code exactly as shown. Do NOT guess or invent codes.
+For each numbered candidate, extract price data and return a JSON array. Rules:
+- is_correct_product: true only if this page sells the exact searched product, brand new. Use common sense with colourway names ("Triple White" = "White/White/White" = "Cloud White"). Reject: wrong model number, kids/junior version, secondhand/used, category/browse pages.
+- current_price_gbp: the current selling price in GBP. Use sale price if shown. Convert if needed (EUR ×0.85, USD ×0.79). null if not a product page.
+- original_price_gbp: crossed-out RRP if shown, else null.
+- in_stock: true if available to buy, false if sold out, null if unknown.
+- coupon_code: exact visible promo code (e.g. "SAVE10"), null if none.
 
-Be practical — if a page is clearly selling the right shoe at a real price, mark it as correct. Only reject if it's clearly the wrong product.`,
+Return ONLY a raw JSON array, no markdown, no explanation:
+[{"index":1,"is_correct_product":true,"current_price_gbp":90.00,"original_price_gbp":null,"in_stock":true,"coupon_code":null},...]`,
           },
           { role: "user", content: candidateText },
         ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "submit_price_results",
-              description: "Submit the extracted price data for all candidate pages",
-              parameters: {
-                type: "object",
-                properties: {
-                  results: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        index: { type: "number", description: "1-based index of the candidate" },
-                        is_correct_product: { type: "boolean", description: "True only if this page sells exactly the searched product, brand new" },
-                        current_price_gbp: { type: "number", description: "Current selling price in GBP, or null if not found/not correct product" },
-                        original_price_gbp: { type: "number", description: "Crossed-out original/RRP price in GBP, or null if not shown" },
-                        in_stock: { type: "boolean", description: "Whether the item is available to buy now" },
-                        coupon_code: { type: "string", description: "Exact promo/discount code visible on the page, or null if none" },
-                      },
-                      required: ["index", "is_correct_product", "in_stock"],
-                    },
-                  },
-                },
-                required: ["results"],
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "submit_price_results" } },
+        response_format: { type: "json_object" },
       }),
     });
 
@@ -235,28 +206,35 @@ Be practical — if a page is clearly selling the right shoe at a real price, ma
     }
 
     const aiData = await response.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) {
-      console.error("AI returned no tool call. Response keys:", Object.keys(aiData));
-      console.error("First choice:", JSON.stringify(aiData.choices?.[0]?.message || {}).slice(0, 500));
+    const content = aiData.choices?.[0]?.message?.content || "";
+    if (!content) {
+      console.error("AI returned empty content. Response:", JSON.stringify(aiData).slice(0, 500));
       return [];
     }
 
-    const parsed = JSON.parse(toolCall.function.arguments);
-    const allResults = parsed.results || [];
-    // Accept results where the AI confirms it's the right product and has a price.
-    // We accept in_stock: true OR null/undefined (unknown) — only reject explicit false.
+    // Parse JSON — try array directly, then look for a "results" key
+    let allResults: any[] = [];
+    try {
+      const parsed = JSON.parse(content);
+      allResults = Array.isArray(parsed) ? parsed : (parsed.results || parsed.data || []);
+    } catch {
+      // Try extracting JSON array from text
+      const match = content.match(/\[[\s\S]*\]/);
+      if (match) {
+        try { allResults = JSON.parse(match[0]); } catch { /* ignore */ }
+      }
+    }
+
     const valid = allResults.filter((r: any) =>
       r.is_correct_product && r.in_stock !== false && typeof r.current_price_gbp === "number"
     );
-    
-    // Log all AI results for debugging
+
     console.log(`AI returned ${allResults.length} total, ${valid.length} valid. Sample:`, JSON.stringify(
-      allResults.slice(0, 8).map((r: any) => ({
+      allResults.slice(0, 6).map((r: any) => ({
         idx: r.index, correct: r.is_correct_product, stock: r.in_stock, price: r.current_price_gbp,
       }))
     ));
-    
+
     return valid;
   } catch (e) {
     console.error("AI price extraction failed:", e);
