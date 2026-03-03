@@ -22,6 +22,9 @@ const UK_COM_RETAILERS = new Set([
   "selfridges.com", "harveynichols.com", "mrporter.com", "matchesfashion.com",
   "farfetch.com", "sportsdirect.com", "jdsports.com", "very.co.uk",
   "laced.com", "klekt.com", "thesolesupplier.co.uk",
+  "nike.com", "adidas.com", "newbalance.com", "puma.com", "reebok.com",
+  "converse.com", "vans.com", "timberland.com", "ugg.com", "crocs.com",
+  "stockx.com", "goat.com", "sneakersnstuff.com", "solebox.com",
 ]);
 
 const NON_PRODUCT_PATH_PATTERNS = [
