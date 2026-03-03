@@ -10,8 +10,37 @@ const corsHeaders = {
 const CACHE_KEY = "__trending_items__";
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
+// ─── Rate Limiter ────────────────────────────────────────────
+const rateLimits = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 15; // 15 requests per minute per IP
+
+function checkRateLimit(req: Request): Response | null {
+  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const now = Date.now();
+  const entry = rateLimits.get(clientIp);
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= RATE_LIMIT_MAX) {
+      return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again shortly." }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(Math.ceil((entry.resetAt - now) / 1000)) },
+      });
+    }
+    entry.count++;
+  } else {
+    rateLimits.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+  }
+  if (rateLimits.size > 1000) {
+    for (const [ip, e] of rateLimits) { if (now > e.resetAt) rateLimits.delete(ip); }
+  }
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const rateLimitResponse = checkRateLimit(req);
+  if (rateLimitResponse) return rateLimitResponse;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
