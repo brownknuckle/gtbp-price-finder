@@ -54,7 +54,7 @@ serve(async (req) => {
 
     if (wlError) throw wlError;
     if (!watchlistItems?.length) {
-      console.log("No watchlist items with prices to check");
+      console.log("No watchlist items to check");
       return new Response(JSON.stringify({ success: true, checked: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -70,7 +70,7 @@ serve(async (req) => {
       uniqueProducts.get(key)!.push(item);
     }
 
-    console.log(`Checking ${uniqueProducts.size} unique products for ${watchlistItems.length} watchlist entries`);
+    console.log(`Checking ${uniqueProducts.size} products`);
 
     let notificationsSent = 0;
 
@@ -90,7 +90,7 @@ serve(async (req) => {
           // Use cached price data
           const cheapest = cached.results[0] as any;
           currentBestPrice = cheapest.totalYouPay || cheapest.total || null;
-          console.log(`Cache hit for ${productKey}: £${currentBestPrice}`);
+          console.log(`Cache hit for ${productKey}`);
         } else {
           // Do a lightweight price check via Firecrawl search
           const searchResult = await fetch("https://api.firecrawl.dev/v1/search", {
@@ -141,14 +141,14 @@ serve(async (req) => {
               const match = content.match(/\{[^}]*"lowest_price"\s*:\s*(\d+\.?\d*)/);
               if (match) {
                 currentBestPrice = parseFloat(match[1]);
-                console.log(`Fresh price for ${productKey}: £${currentBestPrice}`);
+                console.log(`Fresh price found for ${productKey}`);
               }
             }
           }
         }
 
         if (currentBestPrice === null) {
-          console.log(`Could not determine price for ${productKey}, skipping`);
+          console.log(`No price found for ${productKey}, skipping`);
           continue;
         }
 
@@ -164,7 +164,7 @@ serve(async (req) => {
             const userEmail = userData?.user?.email;
 
             if (userEmail) {
-              console.log(`Price drop for ${item.product_name}: £${previousPrice} → £${currentBestPrice} (-${percentDrop}%). Emailing ${userEmail}`);
+              console.log(`Price drop detected for ${item.product_name}, notifying user`);
 
               await resend.emails.send({
                 from: "GTBP Price Alerts <onboarding@resend.dev>",

@@ -190,7 +190,7 @@ Focus on:
       { onConflict: "product_key" }
     );
 
-    console.log(`Cached ${items.length} trending items`);
+    log(`Cached ${items.length} trending items`);
 
     return new Response(JSON.stringify({ success: true, trending: items }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
