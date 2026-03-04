@@ -229,7 +229,7 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     if (FIRECRAWL_API_KEY) {
       try {
-        console.log("Searching for real product image for:", product.product_name);
+        log("Searching for real product image for:", product.product_name);
         
         // Search specifically for official product images
         const imgController = new AbortController();
@@ -253,7 +253,7 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
           product.image_url = "";
         } else {
           const imgData = await imgResp.json();
-          console.log("Firecrawl image search returned", (imgData.data || []).length, "results");
+          log("Firecrawl image search returned", (imgData.data || []).length, "results");
           
           // Extract product name tokens for matching
           const nameTokens = product.product_name.toLowerCase()
@@ -327,13 +327,13 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
 
           if (bestImage && bestScore >= 3) {
             product.image_url = upgradeCdnUrl(bestImage);
-            console.log("Found real product image (score:", bestScore, "):", product.image_url);
+            log("Found real product image (score:", bestScore, "):", product.image_url);
           } else {
-            console.log("No confident product image found (best score:", bestScore, ")");
+            log("No confident product image found (best score:", bestScore, ")");
             // Only keep AI URL if from known CDN
             if (product.image_url && /static\.nike\.com|assets\.adidas|nb\.scene7|asics\.com.*image/i.test(product.image_url)) {
               product.image_url = upgradeCdnUrl(product.image_url);
-              console.log("Keeping AI-suggested CDN image (upgraded):", product.image_url);
+              log("Keeping AI-suggested CDN image (upgraded):", product.image_url);
             } else {
               product.image_url = "";
             }
@@ -344,7 +344,7 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
         product.image_url = "";
       }
     } else {
-      console.log("FIRECRAWL_API_KEY not available for image search");
+      log("FIRECRAWL_API_KEY not available for image search");
       product.image_url = "";
     }
 
