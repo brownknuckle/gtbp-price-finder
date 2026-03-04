@@ -71,13 +71,13 @@ serve(async (req) => {
       .maybeSingle();
 
     if (cached) {
-      console.log("Trending cache hit");
+      log("Trending cache hit");
       return new Response(JSON.stringify({ success: true, trending: cached.results }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    console.log("Trending cache miss — fetching fresh data");
+    log("Trending cache miss — fetching fresh data");
 
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     if (!FIRECRAWL_API_KEY) throw new Error("FIRECRAWL_API_KEY not configured");
