@@ -2,13 +2,24 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const ALLOWED_ORIGINS = [
+  "https://gtbp-best-price-browser.lovable.app",
+  "https://id-preview--594d030a-3b52-45a2-9b9a-63596ba3610b.lovable.app",
+  "http://localhost:5173",
+  "http://localhost:8080",
+];
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("origin") || "";
+  return {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  };
+}
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   // Only allow invocation with the service role key (used by cron) or anon key with Authorization header
@@ -43,7 +54,7 @@ serve(async (req) => {
 
     if (wlError) throw wlError;
     if (!watchlistItems?.length) {
-      console.log("No watchlist items with prices to check");
+      console.log("No watchlist items to check");
       return new Response(JSON.stringify({ success: true, checked: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -59,7 +70,7 @@ serve(async (req) => {
       uniqueProducts.get(key)!.push(item);
     }
 
-    console.log(`Checking ${uniqueProducts.size} unique products for ${watchlistItems.length} watchlist entries`);
+    console.log(`Checking ${uniqueProducts.size} products`);
 
     let notificationsSent = 0;
 
@@ -79,7 +90,7 @@ serve(async (req) => {
           // Use cached price data
           const cheapest = cached.results[0] as any;
           currentBestPrice = cheapest.totalYouPay || cheapest.total || null;
-          console.log(`Cache hit for ${productKey}: £${currentBestPrice}`);
+          console.log(`Cache hit for ${productKey}`);
         } else {
           // Do a lightweight price check via Firecrawl search
           const searchResult = await fetch("https://api.firecrawl.dev/v1/search", {
@@ -130,14 +141,14 @@ serve(async (req) => {
               const match = content.match(/\{[^}]*"lowest_price"\s*:\s*(\d+\.?\d*)/);
               if (match) {
                 currentBestPrice = parseFloat(match[1]);
-                console.log(`Fresh price for ${productKey}: £${currentBestPrice}`);
+                console.log(`Fresh price found for ${productKey}`);
               }
             }
           }
         }
 
         if (currentBestPrice === null) {
-          console.log(`Could not determine price for ${productKey}, skipping`);
+          console.log(`No price found for ${productKey}, skipping`);
           continue;
         }
 
@@ -153,7 +164,7 @@ serve(async (req) => {
             const userEmail = userData?.user?.email;
 
             if (userEmail) {
-              console.log(`Price drop for ${item.product_name}: £${previousPrice} → £${currentBestPrice} (-${percentDrop}%). Emailing ${userEmail}`);
+              console.log(`Price drop detected for ${item.product_name}, notifying user`);
 
               await resend.emails.send({
                 from: "GTBP Price Alerts <onboarding@resend.dev>",

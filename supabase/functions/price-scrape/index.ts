@@ -1,11 +1,24 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const ALLOWED_ORIGINS = [
+  "https://gtbp-best-price-browser.lovable.app",
+  "https://id-preview--594d030a-3b52-45a2-9b9a-63596ba3610b.lovable.app",
+  "http://localhost:5173",
+  "http://localhost:8080",
+];
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("origin") || "";
+  return {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  };
+}
+
+const DEBUG = Deno.env.get("DEBUG") === "true";
+const log = (...args: any[]) => { if (DEBUG) console.log(...args); };
 
 // ─── Constants ───────────────────────────────────────────────
 const EXCLUDED_DOMAINS = [
@@ -262,11 +275,7 @@ Return ONLY a raw JSON array, no markdown, no explanation:
       r.is_correct_product && r.in_stock !== false && typeof r.current_price_gbp === "number"
     );
 
-    console.log(`AI returned ${allResults.length} total, ${valid.length} valid. Sample:`, JSON.stringify(
-      allResults.slice(0, 6).map((r: any) => ({
-        idx: r.index, correct: r.is_correct_product, stock: r.in_stock, price: r.current_price_gbp,
-      }))
-    ));
+    log(`AI returned ${allResults.length} total, ${valid.length} valid.`);
 
     return valid;
   } catch (e) {
@@ -288,9 +297,10 @@ function checkRateLimit(req: Request): Response | null {
   const entry = rateLimits.get(clientIp);
   if (entry && now < entry.resetAt) {
     if (entry.count >= RATE_LIMIT_MAX) {
+      const headers = getCorsHeaders(req);
       return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again shortly." }), {
         status: 429,
-        headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(Math.ceil((entry.resetAt - now) / 1000)) },
+        headers: { ...headers, "Content-Type": "application/json", "Retry-After": String(Math.ceil((entry.resetAt - now) / 1000)) },
       });
     }
     entry.count++;
@@ -305,6 +315,7 @@ function checkRateLimit(req: Request): Response | null {
 
 // ─── Main handler ────────────────────────────────────────────
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const rateLimitResponse = checkRateLimit(req);
@@ -330,10 +341,18 @@ serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (retailers.length > 100) {
-      return new Response(JSON.stringify({ error: "Too many retailers (max 100)" }), {
+    if (retailers.length > 30) {
+      return new Response(JSON.stringify({ error: "Too many retailers (max 30)" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    // Validate retailer format (must look like domain names)
+    for (const r of retailers) {
+      if (typeof r !== "string" || r.length > 100 || !/^[a-zA-Z0-9._\-:/]+$/.test(r)) {
+        return new Response(JSON.stringify({ error: "Invalid retailer format" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
     if (estimated_retail_price !== undefined && (typeof estimated_retail_price !== "number" || estimated_retail_price < 0 || estimated_retail_price > 100000)) {
       return new Response(JSON.stringify({ error: "Invalid estimated_retail_price" }), {
@@ -398,7 +417,7 @@ serve(async (req) => {
       cachedCreatedAt = cached?.created_at;
 
       if (cachedResults.length >= MIN_CACHE_RESULTS) {
-        console.log(`Cache hit for: ${cacheKey} (${cachedResults.length} results)`);
+        log(`Cache hit for: ${cacheKey}`);
         const thirtyDayLow = await getThirtyDayLow(cacheKey);
         return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cachedCreatedAt, thirtyDayLow }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -445,7 +464,7 @@ serve(async (req) => {
       finally { clearTimeout(timeout); }
     };
 
-    console.log(`Searching for: "${searchName}" across ${normalizedRetailers.length} retailers`);
+    log(`Searching for: "${searchName}"`);
 
     // Content queries (with scraping) — targeted, fewer results but richer content
     const contentQueries = [
@@ -491,7 +510,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Found ${rawCandidates.length} unique URLs (${contentResultSets.flat().length} with content, ${urlResultSets.flat().length} URL-only)`);
+    log(`Found ${rawCandidates.length} unique URLs`);
 
     // Filter to clean product pages only
     const candidates = rawCandidates.filter((s) => {
@@ -505,28 +524,28 @@ serve(async (req) => {
       return true;
     });
 
-    console.log(`${candidates.length} candidates after filtering, sending to AI`);
+    log(`${candidates.length} candidates after filtering`);
 
     // ── AI extracts and validates prices ──
     const aiResults = await extractPricesWithAI(candidates, searchName, LOVABLE_API_KEY, estimated_retail_price);
 
-    console.log(`AI validated ${aiResults.length} results`);
+    log(`AI validated ${aiResults.length} results`);
 
     // ── Regex fallback if AI returned nothing ──
     // This ensures users always get some results even if the AI call fails
     if (aiResults.length === 0 && candidates.length > 0) {
-      console.log("AI returned 0 results, falling back to regex extraction");
+      log("AI returned 0 results, falling back to regex extraction");
       const priceFloor = estimated_retail_price
         ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.5))
         : MIN_REALISTIC_PRICE;
       const priceCeil = estimated_retail_price ? estimated_retail_price * 2 : MAX_REALISTIC_PRICE;
-      console.log(`Regex price range: £${priceFloor}-£${priceCeil}`);
+      log(`Regex price range: £${priceFloor}-£${priceCeil}`);
 
       // Extract colour words from the search name so we can reject wrong colourways
       const COLOR_LIST = ["black","white","red","blue","green","yellow","orange","purple","pink","brown","grey","gray","beige","cream","navy","khaki","tan","silver","gold"];
       const searchColors = COLOR_LIST.filter(c => searchName.toLowerCase().includes(c));
       const conflictColors = COLOR_LIST.filter(c => !searchColors.includes(c));
-      console.log(`Search colors: [${searchColors}], conflict colors: [${conflictColors}]`);
+      log(`Search colors: [${searchColors}], conflict colors: [${conflictColors}]`);
 
       let colorRejects = 0, noPriceRejects = 0;
       const regexExtracted: any[] = [];
@@ -592,7 +611,7 @@ serve(async (req) => {
         .map((r, i) => ({ ...r, rank: i + 1 }));
 
       if (fallbackResults.length > 0) {
-        console.log(`Regex fallback found ${fallbackResults.length} results (color rejects: ${colorRejects}, no-price rejects: ${noPriceRejects})`);
+        log(`Regex fallback found ${fallbackResults.length} results`);
         sb.from("price_cache").upsert(
           { product_key: cacheKey, results: fallbackResults, product_info: { product_name, retailers: normalizedRetailers } },
           { onConflict: "product_key" }
@@ -602,7 +621,7 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } else {
-        console.log(`Regex fallback found 0 results (color rejects: ${colorRejects}, no-price rejects: ${noPriceRejects})`);
+        log(`Regex fallback found 0 results`);
       }
     }
 
@@ -661,7 +680,7 @@ serve(async (req) => {
       .sort((a, b) => a.totalYouPay - b.totalYouPay)
       .map((r, i) => ({ ...r, rank: i + 1 }));
 
-    console.log(`Final: ${finalResults.length} unique retailers`);
+    log(`Final: ${finalResults.length} unique retailers`);
 
     // ── 30-day historical low ──
     const thirtyDayLow = await getThirtyDayLow(cacheKey);
@@ -679,7 +698,7 @@ serve(async (req) => {
 
     // Return stale cache if fresh results are worse
     if (finalResults.length < MIN_CACHE_RESULTS && cachedResults.length > finalResults.length) {
-      console.log(`Returning stale cache (${cachedResults.length} > ${finalResults.length})`);
+      log(`Returning stale cache`);
       return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, stale: true, thirtyDayLow }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

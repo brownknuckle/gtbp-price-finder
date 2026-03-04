@@ -1,10 +1,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const ALLOWED_ORIGINS = [
+  "https://gtbp-best-price-browser.lovable.app",
+  "https://id-preview--594d030a-3b52-45a2-9b9a-63596ba3610b.lovable.app",
+  "http://localhost:5173",
+  "http://localhost:8080",
+];
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("origin") || "";
+  return {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  };
+}
+
+const DEBUG = Deno.env.get("DEBUG") === "true";
+const log = (...args: any[]) => { if (DEBUG) console.log(...args); };
 
 // ─── Rate Limiter ────────────────────────────────────────────
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
@@ -17,9 +30,10 @@ function checkRateLimit(req: Request): Response | null {
   const entry = rateLimits.get(clientIp);
   if (entry && now < entry.resetAt) {
     if (entry.count >= RATE_LIMIT_MAX) {
+      const headers = getCorsHeaders(req);
       return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again shortly." }), {
         status: 429,
-        headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(Math.ceil((entry.resetAt - now) / 1000)) },
+        headers: { ...headers, "Content-Type": "application/json", "Retry-After": String(Math.ceil((entry.resetAt - now) / 1000)) },
       });
     }
     entry.count++;
@@ -45,6 +59,7 @@ function upgradeCdnUrl(url: string): string {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const rateLimitResponse = checkRateLimit(req);
@@ -214,7 +229,7 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     if (FIRECRAWL_API_KEY) {
       try {
-        console.log("Searching for real product image for:", product.product_name);
+        log("Searching for real product image for:", product.product_name);
         
         // Search specifically for official product images
         const imgController = new AbortController();
@@ -238,7 +253,7 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
           product.image_url = "";
         } else {
           const imgData = await imgResp.json();
-          console.log("Firecrawl image search returned", (imgData.data || []).length, "results");
+          log("Firecrawl image search returned", (imgData.data || []).length, "results");
           
           // Extract product name tokens for matching
           const nameTokens = product.product_name.toLowerCase()
@@ -312,13 +327,13 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
 
           if (bestImage && bestScore >= 3) {
             product.image_url = upgradeCdnUrl(bestImage);
-            console.log("Found real product image (score:", bestScore, "):", product.image_url);
+            log("Found real product image (score:", bestScore, "):", product.image_url);
           } else {
-            console.log("No confident product image found (best score:", bestScore, ")");
+            log("No confident product image found (best score:", bestScore, ")");
             // Only keep AI URL if from known CDN
             if (product.image_url && /static\.nike\.com|assets\.adidas|nb\.scene7|asics\.com.*image/i.test(product.image_url)) {
               product.image_url = upgradeCdnUrl(product.image_url);
-              console.log("Keeping AI-suggested CDN image (upgraded):", product.image_url);
+              log("Keeping AI-suggested CDN image (upgraded):", product.image_url);
             } else {
               product.image_url = "";
             }
@@ -329,7 +344,7 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
         product.image_url = "";
       }
     } else {
-      console.log("FIRECRAWL_API_KEY not available for image search");
+      log("FIRECRAWL_API_KEY not available for image search");
       product.image_url = "";
     }
 

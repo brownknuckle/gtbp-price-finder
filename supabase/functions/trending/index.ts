@@ -1,12 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const ALLOWED_ORIGINS = [
+  "https://gtbp-best-price-browser.lovable.app",
+  "https://id-preview--594d030a-3b52-45a2-9b9a-63596ba3610b.lovable.app",
+  "http://localhost:5173",
+  "http://localhost:8080",
+];
 
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("origin") || "";
+  return {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  };
+}
+
+const DEBUG = Deno.env.get("DEBUG") === "true";
+
+const log = (...args: any[]) => { if (DEBUG) console.log(...args); };
 const CACHE_KEY = "__trending_items__";
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
@@ -21,9 +34,10 @@ function checkRateLimit(req: Request): Response | null {
   const entry = rateLimits.get(clientIp);
   if (entry && now < entry.resetAt) {
     if (entry.count >= RATE_LIMIT_MAX) {
+      const headers = getCorsHeaders(req);
       return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again shortly." }), {
         status: 429,
-        headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(Math.ceil((entry.resetAt - now) / 1000)) },
+        headers: { ...headers, "Content-Type": "application/json", "Retry-After": String(Math.ceil((entry.resetAt - now) / 1000)) },
       });
     }
     entry.count++;
@@ -37,6 +51,7 @@ function checkRateLimit(req: Request): Response | null {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const rateLimitResponse = checkRateLimit(req);
@@ -56,13 +71,13 @@ serve(async (req) => {
       .maybeSingle();
 
     if (cached) {
-      console.log("Trending cache hit");
+      log("Trending cache hit");
       return new Response(JSON.stringify({ success: true, trending: cached.results }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    console.log("Trending cache miss — fetching fresh data");
+    log("Trending cache miss — fetching fresh data");
 
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     if (!FIRECRAWL_API_KEY) throw new Error("FIRECRAWL_API_KEY not configured");
@@ -175,7 +190,7 @@ Focus on:
       { onConflict: "product_key" }
     );
 
-    console.log(`Cached ${items.length} trending items`);
+    log(`Cached ${items.length} trending items`);
 
     return new Response(JSON.stringify({ success: true, trending: items }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
