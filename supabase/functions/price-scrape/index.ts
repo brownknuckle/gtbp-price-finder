@@ -26,6 +26,8 @@ const UK_COM_RETAILERS = new Set([
   "selfridges.com", "harveynichols.com", "mrporter.com", "matchesfashion.com",
   "farfetch.com", "sportsdirect.com", "jdsports.com", "very.co.uk",
   "laced.com", "klekt.com", "thesolesupplier.co.uk",
+  "crepsuk.com", "launches.co.uk", "samedaytrainers.co.uk",
+  "fatbuddhastore.com", "shucentre.co.uk",
   "nike.com", "adidas.com", "newbalance.com", "puma.com", "reebok.com",
   "converse.com", "vans.com", "timberland.com", "ugg.com", "crocs.com",
   "stockx.com", "goat.com", "sneakersnstuff.com", "solebox.com",
@@ -630,6 +632,9 @@ serve(async (req) => {
 
     // ── Build final results from AI output ──
     const priceCeiling = estimated_retail_price ? estimated_retail_price * 2.5 : MAX_REALISTIC_PRICE;
+    const priceFloor = estimated_retail_price
+      ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.5))
+      : MIN_REALISTIC_PRICE;
 
     const extracted: any[] = [];
     for (const aiResult of aiResults) {
@@ -637,7 +642,7 @@ serve(async (req) => {
       if (!source || !aiResult.current_price_gbp) continue;
 
       const itemPrice = aiResult.current_price_gbp;
-      if (itemPrice < MIN_REALISTIC_PRICE || itemPrice > priceCeiling) continue;
+      if (itemPrice < priceFloor || itemPrice > priceCeiling) continue;
 
       const domain = extractDomain(source.url);
       const uk = isUkDomain(domain);
