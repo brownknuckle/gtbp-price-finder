@@ -276,10 +276,6 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     );
 
     log(`AI returned ${allResults.length} total, ${valid.length} valid.`);
-      allResults.slice(0, 6).map((r: any) => ({
-        idx: r.index, correct: r.is_correct_product, stock: r.in_stock, price: r.current_price_gbp,
-      }))
-    ));
 
     return valid;
   } catch (e) {
