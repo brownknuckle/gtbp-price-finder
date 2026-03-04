@@ -275,7 +275,7 @@ Return ONLY a raw JSON array, no markdown, no explanation:
       r.is_correct_product && r.in_stock !== false && typeof r.current_price_gbp === "number"
     );
 
-    console.log(`AI returned ${allResults.length} total, ${valid.length} valid. Sample:`, JSON.stringify(
+    log(`AI returned ${allResults.length} total, ${valid.length} valid.`);
       allResults.slice(0, 6).map((r: any) => ({
         idx: r.index, correct: r.is_correct_product, stock: r.in_stock, price: r.current_price_gbp,
       }))
@@ -421,7 +421,7 @@ serve(async (req) => {
       cachedCreatedAt = cached?.created_at;
 
       if (cachedResults.length >= MIN_CACHE_RESULTS) {
-        console.log(`Cache hit for: ${cacheKey} (${cachedResults.length} results)`);
+        log(`Cache hit for: ${cacheKey}`);
         const thirtyDayLow = await getThirtyDayLow(cacheKey);
         return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cachedCreatedAt, thirtyDayLow }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -468,7 +468,7 @@ serve(async (req) => {
       finally { clearTimeout(timeout); }
     };
 
-    console.log(`Searching for: "${searchName}" across ${normalizedRetailers.length} retailers`);
+    log(`Searching for: "${searchName}"`);
 
     // Content queries (with scraping) — targeted, fewer results but richer content
     const contentQueries = [
@@ -514,7 +514,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Found ${rawCandidates.length} unique URLs (${contentResultSets.flat().length} with content, ${urlResultSets.flat().length} URL-only)`);
+    log(`Found ${rawCandidates.length} unique URLs`);
 
     // Filter to clean product pages only
     const candidates = rawCandidates.filter((s) => {
@@ -528,28 +528,28 @@ serve(async (req) => {
       return true;
     });
 
-    console.log(`${candidates.length} candidates after filtering, sending to AI`);
+    log(`${candidates.length} candidates after filtering`);
 
     // ── AI extracts and validates prices ──
     const aiResults = await extractPricesWithAI(candidates, searchName, LOVABLE_API_KEY, estimated_retail_price);
 
-    console.log(`AI validated ${aiResults.length} results`);
+    log(`AI validated ${aiResults.length} results`);
 
     // ── Regex fallback if AI returned nothing ──
     // This ensures users always get some results even if the AI call fails
     if (aiResults.length === 0 && candidates.length > 0) {
-      console.log("AI returned 0 results, falling back to regex extraction");
+      log("AI returned 0 results, falling back to regex extraction");
       const priceFloor = estimated_retail_price
         ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.5))
         : MIN_REALISTIC_PRICE;
       const priceCeil = estimated_retail_price ? estimated_retail_price * 2 : MAX_REALISTIC_PRICE;
-      console.log(`Regex price range: £${priceFloor}-£${priceCeil}`);
+      log(`Regex price range: £${priceFloor}-£${priceCeil}`);
 
       // Extract colour words from the search name so we can reject wrong colourways
       const COLOR_LIST = ["black","white","red","blue","green","yellow","orange","purple","pink","brown","grey","gray","beige","cream","navy","khaki","tan","silver","gold"];
       const searchColors = COLOR_LIST.filter(c => searchName.toLowerCase().includes(c));
       const conflictColors = COLOR_LIST.filter(c => !searchColors.includes(c));
-      console.log(`Search colors: [${searchColors}], conflict colors: [${conflictColors}]`);
+      log(`Search colors: [${searchColors}], conflict colors: [${conflictColors}]`);
 
       let colorRejects = 0, noPriceRejects = 0;
       const regexExtracted: any[] = [];
@@ -615,7 +615,7 @@ serve(async (req) => {
         .map((r, i) => ({ ...r, rank: i + 1 }));
 
       if (fallbackResults.length > 0) {
-        console.log(`Regex fallback found ${fallbackResults.length} results (color rejects: ${colorRejects}, no-price rejects: ${noPriceRejects})`);
+        log(`Regex fallback found ${fallbackResults.length} results`);
         sb.from("price_cache").upsert(
           { product_key: cacheKey, results: fallbackResults, product_info: { product_name, retailers: normalizedRetailers } },
           { onConflict: "product_key" }
@@ -625,7 +625,7 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } else {
-        console.log(`Regex fallback found 0 results (color rejects: ${colorRejects}, no-price rejects: ${noPriceRejects})`);
+        log(`Regex fallback found 0 results`);
       }
     }
 
@@ -684,7 +684,7 @@ serve(async (req) => {
       .sort((a, b) => a.totalYouPay - b.totalYouPay)
       .map((r, i) => ({ ...r, rank: i + 1 }));
 
-    console.log(`Final: ${finalResults.length} unique retailers`);
+    log(`Final: ${finalResults.length} unique retailers`);
 
     // ── 30-day historical low ──
     const thirtyDayLow = await getThirtyDayLow(cacheKey);
@@ -702,7 +702,7 @@ serve(async (req) => {
 
     // Return stale cache if fresh results are worse
     if (finalResults.length < MIN_CACHE_RESULTS && cachedResults.length > finalResults.length) {
-      console.log(`Returning stale cache (${cachedResults.length} > ${finalResults.length})`);
+      log(`Returning stale cache`);
       return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, stale: true, thirtyDayLow }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
