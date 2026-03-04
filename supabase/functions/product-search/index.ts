@@ -17,6 +17,7 @@ function getCorsHeaders(req: Request) {
 }
 
 const DEBUG = Deno.env.get("DEBUG") === "true";
+const log = (...args: any[]) => { if (DEBUG) console.log(...args); };
 
 // ─── Rate Limiter ────────────────────────────────────────────
 const rateLimits = new Map<string, { count: number; resetAt: number }>();

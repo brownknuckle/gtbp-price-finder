@@ -18,6 +18,7 @@ function getCorsHeaders(req: Request) {
 }
 
 const DEBUG = Deno.env.get("DEBUG") === "true";
+const log = (...args: any[]) => { if (DEBUG) console.log(...args); };
 
 // ─── Constants ───────────────────────────────────────────────
 const EXCLUDED_DOMAINS = [
