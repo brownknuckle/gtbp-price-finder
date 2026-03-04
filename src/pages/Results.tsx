@@ -476,10 +476,12 @@ const Results = () => {
                     </div>
                     <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{r.delivery}</span>
-                      <span className="flex items-center gap-0.5">
-                        <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
-                        {r.trustRating} Trustpilot
-                      </span>
+                      {r.trustRating != null && (
+                        <span className="flex items-center gap-0.5">
+                          <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+                          {r.trustRating} Trustpilot
+                        </span>
+                      )}
                     </div>
                     {r.couponCode && (
                       <div className="mt-2 flex items-center gap-2">

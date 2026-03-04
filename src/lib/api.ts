@@ -24,7 +24,7 @@ export interface PriceResult {
   totalYouPay: number;
   originalPrice: number | null;
   delivery: string;
-  trustRating: number;
+  trustRating: number | null;
   currency: string;
   url: string;
   inStock?: boolean | null;

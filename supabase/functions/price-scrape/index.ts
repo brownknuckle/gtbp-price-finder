@@ -180,8 +180,8 @@ function cleanUrl(url: string): string {
   } catch { return url; }
 }
 
-function getTrustRating(domain: string): number {
-  return TRUST_RATINGS[domain] || 4.0;
+function getTrustRating(domain: string): number | null {
+  return TRUST_RATINGS[domain] ?? null;
 }
 
 // ─── AI-based price extraction ───────────────────────────────
