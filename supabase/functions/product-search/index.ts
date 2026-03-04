@@ -33,6 +33,17 @@ function checkRateLimit(req: Request): Response | null {
   return null;
 }
 
+// Upgrade known CDN thumbnail URLs to full-size versions
+function upgradeCdnUrl(url: string): string {
+  // Nike: t_PDP_144_v1 → t_PDP_864_v1
+  url = url.replace(/t_PDP_\d+_v\d+/i, "t_PDP_864_v1");
+  // Adidas: w_60,h_60 → w_600,h_600
+  url = url.replace(/w_\d{2,3},h_\d{2,3}/i, "w_600,h_600");
+  // eBay: s-l140 → s-l960
+  url = url.replace(/s-l\d{2,3}\./i, "s-l960.");
+  return url;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -279,13 +290,18 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
               // Bonus for product-like paths
               if (/product|pdp|PDP|item|catalog/i.test(imgUrl)) score += 2;
               
-              // Bonus for product name tokens appearing in the image URL or surrounding text
-              const contextText = (md.slice(Math.max(0, md.indexOf(imgUrl) - 200), md.indexOf(imgUrl) + 200)).toLowerCase();
+              // Bonus for product name tokens in image URL or surrounding text (heavier weight)
+              const contextText = (md.slice(Math.max(0, md.indexOf(imgUrl) - 300), md.indexOf(imgUrl) + 300)).toLowerCase();
               const tokenMatches = nameTokens.filter((t: string) => imgUrlLower.includes(t) || contextText.includes(t));
-              score += tokenMatches.length;
+              score += tokenMatches.length * 2;
+              
+              // Penalty if most product name tokens are missing (likely wrong product)
+              if (nameTokens.length > 3 && tokenMatches.length < nameTokens.length * 0.4) score -= 2;
               
               // Bonus for large image indicators
-              if (/w_600|w_800|w_1200|width=|large|hero|main|primary|_01_|standard/i.test(imgUrl)) score += 1;
+              if (/w_600|w_800|w_1200|width=|large|hero|main|primary|_01_|standard|t_PDP_864|t_PDP_1728/i.test(imgUrl)) score += 2;
+              // Penalty for tiny thumbnails
+              if (/t_PDP_144|t_PDP_64|s-l225|s-l300/i.test(imgUrl)) score -= 1;
               
               if (score > bestScore) {
                 bestScore = score;
@@ -295,13 +311,14 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
           }
 
           if (bestImage && bestScore >= 3) {
-            product.image_url = bestImage;
-            console.log("Found real product image (score:", bestScore, "):", bestImage);
+            product.image_url = upgradeCdnUrl(bestImage);
+            console.log("Found real product image (score:", bestScore, "):", product.image_url);
           } else {
             console.log("No confident product image found (best score:", bestScore, ")");
             // Only keep AI URL if from known CDN
             if (product.image_url && /static\.nike\.com|assets\.adidas|nb\.scene7|asics\.com.*image/i.test(product.image_url)) {
-              console.log("Keeping AI-suggested CDN image:", product.image_url);
+              product.image_url = upgradeCdnUrl(product.image_url);
+              console.log("Keeping AI-suggested CDN image (upgraded):", product.image_url);
             } else {
               product.image_url = "";
             }
