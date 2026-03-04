@@ -288,10 +288,9 @@ function checkRateLimit(req: Request): Response | null {
   const entry = rateLimits.get(clientIp);
   if (entry && now < entry.resetAt) {
     if (entry.count >= RATE_LIMIT_MAX) {
-      const headers = getCorsHeaders(req);
       return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again shortly." }), {
         status: 429,
-        headers: { ...headers, "Content-Type": "application/json", "Retry-After": String(Math.ceil((entry.resetAt - now) / 1000)) },
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(Math.ceil((entry.resetAt - now) / 1000)) },
       });
     }
     entry.count++;
@@ -306,7 +305,7 @@ function checkRateLimit(req: Request): Response | null {
 
 // ─── Main handler ────────────────────────────────────────────
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
+  // corsHeaders is already a module-level const
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const rateLimitResponse = checkRateLimit(req);

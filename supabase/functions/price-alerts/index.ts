@@ -9,7 +9,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
+  // corsHeaders is already a module-level const
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   // Only allow invocation with the service role key (used by cron) or anon key with Authorization header
