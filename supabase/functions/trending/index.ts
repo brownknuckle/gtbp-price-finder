@@ -19,6 +19,7 @@ function getCorsHeaders(req: Request) {
 
 const DEBUG = Deno.env.get("DEBUG") === "true";
 
+const log = (...args: any[]) => { if (DEBUG) console.log(...args); };
 const CACHE_KEY = "__trending_items__";
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
