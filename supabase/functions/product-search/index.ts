@@ -66,7 +66,15 @@ serve(async (req) => {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid or empty request body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const { query, image } = body;
 
     // Input validation
@@ -76,12 +84,14 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (query !== undefined && (typeof query !== "string" || query.length > 500)) {
-      return new Response(JSON.stringify({ error: "query must be a string (max 500 chars)" }), {
+    if (query !== undefined && typeof query !== "string") {
+      return new Response(JSON.stringify({ error: "query must be a string" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Silently truncate long queries instead of rejecting
+    const safeQuery = typeof query === "string" ? query.slice(0, 500) : query;
     if (image !== undefined && (typeof image !== "string" || image.length > 14_000_000)) {
       return new Response(JSON.stringify({ error: "image too large (max ~10MB)" }), {
         status: 400,
