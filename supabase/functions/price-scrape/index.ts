@@ -395,10 +395,12 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, supabaseKey);
-    // Include size in cache key so UK 9 and UK 10 don't share the same cache
+    // Include size AND gender in cache key so Men's UK 9 and Women's UK 9 don't share a cache
     const sizeMatch = product_name.match(/\b(UK|US|EU)\s*\d+\.?\d*/i) || product_name.match(/\bsize\s*\d+\.?\d*/i);
     const sizeKey = sizeMatch ? `-${sizeMatch[0].toLowerCase().replace(/\s+/g, "")}` : "";
-    const cacheKey = `${searchName.toLowerCase().trim()}${sizeKey}`;
+    const genderMatch = product_name.match(/\b(men'?s?|women'?s?|unisex)\b/i);
+    const genderKey = genderMatch ? `-${genderMatch[0].toLowerCase().replace(/\W/g, "")}` : "";
+    const cacheKey = `${searchName.toLowerCase().trim()}${genderKey}${sizeKey}`;
 
     // Query 30-day historical low from price_history table
     const getThirtyDayLow = async (key: string): Promise<number | null> => {
@@ -681,7 +683,9 @@ serve(async (req) => {
 
     const extracted: any[] = [];
     for (const aiResult of aiResults) {
-      const source = candidates[aiResult.index - 1];
+      const idx = (aiResult.index ?? 0) - 1;
+      if (idx < 0 || idx >= candidates.length) continue;
+      const source = candidates[idx];
       if (!source || !aiResult.current_price_gbp) continue;
 
       const itemPrice = aiResult.current_price_gbp;

@@ -156,7 +156,7 @@ const Results = () => {
       };
       return parseDelivery(a.delivery) - parseDelivery(b.delivery);
     }
-    if (sortBy === "trust") return b.trustRating - a.trustRating;
+    if (sortBy === "trust") return (b.trustRating ?? 0) - (a.trustRating ?? 0);
     return 0;
   });
 
@@ -517,7 +517,14 @@ const Results = () => {
                   <Button
                     size="sm"
                     className="gap-1"
-                    onClick={() => window.open(r.url, "_blank", "noopener,noreferrer")}
+                    onClick={() => {
+                      try {
+                        const safe = new URL(r.url);
+                        if (safe.protocol === "https:" || safe.protocol === "http:") {
+                          window.open(r.url, "_blank", "noopener,noreferrer");
+                        }
+                      } catch {}
+                    }}
                   >
                     Buy Now
                     <ExternalLink className="h-3 w-3" />

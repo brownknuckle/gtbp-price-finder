@@ -55,6 +55,11 @@ const Index = () => {
       });
   }, []);
 
+  // Reset size to sensible default when sizeType changes
+  useEffect(() => {
+    setSize(sizeType === "shoes" ? "9" : "M");
+  }, [sizeType]);
+
   // Predictive text: fetch suggestions as user types
   useEffect(() => {
     if (query.length < 3 || isSearching) {
@@ -366,7 +371,7 @@ const Index = () => {
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 300)}
                     placeholder="e.g. Nike Air Force 1 Triple White UK 9, or paste a URL…"
                     className="h-12 rounded-md border-border bg-card pl-4 pr-12 text-sm shadow-xs transition-shadow focus-visible:shadow-md sm:h-13 sm:text-base"
                     onKeyDown={(e) => e.key === "Enter" && handleSearch()}
