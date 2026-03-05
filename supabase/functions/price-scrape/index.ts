@@ -352,8 +352,10 @@ serve(async (req) => {
       });
     }
     // Validate retailer format (must look like domain names)
-    for (const r of retailers) {
-      if (typeof r !== "string" || r.length > 100 || !/^[a-zA-Z0-9._\-:/]+$/.test(r)) {
+    for (let i = 0; i < retailers.length; i++) {
+      retailers[i] = typeof retailers[i] === "string" ? retailers[i].trim() : retailers[i];
+      const r = retailers[i];
+      if (typeof r !== "string" || r.length === 0 || r.length > 100 || !/^[a-zA-Z0-9._\-:/]+$/.test(r)) {
         return new Response(JSON.stringify({ error: "Invalid retailer format" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
