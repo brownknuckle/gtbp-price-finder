@@ -328,7 +328,8 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { product_name, retailers, skip_cache, estimated_retail_price } = body;
+    const { product_name, retailers: retailersInput, skip_cache, estimated_retail_price } = body;
+    let retailers = retailersInput;
 
     // Input validation
     if (!product_name || typeof product_name !== "string") {
