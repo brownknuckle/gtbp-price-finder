@@ -347,9 +347,7 @@ serve(async (req) => {
       });
     }
     if (retailers.length > 30) {
-      return new Response(JSON.stringify({ error: "Too many retailers (max 30)" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      retailers = retailers.slice(0, 30);
     }
     // Validate retailer format (must look like domain names)
     for (let i = 0; i < retailers.length; i++) {
