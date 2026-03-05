@@ -51,7 +51,7 @@ const NON_PRODUCT_PATH_PATTERNS = [
 
 const MIN_REALISTIC_PRICE = 20;
 const MAX_REALISTIC_PRICE = 2000;
-const MIN_CACHE_RESULTS = 4;
+const MIN_CACHE_RESULTS = 6;
 
 const NON_RETAIL_DOMAINS = [
   /\.org\b/, /\.edu\b/, /\.gov\b/, /\.nhs\b/, /charity/, /hospice/, /foundation/,
