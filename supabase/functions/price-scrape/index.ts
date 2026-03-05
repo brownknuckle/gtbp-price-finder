@@ -60,8 +60,11 @@ const NON_RETAIL_DOMAINS = [
   /trustpilot/, /glassdoor/, /indeed\.com/, /linkedin\.com/,
 ];
 
-// Unverified micro-resellers to exclude from results
+// Domains excluded from results — marketplace sellers and unverified micro-resellers
 const BLOCKED_DOMAINS = new Set([
+  // Marketplace — prices from third-party sellers, not reliable retail prices
+  "amazon.co.uk", "amazon.com",
+  // Unverified micro-resellers
   "findyourkicks.com", "luxurygoodslocker.com", "kicksmachine.com",
   "limitedresell.com", "crepcollectionclub.co.uk", "flipsupply.co.uk",
   "sportshowroom.co.uk", "hypedeconomy.co.uk", "4feetshoes.com",
@@ -671,7 +674,7 @@ serve(async (req) => {
     }
 
     // ── Build final results from AI output ──
-    const priceCeiling = estimated_retail_price ? estimated_retail_price * 2.5 : MAX_REALISTIC_PRICE;
+    const priceCeiling = estimated_retail_price ? estimated_retail_price * 1.6 : MAX_REALISTIC_PRICE;
     const priceFloor = estimated_retail_price
       ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.5))
       : MIN_REALISTIC_PRICE;
@@ -698,7 +701,9 @@ serve(async (req) => {
         shipping,
         duties,
         totalYouPay,
-        originalPrice: aiResult.original_price_gbp ?? null,
+        originalPrice: (aiResult.original_price_gbp && aiResult.original_price_gbp > itemPrice
+          && (!estimated_retail_price || aiResult.original_price_gbp <= estimated_retail_price * 1.3))
+          ? aiResult.original_price_gbp : null,
         delivery: uk ? "2-5 days" : "7-14 days",
         trustRating: getTrustRating(domain),
         currency: "GBP",
