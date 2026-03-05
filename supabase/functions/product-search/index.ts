@@ -298,8 +298,10 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
               let score = 0;
               const imgUrlLower = imgUrl.toLowerCase();
               
-              // Bonus for known CDNs
-              if (/static\.nike\.com|images\.asos|i\.ebayimg|media\.jdsports|images\.footlocker|cdn\.|assets\.adidas|nb\.scene7|asics\.com.*image|cms-cdn\.thesolesupplier|images\.stockx|image\.goat/i.test(imgUrl)) score += 3;
+              // Bonus for known official brand/retailer CDNs
+              if (/static\.nike\.com|images\.asos|i\.ebayimg|media\.jdsports|images\.footlocker|assets\.adidas|nb\.scene7|asics\.com.*image|cms-cdn\.thesolesupplier|images\.stockx|image\.goat|media\.schuh|media\.office|cdn\.shopify|images\.zalando|static\.schuh|size\.co\.uk.*image|offspring\.co\.uk.*image/i.test(imgUrl)) score += 3;
+              // Penalty for non-brand retailer CDNs (their branding will show in the image)
+              if (/endclothing|flannels|selfridges|harveynichols|mrporter|farfetch|asos\.scene7|laced\.com|stockx\.com.*seller/i.test(imgUrl)) score -= 3;
               
               // Bonus for product-like paths
               if (/product|pdp|PDP|item|catalog/i.test(imgUrl)) score += 2;
