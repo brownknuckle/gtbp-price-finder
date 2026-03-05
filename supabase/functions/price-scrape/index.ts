@@ -237,13 +237,13 @@ The user is searching for: "${productName}"
 
 For each numbered candidate, extract price data and return a JSON array. Rules:
 - is_correct_product: true ONLY if this page sells the EXACT searched product, brand new. Use common sense with colourway names ("Triple White" = "White/White/White" = "Cloud White"). Reject: wrong model number, kids/junior version, secondhand/used, category/browse pages.
-- current_price_gbp: ONLY return a price if it is EXPLICITLY shown in GBP (£) on the page. Do NOT convert from EUR or USD — return null instead. Do NOT guess or infer prices. If the price is not clearly visible in £, return null.
-- price_confidence: "high" if the GBP price is clearly and explicitly stated on the page. "low" if you are inferring or estimating. null if no price.
-- original_price_gbp: crossed-out RRP in GBP (£) if explicitly shown, else null. Do NOT convert currencies.
+- current_price_gbp: the selling price in GBP. If shown in £, use it directly. If shown in EUR or USD, convert (EUR ×0.85, USD ×0.79) and set price_confidence to "low". Do NOT guess or infer a price if none is visible — return null.
+- price_confidence: "high" if the price is clearly stated in GBP (£) on the page. "low" if you converted from another currency or are not fully certain. null if no price.
+- original_price_gbp: crossed-out RRP if explicitly shown, else null.
 - in_stock: true if explicitly available to buy now, false if explicitly sold out, null if unclear.
 - coupon_code: exact visible promo code (e.g. "SAVE10"), null if none.
 
-CRITICAL: If you are not 100% certain of the GBP price from the page content, set current_price_gbp to null. Accuracy is more important than coverage.
+CRITICAL: Only return a price if a specific number is visible in the page content. Do not hallucinate or estimate prices.
 
 Return ONLY a raw JSON array, no markdown, no explanation:
 [{"index":1,"is_correct_product":true,"current_price_gbp":90.00,"price_confidence":"high","original_price_gbp":null,"in_stock":true,"coupon_code":null},...]`,
@@ -283,8 +283,7 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     const valid = allResults.filter((r: any) =>
       r.is_correct_product &&
       r.in_stock !== false &&
-      typeof r.current_price_gbp === "number" &&
-      r.price_confidence !== "low"
+      typeof r.current_price_gbp === "number"
     );
 
     log(`AI returned ${allResults.length} total, ${valid.length} valid.`);
