@@ -480,10 +480,9 @@ serve(async (req) => {
     // ── Pre-seeded retailer search queries ──
     // Guarantee coverage of top UK retailers by querying them directly
     const TOP_UK_RETAILERS = [
-      "jdsports.co.uk", "footlocker.co.uk", "asos.com", "schuh.co.uk",
-      "size.co.uk", "endclothing.com", "office.co.uk", "footasylum.com",
-      "flannels.com", "offspring.co.uk", "nike.com", "adidas.co.uk",
-      "selfridges.com", "sportsdirect.com", "zalando.co.uk",
+      "jdsports.co.uk", "schuh.co.uk", "size.co.uk",
+      "endclothing.com", "offspring.co.uk", "zalando.co.uk",
+      "flannels.com", "footasylum.com",
     ];
     const seededQueries = TOP_UK_RETAILERS.map(r => `${searchName} site:${r}`);
 
