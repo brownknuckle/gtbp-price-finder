@@ -17,10 +17,10 @@ import { useToast } from "@/hooks/use-toast";
 import PageTransition from "@/components/PageTransition";
 
 const fallbackTrending = [
-  "Nike Air Max 1",
-  "New Balance 550",
-  "Stone Island Jacket",
-  "Adidas Samba",
+  "Nike Air Force 1 Triple White",
+  "New Balance 550 White Grey",
+  "Stone Island Patch Crewneck Navy",
+  "Adidas Samba OG White Black",
 ];
 
 const Index = () => {
@@ -367,7 +367,7 @@ const Index = () => {
                     onChange={(e) => setQuery(e.target.value)}
                     onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                    placeholder="Paste a URL, SKU, brand, or describe any item…"
+                    placeholder="e.g. Nike Air Force 1 Triple White UK 9, or paste a URL…"
                     className="h-12 rounded-md border-border bg-card pl-4 pr-12 text-sm shadow-xs transition-shadow focus-visible:shadow-md sm:h-13 sm:text-base"
                     onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                     disabled={isSearching}
@@ -423,6 +423,11 @@ const Index = () => {
                   {isSearching ? "Searching…" : "Search"}
                 </Button>
               </div>
+
+              {/* Colorway hint */}
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                💡 Include the <span className="font-semibold">colorway</span> for precise results — e.g. <em>Adidas Samba White Black</em>
+              </p>
 
               {/* Size selectors - secondary row on mobile */}
               <div className="mt-2 flex flex-wrap gap-2 sm:mt-0 sm:hidden">
