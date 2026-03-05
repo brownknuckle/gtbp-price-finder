@@ -91,25 +91,25 @@ const KIDS_PATH_PATTERNS = [
 ];
 
 const TRUST_RATINGS: Record<string, number> = {
-  // Brand direct
-  "nike.com": 1.6, "adidas.co.uk": 1.5, "adidas.com": 1.5,
+  // Brand direct (UK Trustpilot scores)
+  "nike.com": 1.6, "adidas.co.uk": 1.2, "adidas.com": 1.2,
   "newbalance.com": 2.1, "puma.com": 2.3, "reebok.com": 2.0,
   "converse.com": 1.8, "vans.com": 1.9, "timberland.com": 2.2,
   // UK retailers
-  "jdsports.co.uk": 1.9, "footlocker.co.uk": 1.7, "asos.com": 4.0,
-  "endclothing.com": 4.1, "size.co.uk": 1.7, "offspring.co.uk": 1.8,
-  "schuh.co.uk": 4.4, "amazon.co.uk": 1.4, "ebay.co.uk": 1.3,
-  "flannels.com": 4.2, "selfridges.com": 2.3, "footasylum.com": 4.0,
-  "sportsdirect.com": 3.1, "office.co.uk": 4.1, "next.co.uk": 4.2,
+  "jdsports.co.uk": 3.8, "footlocker.co.uk": 1.5, "asos.com": 1.9,
+  "endclothing.com": 4.3, "size.co.uk": 3.9, "offspring.co.uk": 2.2,
+  "schuh.co.uk": 2.1, "amazon.co.uk": 1.4, "ebay.co.uk": 1.3,
+  "flannels.com": 3.4, "selfridges.com": 1.8, "footasylum.com": 4.5,
+  "sportsdirect.com": 3.1, "office.co.uk": 1.7, "next.co.uk": 4.2,
   "zalando.co.uk": 2.0, "very.co.uk": 2.8,
   // Sneaker specialist
-  "stockx.com": 4.4, "goat.com": 3.0, "laced.com": 4.3,
+  "stockx.com": 4.2, "goat.com": 3.9, "laced.com": 4.3,
   "klekt.com": 4.0, "thesolesupplier.co.uk": 4.3,
-  "sneakersnstuff.com": 3.8, "solebox.com": 2.5,
+  "sneakersnstuff.com": 3.0, "solebox.com": 3.0,
   "crepsuk.com": 4.0, "samedaytrainers.co.uk": 4.9,
   "fatbuddhastore.com": 4.4, "shucentre.co.uk": 2.8,
   // Luxury
-  "harveynichols.com": 2.3, "mrporter.com": 4.1,
+  "harveynichols.com": 2.0, "mrporter.com": 3.6,
   "matchesfashion.com": 3.8, "farfetch.com": 4.0,
 };
 
