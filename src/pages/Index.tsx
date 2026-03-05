@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Search, ArrowRight, Loader2, ShieldCheck, Zap, Globe, Camera, X, CheckCircle, AlertTriangle, Edit3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -673,8 +673,16 @@ const Index = () => {
             <p className="mt-1 text-xs text-muted-foreground">
               Get The Best Price — Compare prices across UK retailers instantly.
             </p>
-            <p className="mt-4 text-xs text-muted-foreground/60">
-              © {new Date().getFullYear()} GTBP. All rights reserved. Prices are indicative and may vary.
+            <p className="mt-3 text-xs text-muted-foreground/80">
+              GTBP is a price comparison service. We are not affiliated with any retailer.
+              Prices are indicative — always verify on the retailer's site before purchasing.
+            </p>
+            <div className="mt-3 flex justify-center gap-4 text-xs text-muted-foreground/60">
+              <Link to="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
+              <Link to="/terms" className="hover:text-primary transition-colors">Terms of Use</Link>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground/50">
+              © {new Date().getFullYear()} GTBP. All rights reserved.
             </p>
           </div>
         </footer>

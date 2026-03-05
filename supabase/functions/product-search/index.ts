@@ -158,11 +158,11 @@ Return ONLY valid JSON with this schema:
 
 The "confidence" field should be a number between 0 and 1 indicating how confident you are in the identification. If confidence < 0.7, still provide your best guess but note uncertainty in identification_notes.
 
-The user is based in the UK. You MUST return 25-30 retailers. Always prioritise UK versions of retailers (e.g. nike.com/gb, adidas.co.uk, footlocker.co.uk, jdsports.co.uk, size.co.uk).
+The user is based in the UK. You MUST return 25-30 retailers. Always prioritise UK retailers. Return plain domain names only (e.g. nike.com, not nike.com/gb).
 Include a wide mix of:
-- Brand official UK stores: nike.com/gb, adidas.co.uk, newbalance.co.uk, asics.co.uk, puma.com/gb, reebok.co.uk, converse.com/uk, vans.co.uk, timberland.co.uk, drmartens.com, saucony.com/en-gb, hoka.com/en/gb, on-running.com/en-gb
-- UK high street: jdsports.co.uk, size.co.uk, footlocker.co.uk, schuh.co.uk, offspring.co.uk, flannels.com, selfridges.com, harveynichols.com, harrods.com, tessuti.co.uk, scottsmenswear.com, mainlinemenswear.co.uk, footpatrol.com, hanon-shop.com, sneakersnstuff.com/en
-- UK online: endclothing.com, asos.com, zalando.co.uk, urbanoutfitters.com/en-gb, matchesfashion.com, brownsfashion.com, stuartslondon.com, aphrodite1994.com, hipstore.com, woodhouseclothing.com, eightyeightstore.com, routeone.co.uk, urbanindustry.co.uk
+- Brand official UK stores: nike.com, adidas.co.uk, newbalance.co.uk, asics.co.uk, puma.com, reebok.co.uk, converse.com, vans.co.uk, timberland.co.uk, drmartens.com, saucony.com, hoka.com, on-running.com
+- UK high street: jdsports.co.uk, size.co.uk, footlocker.co.uk, schuh.co.uk, offspring.co.uk, flannels.com, selfridges.com, harveynichols.com, harrods.com, tessuti.co.uk, scottsmenswear.com, mainlinemenswear.co.uk, footpatrol.com, hanon-shop.com, sneakersnstuff.com
+- UK online: endclothing.com, asos.com, zalando.co.uk, urbanoutfitters.com, matchesfashion.com, brownsfashion.com, stuartslondon.com, aphrodite1994.com, hipstore.com, woodhouseclothing.com, eightyeightstore.com, routeone.co.uk, urbanindustry.co.uk
 - European: asphaltgold.com, solebox.com, bstn.com, overkillshop.com, allikestore.com, titolo.ch, suppa.de, sivasdescalzo.com, nakedcph.com, rezet.dk, kickz.com, courir.com, snipes.com, footshop.eu, basketzone.net
 - Global resellers: stockx.com, goat.com, farfetch.com, ssense.com, mrporter.com, klekt.com, laced.co.uk, ebay.co.uk, depop.com, grailed.com
 For suggestions, provide predictive autocomplete suggestions related to the query.`,
