@@ -205,7 +205,7 @@ async function extractPricesWithAI(
   productName: string,
   apiKey: string,
   estimatedRrp?: number
-): Promise<Array<{ index: number; current_price_gbp: number; original_price_gbp: number | null; in_stock: boolean | null; coupon_code: string | null }>> {
+): Promise<Array<{ index: number; current_price_gbp: number; original_price_gbp: number | null; in_stock: boolean | null; coupon_code: string | null; price_confidence: string | null }>> {
   if (!candidates.length) return [];
 
   const candidateText = candidates.map((s, i) =>
@@ -231,19 +231,22 @@ async function extractPricesWithAI(
         messages: [
           {
             role: "system",
-            content: `You are a price extraction specialist for a UK price comparison website.${rrpHint}${sizeInstruction}
+            content: `You are a strict price extraction specialist for a UK price comparison website.${rrpHint}${sizeInstruction}
 
 The user is searching for: "${productName}"
 
 For each numbered candidate, extract price data and return a JSON array. Rules:
-- is_correct_product: true only if this page sells the exact searched product, brand new. Use common sense with colourway names ("Triple White" = "White/White/White" = "Cloud White"). Reject: wrong model number, kids/junior version, secondhand/used, category/browse pages.
-- current_price_gbp: the current selling price in GBP. Use sale price if shown. Convert if needed (EUR ×0.85, USD ×0.79). null if not a product page.
-- original_price_gbp: crossed-out RRP if shown, else null.
-- in_stock: true if available to buy, false if sold out, null if unknown.
+- is_correct_product: true ONLY if this page sells the EXACT searched product, brand new. Use common sense with colourway names ("Triple White" = "White/White/White" = "Cloud White"). Reject: wrong model number, kids/junior version, secondhand/used, category/browse pages.
+- current_price_gbp: ONLY return a price if it is EXPLICITLY shown in GBP (£) on the page. Do NOT convert from EUR or USD — return null instead. Do NOT guess or infer prices. If the price is not clearly visible in £, return null.
+- price_confidence: "high" if the GBP price is clearly and explicitly stated on the page. "low" if you are inferring or estimating. null if no price.
+- original_price_gbp: crossed-out RRP in GBP (£) if explicitly shown, else null. Do NOT convert currencies.
+- in_stock: true if explicitly available to buy now, false if explicitly sold out, null if unclear.
 - coupon_code: exact visible promo code (e.g. "SAVE10"), null if none.
 
+CRITICAL: If you are not 100% certain of the GBP price from the page content, set current_price_gbp to null. Accuracy is more important than coverage.
+
 Return ONLY a raw JSON array, no markdown, no explanation:
-[{"index":1,"is_correct_product":true,"current_price_gbp":90.00,"original_price_gbp":null,"in_stock":true,"coupon_code":null},...]`,
+[{"index":1,"is_correct_product":true,"current_price_gbp":90.00,"price_confidence":"high","original_price_gbp":null,"in_stock":true,"coupon_code":null},...]`,
           },
           { role: "user", content: candidateText },
         ],
@@ -278,7 +281,10 @@ Return ONLY a raw JSON array, no markdown, no explanation:
     }
 
     const valid = allResults.filter((r: any) =>
-      r.is_correct_product && r.in_stock !== false && typeof r.current_price_gbp === "number"
+      r.is_correct_product &&
+      r.in_stock !== false &&
+      typeof r.current_price_gbp === "number" &&
+      r.price_confidence !== "low"
     );
 
     log(`AI returned ${allResults.length} total, ${valid.length} valid.`);
@@ -632,6 +638,7 @@ serve(async (req) => {
           inStock: null,
           checkedAt: new Date().toISOString(),
           couponCode: null,
+          priceConfidence: "low",
           retailerTier: AUTHORISED_RETAILERS.has(domain) ? "authorised"
             : TRUST_RATINGS[domain] ? "trusted"
             : "unverified",
@@ -701,6 +708,7 @@ serve(async (req) => {
         inStock: aiResult.in_stock === true ? true : null,
         checkedAt: new Date().toISOString(),
         couponCode: aiResult.coupon_code || null,
+        priceConfidence: aiResult.price_confidence || "high",
         retailerTier: AUTHORISED_RETAILERS.has(domain) ? "authorised"
           : TRUST_RATINGS[domain] ? "trusted"
           : "unverified",

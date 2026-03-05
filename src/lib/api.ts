@@ -32,6 +32,7 @@ export interface PriceResult {
   couponCode?: string | null;
   retailerTier?: "authorised" | "trusted" | "unverified";
   freeReturns?: boolean;
+  priceConfidence?: "high" | "low" | null;
 }
 
 export async function searchProduct(query: string, imageBase64?: string): Promise<ProductInfo> {

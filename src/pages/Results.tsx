@@ -474,6 +474,9 @@ const Results = () => {
                       <span>Shipping: {r.shipping === 0 ? "Free" : `£${r.shipping.toFixed(2)}`}</span>
                       {r.duties > 0 && <span>Duties: £{r.duties.toFixed(2)}</span>}
                     </div>
+                    {r.priceConfidence === "low" && (
+                      <p className="mt-0.5 text-[10px] text-amber-600">⚠ Price estimated — verify on retailer site</p>
+                    )}
                     <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{r.delivery}</span>
                       {r.trustRating != null && (
