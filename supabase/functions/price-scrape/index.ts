@@ -473,6 +473,16 @@ serve(async (req) => {
 
     log(`Searching for: "${searchName}"`);
 
+    // ── Pre-seeded retailer search queries ──
+    // Guarantee coverage of top UK retailers by querying them directly
+    const TOP_UK_RETAILERS = [
+      "jdsports.co.uk", "footlocker.co.uk", "asos.com", "schuh.co.uk",
+      "size.co.uk", "endclothing.com", "office.co.uk", "footasylum.com",
+      "flannels.com", "offspring.co.uk", "nike.com", "adidas.co.uk",
+      "selfridges.com", "sportsdirect.com", "zalando.co.uk",
+    ];
+    const seededQueries = TOP_UK_RETAILERS.map(r => `${searchName} site:${r}`);
+
     // Content queries (with scraping) — targeted, fewer results but richer content
     const contentQueries = [
       `${searchName} buy UK price £`,
@@ -488,10 +498,11 @@ serve(async (req) => {
       `${searchName} price GBP UK trainers`,
     ];
 
-    // Run all searches in parallel
-    const [contentResultSets, urlResultSets] = await Promise.all([
+    // Run all searches in parallel — seeded queries use URL-only (fast, no scraping)
+    const [contentResultSets, urlResultSets, seededResultSets] = await Promise.all([
       Promise.all(contentQueries.map(q => doSearchContent(q, 8))),
       Promise.all(urlQueries.map(q => doSearchUrls(q, 20))),
+      Promise.all(seededQueries.map(q => doSearchUrls(q, 3))),
     ]);
 
     const seenUrls = new Set<string>();
@@ -507,8 +518,18 @@ serve(async (req) => {
       }
     }
 
-    // URL results next (description snippets may still contain prices)
+    // URL results next
     for (const result of urlResultSets) {
+      for (const item of (result.data || [])) {
+        if (item.url && !seenUrls.has(item.url)) {
+          seenUrls.add(item.url);
+          rawCandidates.push({ url: item.url, title: item.title || "", markdown: "", description: item.description || "" });
+        }
+      }
+    }
+
+    // Seeded retailer results last
+    for (const result of seededResultSets) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
@@ -533,8 +554,21 @@ serve(async (req) => {
 
     log(`${candidates.length} candidates after filtering`);
 
-    // ── AI extracts and validates prices ──
-    const aiResults = await extractPricesWithAI(candidates, searchName, LOVABLE_API_KEY, estimated_retail_price);
+    // ── AI extracts and validates prices (parallel batches of 8) ──
+    const BATCH_SIZE = 8;
+    const batches: typeof candidates[] = [];
+    for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+      batches.push(candidates.slice(i, i + BATCH_SIZE));
+    }
+    const batchResults = await Promise.all(
+      batches.map((batch, bi) =>
+        extractPricesWithAI(
+          batch.map((c, ci) => ({ ...c, _origIndex: bi * BATCH_SIZE + ci })),
+          searchName, LOVABLE_API_KEY, estimated_retail_price
+        ).then(results => results.map(r => ({ ...r, index: r.index + bi * BATCH_SIZE })))
+      )
+    );
+    const aiResults = batchResults.flat();
 
     log(`AI validated ${aiResults.length} results`);
 
