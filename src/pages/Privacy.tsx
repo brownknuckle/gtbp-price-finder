@@ -70,7 +70,7 @@ const Privacy = () => (
         <section>
           <h2 className="mb-2 text-base font-bold">7. Contact</h2>
           <p>
-            For privacy enquiries, email: <span className="font-semibold">privacy@gtbp.co.uk</span>
+            For privacy enquiries, email: <span className="font-semibold">privacy@getthebestprice.co.uk</span>
           </p>
         </section>
       </div>
