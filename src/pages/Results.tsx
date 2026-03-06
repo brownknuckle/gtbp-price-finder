@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { scrapePrices, searchProduct, type PriceResult, type ProductInfo } from "@/lib/api";
+import { analytics } from "@/lib/analytics";
+import { toAffiliateUrl } from "@/lib/affiliate";
 import { useToast } from "@/hooks/use-toast";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import PageTransition from "@/components/PageTransition";
@@ -107,6 +109,7 @@ const Results = () => {
         setResults(resp.results);
         setDataSource({ cached: resp.cached, cached_at: resp.cached_at });
         if (resp.thirtyDayLow != null) setThirtyDayLow(resp.thirtyDayLow);
+        analytics.viewResults(prod.product_name, resp.results.length);
       } catch (e: any) {
         toast({
           title: "Price search failed",
@@ -219,6 +222,7 @@ const Results = () => {
                       category: product.category,
                       best_price: sorted[0]?.totalYouPay,
                     });
+                    analytics.addWatchlist(product.product_name);
                   }
                 }}
                 disabled={isInWatchlist(product.product_name)}
@@ -521,7 +525,10 @@ const Results = () => {
                       try {
                         const safe = new URL(r.url);
                         if (safe.protocol === "https:" || safe.protocol === "http:") {
-                          window.open(r.url, "_blank", "noopener,noreferrer");
+                          const domain = safe.hostname.replace(/^www\./, "");
+                          const dest = toAffiliateUrl(r.url, domain);
+                          analytics.clickBuy(r.retailer, product?.product_name ?? "", r.itemPrice);
+                          window.open(dest, "_blank", "noopener,noreferrer");
                         }
                       } catch {}
                     }}

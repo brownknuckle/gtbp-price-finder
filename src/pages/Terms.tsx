@@ -35,11 +35,16 @@ const Terms = () => (
         </section>
 
         <section>
-          <h2 className="mb-2 text-base font-bold">3. No Endorsement or Affiliation</h2>
+          <h2 className="mb-2 text-base font-bold">3. Affiliate Links & Commercial Relationships</h2>
+          <p className="mb-2">
+            Some "Buy Now" links on GTBP are affiliate links. This means GTBP may earn a small
+            commission if you make a purchase after clicking — at no extra cost to you. The price
+            you pay at the retailer is always the same whether or not you arrived via an affiliate link.
+          </p>
           <p>
-            GTBP is independent and is not affiliated with, endorsed by, or sponsored by any of the
-            retailers whose prices we display. Brand names, trademarks, and logos displayed are the
-            property of their respective owners and are used solely for identification purposes.
+            Affiliate relationships do not influence which retailers appear, how they are ranked, or
+            the prices displayed. Results are always ranked by lowest total cost to you.
+            Brand names and trademarks are the property of their respective owners.
           </p>
         </section>
 
