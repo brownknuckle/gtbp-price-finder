@@ -92,9 +92,9 @@ const KIDS_PATH_PATTERNS = [
   /\/children/i, /\/boys?\//i, /\/girls?\//i, /\/baby/i,
   /[-_](kids?|junior|toddler|infant|youth|child|baby)[-_]/i,
   // Nike/Adidas size codes for grade school, preschool, toddler
-  /\/gs\//i, /[-_]gs[/_-]/i, /-gs$/i, /_gs$/i,
-  /\/ps\//i, /[-_]ps[/_-]/i, /-ps$/i,
-  /\/td\//i, /[-_]td[/_-]/i,
+  /\/gs\//i, /\/ps\//i, /\/td\//i,
+  /[-_]gs[-_]/i, /[-_]ps[-_]/i, /[-_]td[-_]/i,
+  /-gs$/i, /_gs$/i, /-ps$/i,
   /\/grade-?school/i, /\/pre-?school/i,
   /kids?$/i, /junior$/i,
 ];
