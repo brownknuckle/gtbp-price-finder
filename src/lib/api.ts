@@ -1,5 +1,33 @@
 import { supabase } from "@/integrations/supabase/client";
 
+// ── Direct function URLs — calls user's own Supabase project ──
+// Functions deployed via CLI: supabase functions deploy <name>
+const FUNCTIONS_URL = "https://jbftwbduusnjoufsotpq.supabase.co/functions/v1";
+const FUNCTIONS_ANON_KEY = "sb_publishable_qgONrr7J4yppfmW3efk9IA_Q9kEX9ki";
+
+async function invokeFunction(name: string, body: Record<string, any>): Promise<any> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000);
+  try {
+    const res = await fetch(`${FUNCTIONS_URL}/${name}`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${FUNCTIONS_ANON_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Edge Function returned a non-2xx status code`);
+    return await res.json();
+  } catch (e: any) {
+    if (e.name === "AbortError") throw new Error("Search timed out. Please try again.");
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export interface ProductInfo {
   product_name: string;
   brand: string;
@@ -38,12 +66,7 @@ export interface PriceResult {
 export async function searchProduct(query: string, imageBase64?: string): Promise<ProductInfo> {
   const body: Record<string, string> = { query };
   if (imageBase64) body.image = imageBase64;
-
-  const { data, error } = await supabase.functions.invoke("product-search", {
-    body,
-  });
-
-  if (error) throw new Error(error.message || "Product search failed");
+  const data = await invokeFunction("product-search", body);
   if (!data?.success) throw new Error(data?.error || "Product search failed");
   return data.product;
 }
@@ -61,23 +84,14 @@ export async function scrapePrices(
   skipCache = false,
   estimatedRetailPrice?: number
 ): Promise<ScrapeResponse> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
-
-  try {
-    const { data, error } = await supabase.functions.invoke("price-scrape", {
-      body: { product_name: productName, retailers, skip_cache: skipCache, estimated_retail_price: estimatedRetailPrice },
-    });
-
-    if (error) throw new Error(error.message || "Price scrape failed");
-    if (!data?.success) throw new Error(data?.error || "Price scrape failed");
-    return { results: data.results, cached: !!data.cached, cached_at: data.cached_at, thirtyDayLow: data.thirtyDayLow ?? null };
-  } catch (e: any) {
-    if (e.name === "AbortError") throw new Error("Search timed out. Please try again.");
-    throw e;
-  } finally {
-    clearTimeout(timeout);
-  }
+  const data = await invokeFunction("price-scrape", {
+    product_name: productName,
+    retailers,
+    skip_cache: skipCache,
+    estimated_retail_price: estimatedRetailPrice,
+  });
+  if (!data?.success) throw new Error(data?.error || "Price scrape failed");
+  return { results: data.results, cached: !!data.cached, cached_at: data.cached_at, thirtyDayLow: data.thirtyDayLow ?? null };
 }
 
 export interface TrendingItem {
@@ -87,8 +101,8 @@ export interface TrendingItem {
 }
 
 export async function fetchTrending(): Promise<TrendingItem[]> {
+  // Trending still uses Lovable's project (no CLI deploy needed — read-only)
   const { data, error } = await supabase.functions.invoke("trending");
-
   if (error) throw new Error(error.message || "Trending fetch failed");
   if (!data?.success) throw new Error(data?.error || "Trending fetch failed");
   return data.trending;
