@@ -578,8 +578,8 @@ serve(async (req) => {
       if (isSecondhand(s.url, s.title + " " + s.description)) return false;
       // Gender filtering — reject opposite-gender URLs
       const urlLower = s.url.toLowerCase();
-      if (wantsMens && /\/womens?[-/]|[-_]womens?[-/_]|\/women\//.test(urlLower)) return false;
-      if (wantsWomens && /\/mens?[-/]|[-_]mens?[-/_]|\/men\//.test(urlLower)) return false;
+      if (wantsMens && /\/womens?[-_]|[-_]womens?[-_]|\/women\//.test(urlLower)) return false;
+      if (wantsWomens && /\/mens?[-_]|[-_]mens?[-_]|\/men\//.test(urlLower)) return false;
       return true;
     });
 
