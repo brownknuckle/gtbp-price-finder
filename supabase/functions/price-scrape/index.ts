@@ -91,6 +91,12 @@ const KIDS_PATH_PATTERNS = [
   /\/kids?\//i, /\/toddler/i, /\/junior/i, /\/infant/i, /\/youth/i,
   /\/children/i, /\/boys?\//i, /\/girls?\//i, /\/baby/i,
   /[-_](kids?|junior|toddler|infant|youth|child|baby)[-_]/i,
+  // Nike/Adidas size codes for grade school, preschool, toddler
+  /\/gs\//i, /[-_]gs[/_-]/i, /-gs$/i, /_gs$/i,
+  /\/ps\//i, /[-_]ps[/_-]/i, /-ps$/i,
+  /\/td\//i, /[-_]td[/_-]/i,
+  /\/grade-?school/i, /\/pre-?school/i,
+  /kids?$/i, /junior$/i,
 ];
 
 const TRUST_RATINGS: Record<string, number> = {
@@ -218,8 +224,16 @@ async function extractPricesWithAI(
   const rrpHint = estimatedRrp ? ` The estimated retail price is £${estimatedRrp}.` : "";
   const sizeHint = productName.match(/\b(UK|US|EU)\s*\d+\.?\d*/i)?.[0];
   const sizeInstruction = sizeHint
-    ? ` The customer wants size ${sizeHint} — only mark in_stock: true if that specific size is available.`
+    ? ` The customer wants size ${sizeHint} — only mark in_stock: true if that specific size is available. If this page is for a different size, set is_correct_product: false.`
     : "";
+  const genderRaw2 = productName.match(/\b(men'?s?|women'?s?)\b/i)?.[0]?.toLowerCase() ?? "";
+  const wantsMens2 = !!genderRaw2 && genderRaw2.startsWith("men") && !genderRaw2.startsWith("women");
+  const wantsWomens2 = !!genderRaw2 && genderRaw2.startsWith("women");
+  const genderInstruction = wantsMens2
+    ? " The customer wants MEN'S — reject women's, kids', grade school, and junior versions."
+    : wantsWomens2
+    ? " The customer wants WOMEN'S — reject men's, kids', grade school, and junior versions."
+    : " Reject kids', grade school, junior, and toddler versions.";
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
@@ -234,7 +248,7 @@ async function extractPricesWithAI(
         messages: [
           {
             role: "system",
-            content: `You are a strict price extraction specialist for a UK price comparison website.${rrpHint}${sizeInstruction}
+            content: `You are a strict price extraction specialist for a UK price comparison website.${rrpHint}${sizeInstruction}${genderInstruction}
 
 The user is searching for: "${productName}"
 
@@ -548,6 +562,11 @@ serve(async (req) => {
 
     log(`Found ${rawCandidates.length} unique URLs`);
 
+    // Extract gender intent from product name for URL-level filtering
+    const genderRaw = product_name.match(/\b(men'?s?|women'?s?)\b/i)?.[0]?.toLowerCase() ?? "";
+    const wantsMens = !!genderRaw && genderRaw.startsWith("men") && !genderRaw.startsWith("women");
+    const wantsWomens = !!genderRaw && genderRaw.startsWith("women");
+
     // Filter to clean product pages only
     const candidates = rawCandidates.filter((s) => {
       if (!s.url || isComparisonSite(s.url)) return false;
@@ -557,6 +576,10 @@ serve(async (req) => {
       if (!isLikelyProductPage(s.url)) return false;
       if (isKidsProduct(s.url, s.title + " " + s.description)) return false;
       if (isSecondhand(s.url, s.title + " " + s.description)) return false;
+      // Gender filtering — reject opposite-gender URLs
+      const urlLower = s.url.toLowerCase();
+      if (wantsMens && /\/womens?[-/]|[-_]womens?[-/_]|\/women\//.test(urlLower)) return false;
+      if (wantsWomens && /\/mens?[-/]|[-_]mens?[-/_]|\/men\//.test(urlLower)) return false;
       return true;
     });
 
