@@ -253,7 +253,7 @@ async function extractPricesWithAI(
 The user is searching for: "${productName}"
 
 For each numbered candidate, extract price data and return a JSON array. Rules:
-- is_correct_product: true ONLY if this page sells the EXACT searched product, brand new. Use common sense with colourway names ("Triple White" = "White/White/White" = "Cloud White"). Reject: wrong model number, kids/junior version, secondhand/used, category/browse pages.
+- is_correct_product: true ONLY if this page sells the EXACT searched product (correct model, correct colourway, brand new). Use common sense with equivalent colourway names ("Triple White" = "White/White/White" = "Cloud White", "Core Black" = "Black/Black"). REJECT if: wrong colourway, wrong model number, kids/junior/grade-school version, secondhand/used, category/browse pages, or wrong gender.
 - current_price_gbp: the selling price in GBP. If shown in £, use it directly. If shown in EUR or USD, convert (EUR ×0.85, USD ×0.79) and set price_confidence to "low". Do NOT guess or infer a price if none is visible — return null.
 - price_confidence: "high" if the price is clearly stated in GBP (£) on the page. "low" if you converted from another currency or are not fully certain. null if no price.
 - original_price_gbp: crossed-out RRP if explicitly shown, else null.
@@ -583,19 +583,34 @@ serve(async (req) => {
       return true;
     });
 
-    log(`${candidates.length} candidates after filtering`);
+    // ── Colorway URL filtering — reject URLs containing conflicting colour words ──
+    const COLOR_LIST = ["black","white","red","blue","green","yellow","orange","purple","pink","brown","grey","gray","beige","cream","navy","khaki","tan","silver","gold"];
+    const searchColors = COLOR_LIST.filter(c => searchName.toLowerCase().includes(c));
+    const conflictColors = COLOR_LIST.filter(c => !searchColors.includes(c));
+
+    const colorFilteredCandidates = searchColors.length > 0
+      ? candidates.filter((s) => {
+          const slugAndTitle = `${s.url} ${s.title || ""}`.toLowerCase();
+          return !conflictColors.some(c => {
+            const pattern = new RegExp(`[-_/]${c}[-_/]|[-_]${c}$|^${c}[-_]`, "i");
+            return pattern.test(slugAndTitle);
+          });
+        })
+      : candidates;
+
+    log(`${colorFilteredCandidates.length} candidates after colour filtering (${candidates.length - colorFilteredCandidates.length} colour conflicts removed)`);
 
     // ── AI extracts and validates prices (parallel batches of 8) ──
     const BATCH_SIZE = 8;
-    const batches: typeof candidates[] = [];
-    for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
-      batches.push(candidates.slice(i, i + BATCH_SIZE));
+    const batches: typeof colorFilteredCandidates[] = [];
+    for (let i = 0; i < colorFilteredCandidates.length; i += BATCH_SIZE) {
+      batches.push(colorFilteredCandidates.slice(i, i + BATCH_SIZE));
     }
     const batchResults = await Promise.all(
       batches.map((batch, bi) =>
         extractPricesWithAI(
           batch.map((c, ci) => ({ ...c, _origIndex: bi * BATCH_SIZE + ci })),
-          searchName, LOVABLE_API_KEY, estimated_retail_price
+          product_name, LOVABLE_API_KEY, estimated_retail_price
         ).then(results => results.map(r => ({ ...r, index: r.index + bi * BATCH_SIZE })))
       )
     );
