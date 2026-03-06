@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Star, Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag, ShieldCheck } from "lucide-react";
+import { Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag, ShieldCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -483,12 +483,6 @@ const Results = () => {
                     )}
                     <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{r.delivery}</span>
-                      {r.trustRating != null && (
-                        <span className="flex items-center gap-0.5">
-                          <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
-                          {r.trustRating} Trustpilot
-                        </span>
-                      )}
                     </div>
                     {r.couponCode && (
                       <div className="mt-2 flex items-center gap-2">

@@ -68,6 +68,7 @@ const BLOCKED_DOMAINS = new Set([
   "findyourkicks.com", "luxurygoodslocker.com", "kicksmachine.com",
   "limitedresell.com", "crepcollectionclub.co.uk", "flipsupply.co.uk",
   "sportshowroom.co.uk", "hypedeconomy.co.uk", "4feetshoes.com",
+  "cphsurplus.com",
 ]);
 
 const AUTHORISED_RETAILERS = new Set([
@@ -76,7 +77,7 @@ const AUTHORISED_RETAILERS = new Set([
   "endclothing.com", "selfridges.com", "harveynichols.com",
   "mrporter.com", "flannels.com", "footasylum.com", "office.co.uk",
   "zalando.co.uk", "offspring.co.uk", "sneakersnstuff.com",
-  "solebox.com", "stockx.com", "goat.com",
+  "solebox.com", "stockx.com", "goat.com", "whatsyoursize.co.uk",
 ]);
 
 const FREE_RETURNS_RETAILERS = new Set([
@@ -84,7 +85,7 @@ const FREE_RETURNS_RETAILERS = new Set([
   "footlocker.co.uk", "asos.com", "schuh.co.uk", "size.co.uk",
   "endclothing.com", "selfridges.com", "harveynichols.com",
   "mrporter.com", "flannels.com", "footasylum.com", "office.co.uk",
-  "zalando.co.uk",
+  "zalando.co.uk", "whatsyoursize.co.uk",
 ]);
 
 const KIDS_PATH_PATTERNS = [
@@ -114,7 +115,7 @@ const TRUST_RATINGS: Record<string, number> = {
   // Sneaker specialist
   "stockx.com": 4.2, "goat.com": 3.9, "laced.com": 4.3,
   "klekt.com": 4.0, "thesolesupplier.co.uk": 4.3,
-  "sneakersnstuff.com": 3.0, "solebox.com": 3.0,
+  "sneakersnstuff.com": 3.0, "solebox.com": 3.0, "whatsyoursize.co.uk": 4.1,
   "crepsuk.com": 4.0, "samedaytrainers.co.uk": 4.9,
   "fatbuddhastore.com": 4.4, "shucentre.co.uk": 2.8,
   // Luxury
