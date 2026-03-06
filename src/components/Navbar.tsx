@@ -1,9 +1,22 @@
-import { Heart } from "lucide-react";
+import { Heart, Megaphone } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import AuthDialog from "@/components/AuthDialog";
+import { useAuth } from "@/hooks/useAuth";
+
+const ADMIN_EMAILS: string[] = (import.meta.env.VITE_ADMIN_EMAILS ?? "")
+  .split(",")
+  .map((e: string) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+function isAdmin(email: string | undefined): boolean {
+  if (!email) return false;
+  if (ADMIN_EMAILS.length === 0) return true;
+  return ADMIN_EMAILS.includes(email.toLowerCase());
+}
 
 const Navbar = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   return (
     <nav className="sticky top-0 z-50 bg-primary px-4 py-3 shadow-sm">
@@ -18,6 +31,15 @@ const Navbar = () => {
         </Link>
 
         <div className="flex items-center gap-1">
+          {isAdmin(user?.email) && (
+            <button
+              onClick={() => navigate("/admin")}
+              className="rounded-md p-2.5 text-primary-foreground/70 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground"
+              title="Ad Manager"
+            >
+              <Megaphone className="h-4 w-4" />
+            </button>
+          )}
           <button
             onClick={() => navigate("/watchlist")}
             className="rounded-md p-2.5 text-primary-foreground/70 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground"
