@@ -12,7 +12,7 @@ const log = (...args: any[]) => { if (DEBUG) console.log(...args); };
 // ─── Rate Limiter ────────────────────────────────────────────
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX = 10; // 10 requests per minute per IP
+const RATE_LIMIT_MAX = 30; // 30 requests per minute per IP
 
 function checkRateLimit(req: Request): Response | null {
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
