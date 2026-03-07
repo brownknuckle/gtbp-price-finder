@@ -5,9 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 const FUNCTIONS_URL = "https://jbftwbduusnjoufsotpq.supabase.co/functions/v1";
 const FUNCTIONS_ANON_KEY = "sb_publishable_qgONrr7J4yppfmW3efk9IA_Q9kEX9ki";
 
-async function invokeFunction(name: string, body: Record<string, any>): Promise<any> {
+async function invokeFunctionOnce(name: string, body: Record<string, any>, timeoutMs: number): Promise<any> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${FUNCTIONS_URL}/${name}`, {
       method: "POST",
@@ -18,13 +18,35 @@ async function invokeFunction(name: string, body: Record<string, any>): Promise<
       },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error(`Edge Function returned a non-2xx status code`);
+    if (!res.ok) {
+      // Read the actual error body so we know what went wrong
+      let detail = "";
+      try { const j = await res.json(); detail = j?.error || j?.message || ""; } catch { try { detail = await res.text(); } catch {} }
+      throw new Error(detail || `Request failed (${res.status})`);
+    }
     return await res.json();
   } catch (e: any) {
-    if (e.name === "AbortError") throw new Error("Search timed out. Please try again.");
+    if (e.name === "AbortError") throw new Error("timeout");
     throw e;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+async function invokeFunction(name: string, body: Record<string, any>): Promise<any> {
+  const TIMEOUT = 60000;
+  try {
+    return await invokeFunctionOnce(name, body, TIMEOUT);
+  } catch (e: any) {
+    // Retry once on timeout or transient server error
+    if (e.message === "timeout" || e.message?.includes("fetch") || e.message?.includes("network")) {
+      try {
+        return await invokeFunctionOnce(name, body, TIMEOUT);
+      } catch (e2: any) {
+        throw new Error(e2.message === "timeout" ? "Search timed out — please try again." : e2.message);
+      }
+    }
+    throw e;
   }
 }
 
