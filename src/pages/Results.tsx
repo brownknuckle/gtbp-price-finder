@@ -398,7 +398,7 @@ const Results = () => {
                   if (product) {
                     scrapePrices(product.product_name, product.retailers, false, product.estimated_retail_price)
                       .then((resp) => { setResults(resp.results); setDataSource({ cached: resp.cached, cached_at: resp.cached_at }); })
-                      .catch(() => {})
+                      .catch((e: any) => { toast({ title: "Retry failed", description: e.message || "Please try again.", variant: "destructive" }); })
                       .finally(() => setIsLoading(false));
                   }
                 }}

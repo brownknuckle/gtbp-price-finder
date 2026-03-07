@@ -407,8 +407,9 @@ serve(async (req) => {
       .replace(/\s{2,}/g, " ").trim();
 
     // ── Cache check ──
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseKey) throw new Error("Supabase env vars not configured");
     const sb = createClient(supabaseUrl, supabaseKey);
     // Include size AND gender in cache key so Men's UK 9 and Women's UK 9 don't share a cache
     const sizeMatch = product_name.match(/\b(UK|US|EU)\s*\d+\.?\d*/i) || product_name.match(/\bsize\s*\d+\.?\d*/i);
@@ -612,7 +613,7 @@ serve(async (req) => {
         extractPricesWithAI(
           batch.map((c, ci) => ({ ...c, _origIndex: bi * BATCH_SIZE + ci })),
           product_name, LOVABLE_API_KEY, estimated_retail_price
-        ).then(results => results.map(r => ({ ...r, index: r.index + bi * BATCH_SIZE })))
+        ).then(results => results.map(r => ({ ...r, index: (typeof r.index === "number" ? r.index : 0) + bi * BATCH_SIZE })))
       )
     );
     const aiResults = batchResults.flat();

@@ -222,7 +222,12 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
       throw new Error("No product identification result");
     }
 
-    const product = JSON.parse(toolCall.function.arguments);
+    let product: any;
+    try {
+      product = JSON.parse(toolCall.function.arguments);
+    } catch {
+      throw new Error("AI returned malformed product data — please try again.");
+    }
 
     // ── Find a REAL product image via Firecrawl search ──
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
