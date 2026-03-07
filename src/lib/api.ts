@@ -1,28 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// ── Use Lovable Cloud (qrlmkaolugdjsxeilfuz) for all edge functions ──
+// ── Use Lovable Cloud for all edge functions ──
 
 async function invokeFunction(name: string, body: Record<string, any>): Promise<any> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000);
-  try {
-    const res = await fetch(`${FUNCTIONS_URL}/${name}`, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${FUNCTIONS_ANON_KEY}`,
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`Edge Function returned a non-2xx status code`);
-    return await res.json();
-  } catch (e: any) {
-    if (e.name === "AbortError") throw new Error("Search timed out. Please try again.");
-    throw e;
-  } finally {
-    clearTimeout(timeout);
-  }
+  const { data, error } = await supabase.functions.invoke(name, { body });
+  if (error) throw new Error(error.message || `Edge Function "${name}" failed`);
+  return data;
 }
 
 export interface ProductInfo {
