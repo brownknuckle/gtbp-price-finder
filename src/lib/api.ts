@@ -1,11 +1,52 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// ── Use Lovable Cloud for all edge functions ──
+// ── Direct function URLs — calls user's own Supabase project ──
+// Functions deployed via CLI: npm run deploy
+// DO NOT change this to supabase.functions.invoke() — Lovable's project is locked
+const FUNCTIONS_URL = "https://jbftwbduusnjoufsotpq.supabase.co/functions/v1";
+const FUNCTIONS_ANON_KEY = "sb_publishable_qgONrr7J4yppfmW3efk9IA_Q9kEX9ki";
+
+async function invokeFunctionOnce(name: string, body: Record<string, any>, timeoutMs: number): Promise<any> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${FUNCTIONS_URL}/${name}`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${FUNCTIONS_ANON_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      let detail = "";
+      try { const j = await res.json(); detail = j?.error || j?.message || ""; } catch { try { detail = await res.text(); } catch {} }
+      throw new Error(detail || `Request failed (${res.status})`);
+    }
+    return await res.json();
+  } catch (e: any) {
+    if (e.name === "AbortError") throw new Error("timeout");
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 async function invokeFunction(name: string, body: Record<string, any>): Promise<any> {
-  const { data, error } = await supabase.functions.invoke(name, { body });
-  if (error) throw new Error(error.message || `Edge Function "${name}" failed`);
-  return data;
+  const TIMEOUT = 60000;
+  try {
+    return await invokeFunctionOnce(name, body, TIMEOUT);
+  } catch (e: any) {
+    if (e.message === "timeout" || e.message?.includes("fetch") || e.message?.includes("network")) {
+      try {
+        return await invokeFunctionOnce(name, body, TIMEOUT);
+      } catch (e2: any) {
+        throw new Error(e2.message === "timeout" ? "Search timed out — please try again." : e2.message);
+      }
+    }
+    throw e;
+  }
 }
 
 export interface ProductInfo {
@@ -81,7 +122,6 @@ export interface TrendingItem {
 }
 
 export async function fetchTrending(): Promise<TrendingItem[]> {
-  // Trending still uses Lovable's project (no CLI deploy needed — read-only)
   const { data, error } = await supabase.functions.invoke("trending");
   if (error) throw new Error(error.message || "Trending fetch failed");
   if (!data?.success) throw new Error(data?.error || "Trending fetch failed");

@@ -2,7 +2,7 @@
 # Deploy all GTBP edge functions to the user's Supabase project
 set -e
 
-PROJECT_REF="qrlmkaolugdjsxeilfuz"
+PROJECT_REF="jbftwbduusnjoufsotpq"
 
 echo "Deploying all edge functions to project $PROJECT_REF..."
 
