@@ -1,9 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// ── Direct function URLs — calls user's own Supabase project ──
-// Functions deployed via CLI: supabase functions deploy <name>
-const FUNCTIONS_URL = "https://jbftwbduusnjoufsotpq.supabase.co/functions/v1";
-const FUNCTIONS_ANON_KEY = "sb_publishable_qgONrr7J4yppfmW3efk9IA_Q9kEX9ki";
+// ── Use Lovable Cloud (qrlmkaolugdjsxeilfuz) for all edge functions ──
 
 async function invokeFunction(name: string, body: Record<string, any>): Promise<any> {
   const controller = new AbortController();
