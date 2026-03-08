@@ -10,7 +10,7 @@ async function invokeFunction(name: string, body: Record<string, any>): Promise<
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${GTBP_ANON_KEY}`,
+      Authorization: `Bearer ${GTBP_ANON_KEY}`,
     },
     body: JSON.stringify(body),
   });
@@ -75,7 +75,7 @@ export async function scrapePrices(
   productName: string,
   retailers: string[],
   skipCache = false,
-  estimatedRetailPrice?: number
+  estimatedRetailPrice?: number,
 ): Promise<ScrapeResponse> {
   const data = await invokeFunction("price-scrape", {
     product_name: productName,
@@ -84,7 +84,12 @@ export async function scrapePrices(
     estimated_retail_price: estimatedRetailPrice,
   });
   if (!data?.success) throw new Error(data?.error || "Price scrape failed");
-  return { results: data.results, cached: !!data.cached, cached_at: data.cached_at, thirtyDayLow: data.thirtyDayLow ?? null };
+  return {
+    results: data.results,
+    cached: !!data.cached,
+    cached_at: data.cached_at,
+    thirtyDayLow: data.thirtyDayLow ?? null,
+  };
 }
 
 export interface TrendingItem {
