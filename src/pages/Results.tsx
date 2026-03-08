@@ -182,9 +182,10 @@ const Results = () => {
                     alt={product.product_name}
                     className="h-full w-full object-contain p-2"
                     onError={() => setImageError(true)}
+                    loading="eager"
                   />
                 ) : (
-                  <span className="text-5xl">{product.category === "shoes" ? "👟" : product.category === "clothing" ? "👕" : "🎒"}</span>
+                  <span className="text-5xl select-none">{product.category === "shoes" ? "👟" : product.category === "clothing" ? "👕" : "🎒"}</span>
                 )}
               </div>
             </motion.div>
@@ -383,11 +384,29 @@ const Results = () => {
 
         {/* No results */}
         {!isLoading && results.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20">
-            <p className="text-sm font-medium text-muted-foreground">
-              No prices found. This can happen if the search timed out.
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <p className="text-2xl mb-2">🔍</p>
+            <p className="text-sm font-semibold text-foreground mb-1">No prices found</p>
+            <p className="text-xs text-muted-foreground max-w-xs mb-5">
+              Retailers may not carry this exact item, or the search timed out. Try a slightly different search term or include the colourway.
             </p>
-            <div className="mt-4 flex gap-3">
+            {product?.suggestions && product.suggestions.length > 0 && (
+              <div className="mb-5 w-full max-w-sm">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Try instead</p>
+                <div className="flex flex-col gap-2">
+                  {product.suggestions.slice(0, 3).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => navigate(`/results?q=${encodeURIComponent(s)}`, { state: { sizing: (location.state as any)?.sizing } })}
+                      className="rounded-lg border border-border bg-card px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:border-primary hover:bg-primary/5"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex gap-3">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -396,7 +415,7 @@ const Results = () => {
                   setPhase("scraping");
                   setProgress(5);
                   if (product) {
-                    scrapePrices(product.product_name, product.retailers, false, product.estimated_retail_price)
+                    scrapePrices(product.product_name, product.retailers, true, product.estimated_retail_price)
                       .then((resp) => { setResults(resp.results); setDataSource({ cached: resp.cached, cached_at: resp.cached_at }); })
                       .catch((e: any) => { toast({ title: "Retry failed", description: e.message || "Please try again.", variant: "destructive" }); })
                       .finally(() => setIsLoading(false));

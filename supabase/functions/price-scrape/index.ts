@@ -68,7 +68,9 @@ const BLOCKED_DOMAINS = new Set([
   "findyourkicks.com", "luxurygoodslocker.com", "kicksmachine.com",
   "limitedresell.com", "crepcollectionclub.co.uk", "flipsupply.co.uk",
   "sportshowroom.co.uk", "hypedeconomy.co.uk", "4feetshoes.com",
-  "cphsurplus.com",
+  "cphsurplus.com", "trainersplus.co.uk", "sneakerfiles.com",
+  "nicekicks.com", "sneakernews.com", "highsnobiety.com",
+  "complex.com", "hypebeast.com",
 ]);
 
 const AUTHORISED_RETAILERS = new Set([
@@ -254,16 +256,28 @@ async function extractPricesWithAI(
 The user is searching for: "${productName}"
 
 For each numbered candidate, extract price data and return a JSON array. Rules:
-- is_correct_product: true ONLY if this page sells the EXACT searched product (correct model, correct colourway, brand new). Use common sense with equivalent colourway names ("Triple White" = "White/White/White" = "Cloud White", "Core Black" = "Black/Black"). REJECT if: wrong colourway, wrong model number, kids/junior/grade-school version, secondhand/used, category/browse pages, or wrong gender.
-- current_price_gbp: the selling price in GBP. If shown in £, use it directly. If shown in EUR or USD, convert (EUR ×0.85, USD ×0.79) and set price_confidence to "low". Do NOT guess or infer a price if none is visible — return null.
-- price_confidence: "high" if the price is clearly stated in GBP (£) on the page. "low" if you converted from another currency or are not fully certain. null if no price.
-- original_price_gbp: crossed-out RRP if explicitly shown, else null.
-- in_stock: true if explicitly available to buy now, false if explicitly sold out, null if unclear.
-- coupon_code: exact visible promo code (e.g. "SAVE10"), null if none.
 
-CRITICAL: Only return a price if a specific number is visible in the page content. Do not hallucinate or estimate prices.
+is_correct_product: true ONLY if ALL of these are true:
+  1. The page is a specific product listing (not a category, collection, or search results page)
+  2. The exact model/colourway matches. Use sense with equivalent names: "Triple White"="White/White/White"="Cloud White", "Core Black"="Black/Black/Black", "OG"="Original". Small differences in colourway description are OK if the product image/title clearly matches.
+  3. Brand new condition (not used, pre-owned, or refurbished)
+  4. Correct gender and age group (not kids, junior, grade school, toddler unless searched for)
+  REJECT if: wrong colourway/model, kids/GS/PS/TD version, secondhand, category page, wrong gender.
 
-Return ONLY a raw JSON array, no markdown, no explanation:
+current_price_gbp: the current selling/add-to-cart price in GBP.
+  - If shown in £, use directly.
+  - If EUR: multiply by 0.85, set price_confidence "low".
+  - If USD: multiply by 0.79, set price_confidence "low".
+  - Do NOT guess or estimate — if no price visible, return null.
+
+price_confidence: "high" if price clearly stated in GBP. "low" if converted or uncertain. null if no price found.
+original_price_gbp: the crossed-out/was price if explicitly shown and higher than current price, else null.
+in_stock: true if an "Add to Bag/Cart/Basket" button is visible and not greyed out. false if "Sold Out" or "Out of Stock" shown. null if unclear.
+coupon_code: exact visible promo/discount code text (e.g. "EXTRA10"), null if none visible.
+
+CRITICAL: Never hallucinate prices. Only return a price number if you can see it on the page.
+
+Return ONLY a raw JSON array (no markdown, no explanation):
 [{"index":1,"is_correct_product":true,"current_price_gbp":90.00,"price_confidence":"high","original_price_gbp":null,"in_stock":true,"coupon_code":null},...]`,
           },
           { role: "user", content: candidateText },
@@ -503,23 +517,25 @@ serve(async (req) => {
     const TOP_UK_RETAILERS = [
       "jdsports.co.uk", "schuh.co.uk", "size.co.uk",
       "endclothing.com", "offspring.co.uk", "zalando.co.uk",
-      "flannels.com", "footasylum.com",
+      "flannels.com", "footasylum.com", "footlocker.co.uk",
+      "nike.com", "asos.com", "office.co.uk",
     ];
     const seededQueries = TOP_UK_RETAILERS.map(r => `${searchName} site:${r}`);
 
     // Content queries (with scraping) — targeted, fewer results but richer content
     const contentQueries = [
       `${searchName} buy UK price £`,
-      `${searchName} site:.co.uk in stock`,
-      `${searchName} jdsports size schuh footlocker asos`,
-      `${searchName} endclothing stockx goat laced`,
+      `${searchName} site:.co.uk buy in stock`,
+      `${searchName} jdsports size schuh footlocker asos buy`,
+      `${searchName} endclothing stockx goat laced klekt`,
     ];
 
     // URL queries (without scraping) — broader, more URLs, short snippets only
     const urlQueries = [
-      `${searchName} buy new in stock`,
-      `${searchName} nike adidas offspring footpatrol`,
-      `${searchName} price GBP UK trainers`,
+      `${searchName} buy new in stock UK`,
+      `${searchName} offspring footlocker nike adidas`,
+      `${searchName} price GBP UK`,
+      `${searchName} zalando flannels selfridges mrporter`,
     ];
 
     // Run all searches in parallel — seeded queries use URL-only (fast, no scraping)

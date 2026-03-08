@@ -24,12 +24,21 @@ export function useWatchlist() {
   const fetch = useCallback(async () => {
     if (!user) { setItems([]); return; }
     setLoading(true);
-    const { data, error } = await supabase
-      .from("watchlist")
-      .select("id, product_name, brand, category, search_query, best_price, previous_price, sort_order, created_at")
-      .order("sort_order", { ascending: true });
-    if (!error && data) setItems(data as WatchlistEntry[]);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from("watchlist")
+        .select("id, product_name, brand, category, search_query, best_price, previous_price, sort_order, created_at")
+        .order("sort_order", { ascending: true });
+      if (error) {
+        toast({ title: "Could not load watchlist", description: error.message, variant: "destructive" });
+      } else if (data) {
+        setItems(data as WatchlistEntry[]);
+      }
+    } catch {
+      // Network error — fail silently, user can refresh
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => { fetch(); }, [fetch]);
@@ -44,8 +53,8 @@ export function useWatchlist() {
       toast({ title: "Sign in required", description: "Sign in to save items to your watchlist.", variant: "destructive" });
       return false;
     }
-    // New items get a sort_order higher than the current max
-    const maxOrder = items.length > 0 ? Math.max(...items.map(i => i.sort_order)) : 0;
+    // Safe max — handles empty array
+    const maxOrder = items.length > 0 ? Math.max(...items.map(i => i.sort_order ?? 0)) : 0;
     const { error } = await supabase.from("watchlist").upsert(
       {
         user_id: user.id,
@@ -84,12 +93,17 @@ export function useWatchlist() {
     const updates = reorderedItems.map((item, index) => ({
       id: item.id,
       sort_order: index,
-      user_id: user!.id,
-      product_name: item.product_name,
     }));
 
-    for (const u of updates) {
-      await supabase.from("watchlist").update({ sort_order: u.sort_order }).eq("id", u.id);
+    try {
+      for (const u of updates) {
+        const { error } = await supabase.from("watchlist").update({ sort_order: u.sort_order }).eq("id", u.id);
+        if (error) throw error;
+      }
+    } catch (e: any) {
+      toast({ title: "Reorder failed", description: e.message || "Could not save order.", variant: "destructive" });
+      // Revert to server state
+      await fetch();
     }
   };
 
