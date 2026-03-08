@@ -1,9 +1,24 @@
 import { supabase } from "@/integrations/supabase/client";
 
+// IMPORTANT: functions are deployed to our own Supabase project, not Lovable's.
+// Do NOT change this to supabase.functions.invoke() — that calls the wrong project.
+const GTBP_URL = "https://jbftwbduusnjoufsotpq.supabase.co";
+const GTBP_ANON_KEY = "sb_publishable_qgONrr7J4yppfmW3efk9IA_Q9kEX9ki";
+
 async function invokeFunction(name: string, body: Record<string, any>): Promise<any> {
-  const { data, error } = await supabase.functions.invoke(name, { body });
-  if (error) throw new Error(error.message || `${name} failed`);
-  return data;
+  const res = await fetch(`${GTBP_URL}/functions/v1/${name}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${GTBP_ANON_KEY}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `${name} failed (${res.status})`);
+  }
+  return res.json();
 }
 
 export interface ProductInfo {
@@ -79,8 +94,7 @@ export interface TrendingItem {
 }
 
 export async function fetchTrending(): Promise<TrendingItem[]> {
-  const { data, error } = await supabase.functions.invoke("trending");
-  if (error) throw new Error(error.message || "Trending fetch failed");
+  const data = await invokeFunction("trending", {});
   if (!data?.success) throw new Error(data?.error || "Trending fetch failed");
   return data.trending;
 }
