@@ -60,9 +60,9 @@ const Index = () => {
     setSize(sizeType === "shoes" ? "9" : "M");
   }, [sizeType]);
 
-  // Predictive text: fetch suggestions as user types
+  // Predictive text: fetch suggestions as user types (longer debounce to save API quota)
   useEffect(() => {
-    if (query.length < 3 || isSearching) {
+    if (query.length < 4 || isSearching) {
       setSuggestions([]);
       return;
     }
@@ -79,7 +79,7 @@ const Index = () => {
       } catch {
         // Silently fail for autocomplete
       }
-    }, 600);
+    }, 1200);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
