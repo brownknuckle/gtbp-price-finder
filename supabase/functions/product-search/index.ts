@@ -105,7 +105,7 @@ serve(async (req) => {
     });
 
     const aiPayload = JSON.stringify({
-        model: image ? "gemini-2.0-flash" : "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         messages: [
           {
             role: "system",
