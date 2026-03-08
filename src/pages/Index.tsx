@@ -153,13 +153,17 @@ const Index = () => {
     setEditingName(false);
   };
 
+  const searchInFlightRef = useRef(false);
+
   const handleSearch = async (searchQuery?: string) => {
     const q = searchQuery || query;
     if (!q.trim() && !imageBase64) return;
+    if (searchInFlightRef.current) return; // Prevent duplicate calls
 
     setShowSuggestions(false);
     setSuggestions([]);
     setIsSearching(true);
+    searchInFlightRef.current = true;
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     try {
