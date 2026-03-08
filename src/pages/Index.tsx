@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { sizeOptions, shoeSizes, type SizeRegion } from "@/lib/mockData";
 import { searchProduct, fetchTrending, type ProductInfo, type TrendingItem } from "@/lib/api";
+import { analytics } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
 import PageTransition from "@/components/PageTransition";
 
@@ -60,31 +61,20 @@ const Index = () => {
     setSize(sizeType === "shoes" ? "9" : "M");
   }, [sizeType]);
 
-  // Predictive text: fetch suggestions as user types (longer debounce to save API quota)
+  // Predictive suggestions from trending items — no API call needed
   useEffect(() => {
-    if (query.length < 4 || isSearching) {
+    if (query.length < 3 || isSearching) {
       setSuggestions([]);
+      setShowSuggestions(false);
       return;
     }
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      if (isSearching) return;
-      try {
-        const result = await searchProduct(query);
-        if (!isSearching) {
-          setSuggestions(result.suggestions || []);
-          setShowSuggestions(true);
-        }
-      } catch {
-        // Silently fail for autocomplete
-      }
-    }, 1200);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [query, isSearching]);
+    const q = query.toLowerCase();
+    const matched = trendingItems
+      .map(i => i.name)
+      .filter(name => name.toLowerCase().includes(q));
+    setSuggestions(matched);
+    setShowSuggestions(matched.length > 0);
+  }, [query, isSearching, trendingItems]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -167,6 +157,7 @@ const Index = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     try {
+      analytics.search(q || "image-search");
       const product = await searchProduct(q || "Identify this product", imageBase64 || undefined);
 
       // If image search, show confirmation step instead of navigating immediately
@@ -201,15 +192,17 @@ const Index = () => {
   };
 
   const handleRejectAndRetry = async () => {
+    const nameToSearch = editedName?.trim();
     setPendingProduct(null);
     setEditingName(false);
-    // Re-search with the edited name as a text query for better accuracy
-    if (editedName && editedName !== pendingProduct?.product_name) {
-      setQuery(editedName);
-      clearImage();
+    clearImage();
+    // If user edited the name, search with it; otherwise just return to search box
+    if (nameToSearch && nameToSearch !== pendingProduct?.product_name) {
+      setQuery(nameToSearch);
       setIsSearching(true);
       try {
-        const product = await searchProduct(editedName);
+        analytics.search(nameToSearch);
+        const product = await searchProduct(nameToSearch);
         navigate(`/results?q=${encodeURIComponent(product.product_name)}`, {
           state: { product, sizing: { gender, sizeType, sizeRegion, size } },
         });
@@ -218,6 +211,8 @@ const Index = () => {
       } finally {
         setIsSearching(false);
       }
+    } else {
+      setQuery("");
     }
   };
 

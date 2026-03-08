@@ -431,7 +431,6 @@ const Results = () => {
               <Button
                 variant="outline"
                 onClick={() => {
-                  fetchedRef.current = false;
                   setIsLoading(true);
                   setPhase("scraping");
                   setProgress(5);

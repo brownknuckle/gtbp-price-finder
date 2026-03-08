@@ -20,10 +20,10 @@ const Privacy = () => (
           <h2 className="mb-2 text-base font-bold">2. Data We Collect</h2>
           <p className="mb-2">GTBP does not collect personally identifiable information. Specifically:</p>
           <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
-            <li>No registration or login is required.</li>
+            <li>No registration or login is required to search.</li>
             <li>We do not store your search queries against any personal profile.</li>
             <li>Search results and prices are cached anonymously to speed up repeat searches.</li>
-            <li>If you use the Watchlist feature, data is stored locally in your browser only.</li>
+            <li>If you use the Watchlist feature, you must sign in. Your saved products are stored in our secure database (Supabase) and associated with your account. You can delete your watchlist data at any time by removing items or contacting us.</li>
           </ul>
         </section>
 
