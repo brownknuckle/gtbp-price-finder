@@ -188,6 +188,7 @@ const Index = () => {
       });
     } finally {
       setIsSearching(false);
+      searchInFlightRef.current = false;
     }
   };
 
