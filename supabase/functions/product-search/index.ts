@@ -194,7 +194,7 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
 
     // Retry with exponential backoff for Gemini 429s
     let response: Response | null = null;
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 4;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
         method: "POST",
@@ -207,16 +207,16 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
 
       if (response.status !== 429 || attempt === MAX_RETRIES) break;
 
-      // Exponential backoff: 1s, 2s, 4s
-      const delay = Math.pow(2, attempt) * 1000;
+      // Exponential backoff: 2s, 4s, 8s, 16s
+      const delay = Math.pow(2, attempt + 1) * 1000;
       log(`Gemini 429 — retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
       await new Promise((r) => setTimeout(r, delay));
     }
 
     if (!response!.ok) {
       if (response!.status === 429) {
-        return new Response(JSON.stringify({ error: "AI service is busy. Please wait a moment and try again." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "10" },
+        return new Response(JSON.stringify({ success: false, error: "AI service is busy. Please try again in a few seconds." }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (response!.status === 402) {
