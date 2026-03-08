@@ -478,23 +478,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
-    // Targeted search WITH scraping — returns Google-cached content (reliable for SPAs)
-    const doSearchContent = async (query: string, limit: number) => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      try {
-        const r = await fetch("https://api.firecrawl.dev/v1/search", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({ query, limit, lang: "en", country: "gb", scrapeOptions: { formats: ["markdown"] } }),
-        });
-        return await r.json();
-      } catch { return { data: [] }; }
-      finally { clearTimeout(timeout); }
-    };
-
-    // Broad search WITHOUT scraping — fast, gets many URLs + short snippets
+    // Fast URL-only search — discovers retailer product pages
     const doSearchUrls = async (query: string, limit: number) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 12000);
@@ -510,10 +494,27 @@ serve(async (req) => {
       finally { clearTimeout(timeout); }
     };
 
+    // Individually scrape a URL for full page content (renders JS — gets dynamic prices)
+    const scrapePageContent = async (url: string): Promise<string> => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 18000);
+      try {
+        const r = await fetch("https://api.firecrawl.dev/v1/scrape", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+        });
+        if (!r.ok) return "";
+        const data = await r.json();
+        return data?.data?.markdown || "";
+      } catch { return ""; }
+      finally { clearTimeout(timeout); }
+    };
+
     log(`Searching for: "${searchName}"`);
 
-    // ── Pre-seeded retailer search queries ──
-    // Guarantee coverage of top UK retailers by querying them directly
+    // ── Search queries — URL discovery ──
     const TOP_UK_RETAILERS = [
       "jdsports.co.uk", "schuh.co.uk", "size.co.uk",
       "endclothing.com", "offspring.co.uk", "zalando.co.uk",
@@ -522,43 +523,24 @@ serve(async (req) => {
     ];
     const seededQueries = TOP_UK_RETAILERS.map(r => `${searchName} site:${r}`);
 
-    // Content queries (with scraping) — targeted, fewer results but richer content
-    const contentQueries = [
+    const urlQueries = [
       `${searchName} buy UK price £`,
       `${searchName} site:.co.uk buy in stock`,
       `${searchName} jdsports size schuh footlocker asos buy`,
       `${searchName} endclothing stockx goat laced klekt`,
-    ];
-
-    // URL queries (without scraping) — broader, more URLs, short snippets only
-    const urlQueries = [
       `${searchName} buy new in stock UK`,
       `${searchName} offspring footlocker nike adidas`,
-      `${searchName} price GBP UK`,
       `${searchName} zalando flannels selfridges mrporter`,
     ];
 
-    // Run all searches in parallel — seeded queries use URL-only (fast, no scraping)
-    const [contentResultSets, urlResultSets, seededResultSets] = await Promise.all([
-      Promise.all(contentQueries.map(q => doSearchContent(q, 8))),
-      Promise.all(urlQueries.map(q => doSearchUrls(q, 20))),
+    const [urlResultSets, seededResultSets] = await Promise.all([
+      Promise.all(urlQueries.map(q => doSearchUrls(q, 15))),
       Promise.all(seededQueries.map(q => doSearchUrls(q, 3))),
     ]);
 
     const seenUrls = new Set<string>();
     const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
-    // Content results first (higher quality — markdown available for AI)
-    for (const result of contentResultSets) {
-      for (const item of (result.data || [])) {
-        if (item.url && !seenUrls.has(item.url)) {
-          seenUrls.add(item.url);
-          rawCandidates.push({ url: item.url, title: item.title || "", markdown: item.markdown || "", description: item.description || "" });
-        }
-      }
-    }
-
-    // URL results next
     for (const result of urlResultSets) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url)) {
@@ -567,8 +549,6 @@ serve(async (req) => {
         }
       }
     }
-
-    // Seeded retailer results last
     for (const result of seededResultSets) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url)) {
@@ -594,6 +574,8 @@ serve(async (req) => {
       if (!isLikelyProductPage(s.url)) return false;
       if (isKidsProduct(s.url, s.title + " " + s.description)) return false;
       if (isSecondhand(s.url, s.title + " " + s.description)) return false;
+      // Reject non-GB storefronts (e.g. asos.com/us/, nike.com/us/)
+      if (/\/(us|au|ca|de|fr|it|es|nl)\//.test(s.url) && !s.url.includes(".co.uk")) return false;
       // Gender filtering — reject opposite-gender URLs
       const urlLower = s.url.toLowerCase();
       if (wantsMens && /\/womens?[-_]|[-_]womens?[-_]|\/women\//.test(urlLower)) return false;
@@ -618,16 +600,53 @@ serve(async (req) => {
 
     log(`${colorFilteredCandidates.length} candidates after colour filtering (${candidates.length - colorFilteredCandidates.length} colour conflicts removed)`);
 
+    // ── Individually scrape top candidates to get full page content ──
+    // Pick best candidate per domain (one per retailer), prioritise known UK retailers
+    const PRIORITY_DOMAINS = new Set([
+      "jdsports.co.uk", "nike.com", "size.co.uk", "schuh.co.uk", "asos.com",
+      "footlocker.co.uk", "offspring.co.uk", "endclothing.com", "zalando.co.uk",
+      "flannels.com", "footasylum.com", "office.co.uk", "stockx.com", "goat.com",
+      "laced.com", "klekt.com", "selfridges.com", "harveynichols.com",
+    ]);
+    const seenScrapeDomains = new Set<string>();
+    const toScrape: typeof colorFilteredCandidates = [];
+    // Priority domains first
+    for (const c of colorFilteredCandidates) {
+      const d = extractDomain(c.url);
+      if (PRIORITY_DOMAINS.has(d) && !seenScrapeDomains.has(d)) {
+        seenScrapeDomains.add(d);
+        toScrape.push(c);
+      }
+    }
+    // Fill remaining slots with other domains
+    for (const c of colorFilteredCandidates) {
+      if (toScrape.length >= 18) break;
+      const d = extractDomain(c.url);
+      if (!seenScrapeDomains.has(d)) {
+        seenScrapeDomains.add(d);
+        toScrape.push(c);
+      }
+    }
+
+    log(`Scraping ${toScrape.length} product pages for full content`);
+    const scrapedMarkdowns = await Promise.all(toScrape.map(c => scrapePageContent(c.url)));
+    const enrichedCandidates = toScrape.map((c, i) => ({
+      ...c,
+      markdown: scrapedMarkdowns[i] || c.markdown || "",
+    }));
+
+    log(`Enriched ${enrichedCandidates.filter(c => c.markdown.length > 100).length}/${enrichedCandidates.length} with full content`);
+
     // ── AI extracts and validates prices (parallel batches of 8) ──
     const BATCH_SIZE = 8;
-    const batches: typeof colorFilteredCandidates[] = [];
-    for (let i = 0; i < colorFilteredCandidates.length; i += BATCH_SIZE) {
-      batches.push(colorFilteredCandidates.slice(i, i + BATCH_SIZE));
+    const batches: typeof enrichedCandidates[] = [];
+    for (let i = 0; i < enrichedCandidates.length; i += BATCH_SIZE) {
+      batches.push(enrichedCandidates.slice(i, i + BATCH_SIZE));
     }
     const batchResults = await Promise.all(
       batches.map((batch, bi) =>
         extractPricesWithAI(
-          batch.map((c, ci) => ({ ...c, _origIndex: bi * BATCH_SIZE + ci })),
+          batch,
           product_name, LOVABLE_API_KEY, estimated_retail_price
         ).then(results => results.map(r => ({ ...r, index: (typeof r.index === "number" ? r.index : 0) + bi * BATCH_SIZE })))
       )
@@ -740,8 +759,8 @@ serve(async (req) => {
     const extracted: any[] = [];
     for (const aiResult of aiResults) {
       const idx = (aiResult.index ?? 0) - 1;
-      if (idx < 0 || idx >= candidates.length) continue;
-      const source = candidates[idx];
+      if (idx < 0 || idx >= enrichedCandidates.length) continue;
+      const source = enrichedCandidates[idx];
       if (!source || !aiResult.current_price_gbp) continue;
 
       const itemPrice = aiResult.current_price_gbp;
