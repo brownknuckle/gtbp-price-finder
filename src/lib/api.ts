@@ -1,16 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
-import { createClient } from "@supabase/supabase-js";
-
-// ── Edge functions client — routes to GTBP's own Supabase project ──
-// All secrets, tables, and functions live here.
-// This uses the same supabase SDK pattern so it's stable across publishes.
-const gtbp = createClient(
-  "https://jbftwbduusnjoufsotpq.supabase.co",
-  "sb_publishable_qgONrr7J4yppfmW3efk9IA_Q9kEX9ki"
-);
 
 async function invokeFunction(name: string, body: Record<string, any>): Promise<any> {
-  const { data, error } = await gtbp.functions.invoke(name, { body });
+  const { data, error } = await supabase.functions.invoke(name, { body });
   if (error) throw new Error(error.message || `${name} failed`);
   return data;
 }
