@@ -60,9 +60,9 @@ const Index = () => {
     setSize(sizeType === "shoes" ? "9" : "M");
   }, [sizeType]);
 
-  // Predictive text: fetch suggestions as user types
+  // Predictive text: fetch suggestions as user types (longer debounce to save API quota)
   useEffect(() => {
-    if (query.length < 3 || isSearching) {
+    if (query.length < 4 || isSearching) {
       setSuggestions([]);
       return;
     }
@@ -79,7 +79,7 @@ const Index = () => {
       } catch {
         // Silently fail for autocomplete
       }
-    }, 600);
+    }, 1200);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -153,13 +153,17 @@ const Index = () => {
     setEditingName(false);
   };
 
+  const searchInFlightRef = useRef(false);
+
   const handleSearch = async (searchQuery?: string) => {
     const q = searchQuery || query;
     if (!q.trim() && !imageBase64) return;
+    if (searchInFlightRef.current) return; // Prevent duplicate calls
 
     setShowSuggestions(false);
     setSuggestions([]);
     setIsSearching(true);
+    searchInFlightRef.current = true;
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     try {
@@ -184,6 +188,7 @@ const Index = () => {
       });
     } finally {
       setIsSearching(false);
+      searchInFlightRef.current = false;
     }
   };
 

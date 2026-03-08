@@ -104,13 +104,7 @@ serve(async (req) => {
       text: safeQuery || "Identify this product from the image",
     });
 
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const aiPayload = JSON.stringify({
         model: image ? "gemini-2.0-flash" : "gemini-2.0-flash",
         messages: [
           {
@@ -196,22 +190,42 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
           },
         ],
         tool_choice: { type: "function", function: { name: "identify_product" } },
-      }),
-    });
+      });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited, please try again shortly." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // Retry with exponential backoff for Gemini 429s
+    let response: Response | null = null;
+    const MAX_RETRIES = 3;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: aiPayload,
+      });
+
+      if (response.status !== 429 || attempt === MAX_RETRIES) break;
+
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = Math.pow(2, attempt) * 1000;
+      log(`Gemini 429 — retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+
+    if (!response!.ok) {
+      if (response!.status === 429) {
+        return new Response(JSON.stringify({ error: "AI service is busy. Please wait a moment and try again." }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "10" },
         });
       }
-      if (response.status === 402) {
+      if (response!.status === 402) {
         return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds." }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const text = await response.text();
-      console.error("AI error:", response.status, text);
+      const text = await response!.text();
+      console.error("AI error:", response!.status, text);
       throw new Error("AI gateway error");
     }
 
