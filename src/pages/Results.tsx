@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Star, Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag, ShieldCheck } from "lucide-react";
+import { Star, Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag, ShieldCheck, Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ const Results = () => {
   const [results, setResults] = useState<PriceResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [domesticOnly, setDomesticOnly] = useState(false);
+  const [newSearch, setNewSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("price");
   const fetchedRef = useRef(false);
   const [activeRetailer, setActiveRetailer] = useState(0);
@@ -166,6 +167,26 @@ const Results = () => {
   return (
     <PageTransition>
       <div className="mx-auto max-w-3xl px-4 py-6">
+        {/* Quick search bar */}
+        <form
+          className="mb-5 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (newSearch.trim()) navigate(`/results?q=${encodeURIComponent(newSearch.trim())}`);
+          }}
+        >
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={newSearch}
+              onChange={(e) => setNewSearch(e.target.value)}
+              placeholder="Search again…"
+              className="h-10 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+          <Button type="submit" size="sm" className="h-10 px-4">Search</Button>
+        </form>
+
         {/* Header */}
         <div className="mb-6 flex items-start gap-4">
           {/* Product image */}

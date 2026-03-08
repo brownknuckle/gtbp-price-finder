@@ -332,7 +332,7 @@ Return ONLY a raw JSON array (no markdown, no explanation):
 // ─── Rate Limiter ────────────────────────────────────────────
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 20; // 20 requests per minute per IP
+const RATE_LIMIT_MAX = 40; // 40 requests per minute per IP
 
 function checkRateLimit(req: Request): Response | null {
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
