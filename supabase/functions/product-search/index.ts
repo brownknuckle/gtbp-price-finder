@@ -229,7 +229,7 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
       throw new Error("AI gateway error");
     }
 
-    const aiData = await response.json();
+    const aiData = await response!.json();
     const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
 
     if (!toolCall?.function?.arguments) {
