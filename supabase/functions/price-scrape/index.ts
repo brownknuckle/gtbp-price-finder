@@ -590,13 +590,16 @@ serve(async (req) => {
     const TOP_UK_RETAILERS = [
       "jdsports.co.uk", "nike.com", "size.co.uk",
       "endclothing.com", "asos.com", "schuh.co.uk",
+      "footlocker.co.uk", "zalando.co.uk", "office.co.uk",
+      "offspring.co.uk", "footasylum.com", "flannels.com",
+      "footpatrol.com", "stockx.com", "goat.com",
     ];
     const seededQueries = TOP_UK_RETAILERS.map(r => `${searchName} site:${r}`);
 
     const [contentResultSets, urlResultSets, seededResultSets] = await Promise.all([
       Promise.all(contentQueries.map(q => doSearchUrls(q, 10))),
       Promise.all(urlQueries.map(q => doSearchUrls(q, 15))),
-      Promise.all(seededQueries.map(q => doSearchUrls(q, 3))),
+      Promise.all(seededQueries.map(q => doSearchUrls(q, 5))),
     ]);
 
     const seenUrls = new Set<string>();
@@ -853,11 +856,16 @@ serve(async (req) => {
       }
     }
 
-    const finalResults = Array.from(byDomain.values())
-      .sort((a, b) => a.totalYouPay - b.totalYouPay)
+    const sorted = Array.from(byDomain.values())
+      .sort((a, b) => a.totalYouPay - b.totalYouPay);
+
+    // ── Price outlier filter: hide results > 60% above cheapest ──
+    const cheapest = sorted[0]?.totalYouPay ?? 0;
+    const cutoff = cheapest * 1.6;
+    const finalResults = (sorted.length >= 3 ? sorted.filter(r => r.totalYouPay <= cutoff) : sorted)
       .map((r, i) => ({ ...r, rank: i + 1 }));
 
-    log(`Final: ${finalResults.length} unique retailers`);
+    log(`Final: ${finalResults.length} unique retailers (cutoff £${cutoff.toFixed(0)})`);
 
     // ── 30-day historical low + chart data ──
     const { low: thirtyDayLow, history: priceHistory } = await getThirtyDayLow(cacheKey);
