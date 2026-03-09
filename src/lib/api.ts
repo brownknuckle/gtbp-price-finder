@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 // IMPORTANT: functions are deployed to our own Supabase project, not Lovable's.
 // Do NOT change this to supabase.functions.invoke() — that calls the wrong project.
 const GTBP_URL = "https://jbftwbduusnjoufsotpq.supabase.co";
-const GTBP_ANON_KEY = "sb_publishable_qgONrr7J4yppfmW3efk9IA_Q9kEX9ki";
+const GTBP_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpiZnR3YmR1dXNuam91ZnNvdHBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxOTYyMDYsImV4cCI6MjA4Nzc3MjIwNn0.tOZMYXjsYZX24KIMM7IalVk3IOCT7BK_zwshYc7jHrI";
 
 async function invokeFunction(name: string, body: Record<string, any>): Promise<any> {
   const res = await fetch(`${GTBP_URL}/functions/v1/${name}`, {
