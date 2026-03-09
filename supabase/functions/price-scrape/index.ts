@@ -338,7 +338,7 @@ current_price_gbp: the current selling/add-to-cart price in GBP.
 
 price_confidence: "high" if price clearly stated in GBP. "low" if converted or uncertain. null if no price found.
 original_price_gbp: the crossed-out/was price if explicitly shown and higher than current price, else null.
-in_stock: true if an "Add to Bag/Cart/Basket" button is visible and not greyed out. false if "Sold Out" or "Out of Stock" shown. null if unclear.
+in_stock: true if the text explicitly says "in stock", "available", "add to bag/cart" or similar positive availability. false if "sold out", "out of stock", "unavailable", or "notify me" shown. null if stock status is not mentioned.
 coupon_code: exact visible promo/discount code text (e.g. "EXTRA10"), null if none visible.
 
 CRITICAL: Never hallucinate prices. Only return a price number if you can see it on the page.
@@ -831,7 +831,7 @@ serve(async (req) => {
         trustRating: getTrustRating(domain),
         currency: "GBP",
         url: cleanUrl(source.url),
-        inStock: aiResult.in_stock === true ? true : null,
+        inStock: aiResult.in_stock === true ? true : aiResult.in_stock === false ? false : null,
         checkedAt: new Date().toISOString(),
         couponCode: isValidCouponCode(aiResult.coupon_code) ? aiResult.coupon_code : null,
         priceConfidence: aiResult.price_confidence || "high",
