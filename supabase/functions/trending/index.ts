@@ -71,13 +71,13 @@ serve(async (req) => {
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     if (!FIRECRAWL_API_KEY) throw new Error("FIRECRAWL_API_KEY not configured");
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     // Search for current trending items
     const searches = [
-      "trending sneakers UK 2025 most popular shoes right now",
-      "trending streetwear clothing UK 2025 most popular fashion",
+      "trending sneakers UK 2026 most popular shoes right now",
+      "trending streetwear clothing UK 2026 most popular fashion",
       "most searched trainers UK this week hypebeast",
     ];
 
@@ -89,89 +89,60 @@ serve(async (req) => {
             Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ query, limit: 5, lang: "en", country: "gb", scrapeOptions: { formats: ["markdown"] } }),
+          body: JSON.stringify({ query, limit: 5, lang: "en", country: "gb" }),
         }).then((r) => r.json()).catch(() => ({ data: [] }))
       )
     );
 
     const content = searchResults
-      .flatMap((r) => (r.data || []).map((d: any) => d.markdown?.slice(0, 600) || d.description || ""))
+      .flatMap((r) => (r.data || []).map((d: any) => d.description || d.markdown?.slice(0, 400) || ""))
+      .filter(Boolean)
       .join("\n---\n");
 
-    // Use AI to extract trending items
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Use Gemini to extract trending items
+    const aiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        messages: [
-          {
-            role: "system",
-            content: `You are a UK fashion & sneaker trend analyst. Given scraped web content about current trends, extract the TOP 8 most trending products right now.
-
-Return a mix of shoes AND clothing/accessories. Each item should be a specific, searchable product name (e.g. "Nike Air Max Dn" not just "Nike trainers").
-
-Focus on:
-- Products that are genuinely trending RIGHT NOW in the UK market
-- New releases, restocks, viral items, and hype drops
-- Mix of price points (high street to luxury)
-- Include brand + model + colourway where possible`,
-          },
+        contents: [
           {
             role: "user",
-            content: `Based on this current trend data, what are the top 8 most trending fashion/footwear products in the UK right now?\n\n${content}`,
+            parts: [{ text: `You are a UK fashion & sneaker trend analyst. Based on the trend data below, identify the TOP 8 most trending fashion/footwear products in the UK right now.
+
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+{"items":[{"name":"Nike Air Max Dn","category":"shoes","emoji":"👟"},{"name":"Stone Island Patch Crewneck","category":"clothing","emoji":"🧥"}]}
+
+Rules:
+- Mix of shoes AND clothing/accessories
+- Specific searchable product names (brand + model + colourway)
+- category must be exactly: "shoes", "clothing", or "accessories"
+- emoji must be a single emoji
+- 8 items total
+
+Trend data:
+${content}` }],
           },
         ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "extract_trending",
-              description: "Extract currently trending fashion and footwear products",
-              parameters: {
-                type: "object",
-                properties: {
-                  items: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        name: { type: "string", description: "Specific product name e.g. 'Nike Air Max Dn'" },
-                        category: { type: "string", enum: ["shoes", "clothing", "accessories"] },
-                        emoji: { type: "string", description: "A single emoji representing the product type, e.g. 👟 🧥 👜" },
-                      },
-                      required: ["name", "category", "emoji"],
-                      additionalProperties: false,
-                    },
-                    minItems: 6,
-                    maxItems: 8,
-                  },
-                },
-                required: ["items"],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "extract_trending" } },
+        generationConfig: { temperature: 0.4, maxOutputTokens: 512 },
       }),
     });
 
     if (!aiResponse.ok) {
       const text = await aiResponse.text();
-      console.error("AI error:", aiResponse.status, text);
+      console.error("Gemini error:", aiResponse.status, text);
       throw new Error("AI trending extraction failed");
     }
 
     const aiData = await aiResponse.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+    const rawText = aiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No trending result from Gemini");
 
-    if (!toolCall?.function?.arguments) throw new Error("No trending result");
-
-    const { items } = JSON.parse(toolCall.function.arguments);
+    const { items } = JSON.parse(jsonMatch[0]);
 
     // Cache results
     await sb.from("price_cache").upsert(
