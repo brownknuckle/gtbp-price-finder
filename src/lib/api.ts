@@ -64,11 +64,17 @@ export async function searchProduct(query: string, imageBase64?: string): Promis
   return data.product;
 }
 
+export interface PriceHistoryPoint {
+  date: string;   // YYYY-MM-DD
+  price: number;  // best total price on that day
+}
+
 export interface ScrapeResponse {
   results: PriceResult[];
   cached: boolean;
   cached_at?: string;
   thirtyDayLow?: number | null;
+  priceHistory?: PriceHistoryPoint[];
 }
 
 export async function scrapePrices(
@@ -89,6 +95,7 @@ export async function scrapePrices(
     cached: !!data.cached,
     cached_at: data.cached_at,
     thirtyDayLow: data.thirtyDayLow ?? null,
+    priceHistory: data.priceHistory ?? [],
   };
 }
 

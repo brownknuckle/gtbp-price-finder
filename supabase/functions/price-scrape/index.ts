@@ -112,11 +112,11 @@ const TRUST_RATINGS: Record<string, number> = {
   "endclothing.com": 4.3, "size.co.uk": 3.9, "offspring.co.uk": 2.2,
   "schuh.co.uk": 2.1, "amazon.co.uk": 1.4, "ebay.co.uk": 1.3,
   "flannels.com": 3.4, "selfridges.com": 1.8, "footasylum.com": 4.5,
-  "sportsdirect.com": 3.1, "office.co.uk": 1.7, "next.co.uk": 4.2,
-  "zalando.co.uk": 2.0, "very.co.uk": 2.8,
+  "sportsdirect.com": 3.1, "office.co.uk": 1.7, "next.co.uk": 4.3,
+  "zalando.co.uk": 2.0, "very.co.uk": 3.8,
   // Sneaker specialist
-  "stockx.com": 4.2, "goat.com": 3.9, "laced.com": 4.3,
-  "klekt.com": 4.0, "thesolesupplier.co.uk": 4.3,
+  "stockx.com": 4.2, "goat.com": 3.9, "laced.com": 4.1,
+  "klekt.com": 3.6, "thesolesupplier.co.uk": 4.3,
   "sneakersnstuff.com": 3.0, "solebox.com": 3.0, "whatsyoursize.co.uk": 4.1,
   "crepsuk.com": 4.0, "samedaytrainers.co.uk": 4.9,
   "fatbuddhastore.com": 4.4, "shucentre.co.uk": 2.8,
@@ -124,6 +124,64 @@ const TRUST_RATINGS: Record<string, number> = {
   "harveynichols.com": 2.0, "mrporter.com": 3.6,
   "matchesfashion.com": 3.8, "farfetch.com": 4.0,
 };
+
+// ─── Delivery times per retailer ─────────────────────────────
+const DELIVERY_TIMES: Record<string, string> = {
+  // Express/next-day capable
+  "asos.com": "1-3 days",
+  "next.co.uk": "1-2 days",
+  "very.co.uk": "2-3 days",
+  // Standard UK retailers
+  "jdsports.co.uk": "2-4 days",
+  "footlocker.co.uk": "3-5 days",
+  "size.co.uk": "2-4 days",
+  "offspring.co.uk": "2-4 days",
+  "schuh.co.uk": "2-4 days",
+  "office.co.uk": "2-4 days",
+  "footasylum.com": "2-4 days",
+  "endclothing.com": "2-4 days",
+  "flannels.com": "2-4 days",
+  "selfridges.com": "2-4 days",
+  "harveynichols.com": "2-4 days",
+  "mrporter.com": "1-3 days",
+  "zalando.co.uk": "2-3 days",
+  "sportsdirect.com": "3-5 days",
+  "tessuti.co.uk": "3-5 days",
+  "whatsyoursize.co.uk": "2-4 days",
+  "thesolesupplier.co.uk": "3-5 days",
+  "laced.com": "2-4 days",
+  "klekt.com": "3-6 days",
+  "crepsuk.com": "2-4 days",
+  "samedaytrainers.co.uk": "same day / next day",
+  // Brand direct
+  "nike.com": "3-5 days",
+  "adidas.co.uk": "3-5 days",
+  "adidas.com": "3-5 days",
+  "newbalance.com": "3-5 days",
+  "converse.com": "3-5 days",
+  "vans.com": "3-5 days",
+  // International resellers
+  "stockx.com": "7-14 days",
+  "goat.com": "7-14 days",
+  "farfetch.com": "3-7 days",
+  "sneakersnstuff.com": "5-10 days",
+  "solebox.com": "5-10 days",
+  "matchesfashion.com": "2-4 days",
+};
+
+function getDeliveryTime(domain: string, isUk: boolean): string {
+  return DELIVERY_TIMES[domain] ?? (isUk ? "2-5 days" : "7-14 days");
+}
+
+// UK Import Duty rules (post-Brexit):
+// - Items under £135: no customs duty (VAT collected at point of sale by retailer)
+// - Items £135+: customs duty applies (~12% footwear/clothing) + 20% VAT on (item + duty)
+// Most compliant international retailers collect UK VAT at checkout, so we only add duty for £135+
+function calculateDuties(itemPrice: number, isUk: boolean): number {
+  if (isUk) return 0;
+  if (itemPrice < 135) return 0; // duty-free threshold
+  return Number((itemPrice * 0.12).toFixed(2)); // ~12% for footwear/clothing
+}
 
 // ─── URL / Domain Helpers ────────────────────────────────────
 function isComparisonSite(url: string): boolean {
@@ -209,6 +267,14 @@ function cleanUrl(url: string): string {
 
 function getTrustRating(domain: string): number | null {
   return TRUST_RATINGS[domain] ?? null;
+}
+
+// Coupon codes must be uppercase alphanumeric, 4-20 chars
+// Rejects AI hallucinations like "EXTRA10OFF at checkout" or full sentences
+function isValidCouponCode(code: string | null | undefined): boolean {
+  if (!code || typeof code !== "string") return false;
+  const trimmed = code.trim();
+  return /^[A-Z0-9_-]{4,20}$/.test(trimmed);
 }
 
 // ─── AI-based price extraction ───────────────────────────────
@@ -432,20 +498,29 @@ serve(async (req) => {
     const genderKey = genderMatch ? `-${genderMatch[0].toLowerCase().replace(/\W/g, "")}` : "";
     const cacheKey = `${searchName.toLowerCase().trim()}${genderKey}${sizeKey}`;
 
-    // Query 30-day historical low from price_history table
-    const getThirtyDayLow = async (key: string): Promise<number | null> => {
+    // Query 30-day historical low + daily history from price_history table
+    const getThirtyDayLow = async (key: string): Promise<{ low: number | null; history: Array<{ date: string; price: number }> }> => {
       try {
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        const { data } = await sb.from("price_history").select("results")
-          .eq("product_key", key).gte("checked_at", thirtyDaysAgo).limit(50);
+        const { data } = await sb.from("price_history").select("results, checked_at")
+          .eq("product_key", key).gte("checked_at", thirtyDaysAgo).order("checked_at", { ascending: true }).limit(100);
         let low: number | null = null;
+        const dayMap = new Map<string, number>(); // date -> best price that day
         for (const row of (data || [])) {
+          const date = (row.checked_at as string).slice(0, 10); // YYYY-MM-DD
           for (const r of (row.results as any[] || [])) {
-            if (typeof r.totalYouPay === "number" && (low === null || r.totalYouPay < low)) low = r.totalYouPay;
+            if (typeof r.totalYouPay === "number") {
+              if (low === null || r.totalYouPay < low) low = r.totalYouPay;
+              const existing = dayMap.get(date);
+              if (existing === undefined || r.totalYouPay < existing) dayMap.set(date, r.totalYouPay);
+            }
           }
         }
-        return low;
-      } catch { return null; }
+        const history = Array.from(dayMap.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, price]) => ({ date, price }));
+        return { low, history };
+      } catch { return { low: null, history: [] }; }
     };
 
     let cachedResults: any[] = [];
@@ -464,8 +539,8 @@ serve(async (req) => {
 
       if (cachedResults.length >= MIN_CACHE_RESULTS) {
         log(`Cache hit for: ${cacheKey}`);
-        const thirtyDayLow = await getThirtyDayLow(cacheKey);
-        return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cachedCreatedAt, thirtyDayLow }), {
+        const { low: thirtyDayLow, history: priceHistory } = await getThirtyDayLow(cacheKey);
+        return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cachedCreatedAt, thirtyDayLow, priceHistory }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -478,7 +553,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
-    // Fast URL-only search — discovers retailer product pages
+    // URL+snippet search — no page scraping, uses search result snippets for price extraction
     const doSearchUrls = async (query: string, limit: number) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 12000);
@@ -494,46 +569,32 @@ serve(async (req) => {
       finally { clearTimeout(timeout); }
     };
 
-    // Individually scrape a URL for full page content (renders JS — gets dynamic prices)
-    const scrapePageContent = async (url: string): Promise<string> => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 18000);
-      try {
-        const r = await fetch("https://api.firecrawl.dev/v1/scrape", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
-        });
-        if (!r.ok) return "";
-        const data = await r.json();
-        return data?.data?.markdown || "";
-      } catch { return ""; }
-      finally { clearTimeout(timeout); }
-    };
-
     log(`Searching for: "${searchName}"`);
 
-    // ── Search queries — URL discovery ──
+    // Content queries — scrape 5 results each to get real prices
+    const contentQueries = [
+      `${searchName} buy UK price £`,
+      `${searchName} site:.co.uk buy in stock`,
+      `${searchName} jdsports size schuh endclothing asos buy`,
+    ];
+
+    // URL queries — broad URL discovery without scraping
+    const urlQueries = [
+      `${searchName} buy new in stock UK`,
+      `${searchName} offspring footlocker nike adidas`,
+      `${searchName} zalando flannels selfridges stockx goat`,
+      `${searchName} office.co.uk schuh footasylum laced`,
+    ];
+
+    // Seeded site-specific queries for guaranteed retailer coverage
     const TOP_UK_RETAILERS = [
-      "jdsports.co.uk", "schuh.co.uk", "size.co.uk",
-      "endclothing.com", "offspring.co.uk", "zalando.co.uk",
-      "flannels.com", "footasylum.com", "footlocker.co.uk",
-      "nike.com", "asos.com", "office.co.uk",
+      "jdsports.co.uk", "nike.com", "size.co.uk",
+      "endclothing.com", "asos.com", "schuh.co.uk",
     ];
     const seededQueries = TOP_UK_RETAILERS.map(r => `${searchName} site:${r}`);
 
-    const urlQueries = [
-      `${searchName} buy UK price £`,
-      `${searchName} site:.co.uk buy in stock`,
-      `${searchName} jdsports size schuh footlocker asos buy`,
-      `${searchName} endclothing stockx goat laced klekt`,
-      `${searchName} buy new in stock UK`,
-      `${searchName} offspring footlocker nike adidas`,
-      `${searchName} zalando flannels selfridges mrporter`,
-    ];
-
-    const [urlResultSets, seededResultSets] = await Promise.all([
+    const [contentResultSets, urlResultSets, seededResultSets] = await Promise.all([
+      Promise.all(contentQueries.map(q => doSearchUrls(q, 10))),
       Promise.all(urlQueries.map(q => doSearchUrls(q, 15))),
       Promise.all(seededQueries.map(q => doSearchUrls(q, 3))),
     ]);
@@ -541,6 +602,15 @@ serve(async (req) => {
     const seenUrls = new Set<string>();
     const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
+    // Content results first — richer data for AI
+    for (const result of contentResultSets) {
+      for (const item of (result.data || [])) {
+        if (item.url && !seenUrls.has(item.url)) {
+          seenUrls.add(item.url);
+          rawCandidates.push({ url: item.url, title: item.title || "", markdown: item.markdown || "", description: item.description || "" });
+        }
+      }
+    }
     for (const result of urlResultSets) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url)) {
@@ -600,42 +670,16 @@ serve(async (req) => {
 
     log(`${colorFilteredCandidates.length} candidates after colour filtering (${candidates.length - colorFilteredCandidates.length} colour conflicts removed)`);
 
-    // ── Individually scrape top candidates to get full page content ──
-    // Pick best candidate per domain (one per retailer), prioritise known UK retailers
-    const PRIORITY_DOMAINS = new Set([
-      "jdsports.co.uk", "nike.com", "size.co.uk", "schuh.co.uk", "asos.com",
-      "footlocker.co.uk", "offspring.co.uk", "endclothing.com", "zalando.co.uk",
-      "flannels.com", "footasylum.com", "office.co.uk", "stockx.com", "goat.com",
-      "laced.com", "klekt.com", "selfridges.com", "harveynichols.com",
-    ]);
-    const seenScrapeDomains = new Set<string>();
-    const toScrape: typeof colorFilteredCandidates = [];
-    // Priority domains first
-    for (const c of colorFilteredCandidates) {
+    // Deduplicate by domain — keep one URL per retailer (the first/best found)
+    const seenDomains = new Set<string>();
+    const enrichedCandidates = colorFilteredCandidates.filter(c => {
       const d = extractDomain(c.url);
-      if (PRIORITY_DOMAINS.has(d) && !seenScrapeDomains.has(d)) {
-        seenScrapeDomains.add(d);
-        toScrape.push(c);
-      }
-    }
-    // Fill remaining slots with other domains
-    for (const c of colorFilteredCandidates) {
-      if (toScrape.length >= 18) break;
-      const d = extractDomain(c.url);
-      if (!seenScrapeDomains.has(d)) {
-        seenScrapeDomains.add(d);
-        toScrape.push(c);
-      }
-    }
+      if (seenDomains.has(d)) return false;
+      seenDomains.add(d);
+      return true;
+    });
 
-    log(`Scraping ${toScrape.length} product pages for full content`);
-    const scrapedMarkdowns = await Promise.all(toScrape.map(c => scrapePageContent(c.url)));
-    const enrichedCandidates = toScrape.map((c, i) => ({
-      ...c,
-      markdown: scrapedMarkdowns[i] || c.markdown || "",
-    }));
-
-    log(`Enriched ${enrichedCandidates.filter(c => c.markdown.length > 100).length}/${enrichedCandidates.length} with full content`);
+    log(`${enrichedCandidates.length} candidates after domain dedup`);
 
     // ── AI extracts and validates prices (parallel batches of 8) ──
     const BATCH_SIZE = 8;
@@ -699,7 +743,7 @@ serve(async (req) => {
         const domain = extractDomain(s.url);
         const uk = isUkDomain(domain);
         const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
-        const duties = uk ? 0 : Number((itemPrice * 0.2).toFixed(2));
+        const duties = calculateDuties(itemPrice, uk);
         regexExtracted.push({
           retailer: retailerNameFromDomain(domain),
           country: uk ? "UK" : "International",
@@ -709,13 +753,13 @@ serve(async (req) => {
           duties,
           totalYouPay: Number((itemPrice + shipping + duties).toFixed(2)),
           originalPrice: null,
-          delivery: uk ? "2-5 days" : "7-14 days",
+          delivery: getDeliveryTime(domain, uk),
           trustRating: getTrustRating(domain),
           currency: "GBP",
           url: cleanUrl(s.url),
           inStock: null,
           checkedAt: new Date().toISOString(),
-          couponCode: null,
+          couponCode: null, // regex fallback never has coupon codes
           priceConfidence: "low",
           retailerTier: AUTHORISED_RETAILERS.has(domain) ? "authorised"
             : TRUST_RATINGS[domain] ? "trusted"
@@ -741,8 +785,8 @@ serve(async (req) => {
           { product_key: cacheKey, results: fallbackResults, product_info: { product_name, retailers: normalizedRetailers } },
           { onConflict: "product_key" }
         ).then(({ error }) => { if (error) console.error("Cache write error:", error); });
-        const thirtyDayLow = await getThirtyDayLow(cacheKey);
-        return new Response(JSON.stringify({ success: true, results: fallbackResults, thirtyDayLow }), {
+        const { low: thirtyDayLow, history: priceHistory } = await getThirtyDayLow(cacheKey);
+        return new Response(JSON.stringify({ success: true, results: fallbackResults, thirtyDayLow, priceHistory }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } else {
@@ -769,7 +813,7 @@ serve(async (req) => {
       const domain = extractDomain(source.url);
       const uk = isUkDomain(domain);
       const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
-      const duties = uk ? 0 : Number((itemPrice * 0.2).toFixed(2));
+      const duties = calculateDuties(itemPrice, uk);
       const totalYouPay = Number((itemPrice + shipping + duties).toFixed(2));
 
       extracted.push({
@@ -783,13 +827,13 @@ serve(async (req) => {
         originalPrice: (aiResult.original_price_gbp && aiResult.original_price_gbp > itemPrice
           && (!estimated_retail_price || aiResult.original_price_gbp <= estimated_retail_price * 1.3))
           ? aiResult.original_price_gbp : null,
-        delivery: uk ? "2-5 days" : "7-14 days",
+        delivery: getDeliveryTime(domain, uk),
         trustRating: getTrustRating(domain),
         currency: "GBP",
         url: cleanUrl(source.url),
         inStock: aiResult.in_stock === true ? true : null,
         checkedAt: new Date().toISOString(),
-        couponCode: aiResult.coupon_code || null,
+        couponCode: isValidCouponCode(aiResult.coupon_code) ? aiResult.coupon_code : null,
         priceConfidence: aiResult.price_confidence || "high",
         retailerTier: AUTHORISED_RETAILERS.has(domain) ? "authorised"
           : TRUST_RATINGS[domain] ? "trusted"
@@ -815,8 +859,8 @@ serve(async (req) => {
 
     log(`Final: ${finalResults.length} unique retailers`);
 
-    // ── 30-day historical low ──
-    const thirtyDayLow = await getThirtyDayLow(cacheKey);
+    // ── 30-day historical low + chart data ──
+    const { low: thirtyDayLow, history: priceHistory } = await getThirtyDayLow(cacheKey);
 
     // ── Price history (fire-and-forget) ──
     if (finalResults.length > 0) {
@@ -832,7 +876,7 @@ serve(async (req) => {
     // Return stale cache if fresh results are worse
     if (finalResults.length < MIN_CACHE_RESULTS && cachedResults.length > finalResults.length) {
       log(`Returning stale cache`);
-      return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, stale: true, thirtyDayLow }), {
+      return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, stale: true, thirtyDayLow, priceHistory }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -847,7 +891,7 @@ serve(async (req) => {
         .then(({ error }) => { if (error) console.error("Cache write error:", error); });
     }
 
-    return new Response(JSON.stringify({ success: true, results: finalResults, thirtyDayLow }), {
+    return new Response(JSON.stringify({ success: true, results: finalResults, thirtyDayLow, priceHistory }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

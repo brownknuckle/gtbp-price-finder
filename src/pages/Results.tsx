@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Star, Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag, ShieldCheck, Search } from "lucide-react";
+import { Star, Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag, ShieldCheck, Search, SlidersHorizontal } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
-import { scrapePrices, searchProduct, type PriceResult, type ProductInfo } from "@/lib/api";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { scrapePrices, searchProduct, type PriceResult, type ProductInfo, type PriceHistoryPoint } from "@/lib/api";
 import { analytics } from "@/lib/analytics";
 import { toAffiliateUrl } from "@/lib/affiliate";
 import { useToast } from "@/hooks/use-toast";
@@ -31,9 +32,14 @@ const Results = () => {
   const [results, setResults] = useState<PriceResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [domesticOnly, setDomesticOnly] = useState(false);
+  const [inStockOnly, setInStockOnly] = useState(false);
+  const [freeReturnsOnly, setFreeReturnsOnly] = useState(false);
+  const [maxPrice, setMaxPrice] = useState<string>("");
+  const [showFilters, setShowFilters] = useState(false);
   const [newSearch, setNewSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("price");
   const fetchedRef = useRef(false);
+  const prevQueryRef = useRef(query);
   const [activeRetailer, setActiveRetailer] = useState(0);
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<"identifying" | "scraping" | "done">("identifying");
@@ -41,6 +47,7 @@ const Results = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dataSource, setDataSource] = useState<{ cached: boolean; cached_at?: string } | null>(null);
   const [thirtyDayLow, setThirtyDayLow] = useState<number | null>(null);
+  const [priceHistory, setPriceHistory] = useState<PriceHistoryPoint[]>([]);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
 
@@ -65,6 +72,7 @@ const Results = () => {
       setResults(resp.results);
       setDataSource({ cached: false });
       if (resp.thirtyDayLow != null) setThirtyDayLow(resp.thirtyDayLow);
+      if (resp.priceHistory) setPriceHistory(resp.priceHistory);
       toast({ title: "Prices refreshed", description: `Found ${resp.results.length} results.` });
     } catch (e: any) {
       toast({ title: "Refresh failed", description: e.message || "Try again.", variant: "destructive" });
@@ -73,6 +81,7 @@ const Results = () => {
       setIsRefreshing(false);
     }
   }, [product, stateSizing, isRefreshing, toast]);
+
   // Dynamic page title
   useEffect(() => {
     const title = product?.product_name
@@ -82,25 +91,62 @@ const Results = () => {
     return () => { document.title = "GTBP — Get The Best Price | Compare UK Prices Instantly"; };
   }, [product]);
 
+  // JSON-LD structured data for product results
   useEffect(() => {
+    if (!product || results.length === 0) return;
+    const byPrice = [...results].sort((a, b) => a.itemPrice - b.itemPrice);
+    const ld = {
+      "@context": "https://schema.org/",
+      "@type": "Product",
+      "name": product.product_name,
+      "brand": { "@type": "Brand", "name": product.brand },
+      "offers": {
+        "@type": "AggregateOffer",
+        "lowPrice": byPrice[0].itemPrice.toFixed(2),
+        "highPrice": byPrice[byPrice.length - 1].itemPrice.toFixed(2),
+        "priceCurrency": "GBP",
+        "offerCount": results.length,
+      },
+    };
+    const existing = document.getElementById("gtbp-product-ld");
+    if (existing) existing.remove();
+    const script = document.createElement("script");
+    script.type = "application/ld+json";
+    script.id = "gtbp-product-ld";
+    script.text = JSON.stringify(ld);
+    document.head.appendChild(script);
+    return () => { document.getElementById("gtbp-product-ld")?.remove(); };
+  }, [product, results]);
+
+  // Fetch prices — re-runs when query changes (fixes stale results bug)
+  useEffect(() => {
+    // If query changed mid-session, reset and refetch
+    if (query !== prevQueryRef.current) {
+      prevQueryRef.current = query;
+      fetchedRef.current = false;
+      setProduct(stateProduct);
+      setResults([]);
+      setDataSource(null);
+      setThirtyDayLow(null);
+      setPriceHistory([]);
+      setImageError(false);
+      setPhase("identifying");
+      setProgress(0);
+    }
+
     if (fetchedRef.current) return;
     fetchedRef.current = true;
 
     const run = async () => {
       setIsLoading(true);
       try {
-        // If no product from navigation state, fetch it from the query
-        let prod = product;
+        let prod = product ?? stateProduct;
         if (!prod) {
-          if (!query) {
-            navigate("/");
-            return;
-          }
+          if (!query) { navigate("/"); return; }
           setPhase("identifying");
           prod = await searchProduct(query);
           setProduct(prod);
         }
-
         setPhase("scraping");
         setProgress(5);
         const sizeStr = stateSizing ? ` ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}` : "";
@@ -110,6 +156,7 @@ const Results = () => {
         setResults(resp.results);
         setDataSource({ cached: resp.cached, cached_at: resp.cached_at });
         if (resp.thirtyDayLow != null) setThirtyDayLow(resp.thirtyDayLow);
+        if (resp.priceHistory) setPriceHistory(resp.priceHistory);
         analytics.viewResults(prod.product_name, resp.results.length);
       } catch (e: any) {
         toast({
@@ -123,7 +170,7 @@ const Results = () => {
     };
 
     run();
-  }, []);
+  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Simulate progress ticking while scraping
   useEffect(() => {
@@ -134,7 +181,7 @@ const Results = () => {
     return () => clearInterval(interval);
   }, [isLoading, phase]);
 
-  // Cycle through retailer names
+  // Cycle through retailer names during scraping
   useEffect(() => {
     if (!isLoading || !product?.retailers?.length || phase !== "scraping") return;
     const interval = setInterval(() => {
@@ -144,25 +191,27 @@ const Results = () => {
   }, [isLoading, product, phase]);
 
   const domesticCountries = ["UK", "United Kingdom", "GB"];
+  const maxPriceNum = maxPrice ? parseFloat(maxPrice) : null;
 
   const filtered = results.filter((r) => {
-    if (!domesticOnly) return true;
-    return domesticCountries.some((c) => r.country?.toLowerCase() === c.toLowerCase()) || r.flag === "🇬🇧";
+    if (domesticOnly && !domesticCountries.some((c) => r.country?.toLowerCase() === c.toLowerCase()) && r.flag !== "🇬🇧") return false;
+    if (inStockOnly && r.inStock !== true) return false;
+    if (freeReturnsOnly && !r.freeReturns) return false;
+    if (maxPriceNum != null && r.totalYouPay > maxPriceNum) return false;
+    return true;
   });
 
   const sorted = [...filtered].sort((a, b) => {
     if (sortBy === "price") return a.totalYouPay - b.totalYouPay;
     if (sortBy === "delivery") {
-      // Parse delivery strings like "2-4 days" — sort by first number found
-      const parseDelivery = (d: string) => {
-        const m = d.match(/(\d+)/);
-        return m ? parseInt(m[1], 10) : 999;
-      };
+      const parseDelivery = (d: string) => { const m = d.match(/(\d+)/); return m ? parseInt(m[1], 10) : 999; };
       return parseDelivery(a.delivery) - parseDelivery(b.delivery);
     }
     if (sortBy === "trust") return (b.trustRating ?? 0) - (a.trustRating ?? 0);
     return 0;
   });
+
+  const activeFilterCount = [domesticOnly, inStockOnly, freeReturnsOnly, !!maxPrice].filter(Boolean).length;
 
   return (
     <PageTransition>
@@ -189,15 +238,10 @@ const Results = () => {
 
         {/* Header */}
         <div className="mb-6 flex items-start gap-4">
-          {/* Product image */}
           {product?.image_url && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="shrink-0"
-            >
-               <div className="h-28 w-28 sm:h-36 sm:w-36 overflow-hidden rounded-2xl border bg-secondary flex items-center justify-center">
-                {product.image_url && !imageError ? (
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="shrink-0">
+              <div className="h-28 w-28 sm:h-36 sm:w-36 overflow-hidden rounded-2xl border bg-secondary flex items-center justify-center">
+                {!imageError ? (
                   <img
                     src={product.image_url}
                     alt={product.product_name}
@@ -212,9 +256,7 @@ const Results = () => {
             </motion.div>
           )}
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-foreground">
-              {product?.product_name || query}
-            </h1>
+            <h1 className="text-xl font-bold text-foreground">{product?.product_name || query}</h1>
             <p className="text-sm text-muted-foreground">
               {product?.brand} · {product?.category}
               {stateSizing && ` · ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}`}
@@ -222,13 +264,7 @@ const Results = () => {
           </div>
           {product && !isLoading && (
             <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={refreshResults}
-                disabled={isRefreshing}
-              >
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={refreshResults} disabled={isRefreshing}>
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
@@ -238,12 +274,7 @@ const Results = () => {
                 className="gap-1.5"
                 onClick={() => {
                   if (!isInWatchlist(product.product_name)) {
-                    addToWatchlist({
-                      product_name: product.product_name,
-                      brand: product.brand,
-                      category: product.category,
-                      best_price: sorted[0]?.totalYouPay,
-                    });
+                    addToWatchlist({ product_name: product.product_name, brand: product.brand, category: product.category, best_price: sorted[0]?.totalYouPay });
                     analytics.addWatchlist(product.product_name);
                   }
                 }}
@@ -259,27 +290,21 @@ const Results = () => {
         {/* Controls */}
         {!isLoading && results.length > 0 && (
           <div className="mb-4 space-y-3">
-            {/* Freshness badge */}
+            {/* Freshness + stock count */}
             {dataSource && (() => {
-              const inStockCount = sorted.filter(r => r.inStock === true).length;
+              const inStockCount = results.filter(r => r.inStock === true).length;
               const ageLabel = dataSource.cached_at
-                ? (() => {
-                    const mins = Math.round((Date.now() - new Date(dataSource.cached_at).getTime()) / 60000);
-                    return mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
-                  })()
+                ? (() => { const mins = Math.round((Date.now() - new Date(dataSource.cached_at).getTime()) / 60000); return mins < 1 ? "just now" : mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`; })()
                 : "";
               return (
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant={dataSource.cached ? "secondary" : "default"} className="text-[10px] gap-1">
                     {dataSource.cached ? `🕐 Prices from ${ageLabel}` : "⚡ Live prices"}
                   </Badge>
-                  <span className="text-[10px] text-muted-foreground">
-                    {sorted.length} retailer{sorted.length !== 1 ? "s" : ""}
-                  </span>
+                  <span className="text-[10px] text-muted-foreground">{results.length} retailer{results.length !== 1 ? "s" : ""}</span>
                   {inStockCount > 0 && (
                     <span className="flex items-center gap-0.5 text-[10px] font-medium text-green-600">
-                      <CheckCircle2 className="h-3 w-3" />
-                      {inStockCount} verified in stock
+                      <CheckCircle2 className="h-3 w-3" />{inStockCount} verified in stock
                     </span>
                   )}
                 </div>
@@ -291,61 +316,130 @@ const Results = () => {
               const bestNow = sorted[0].totalYouPay;
               const isAtLow = bestNow <= thirtyDayLow * 1.03;
               return (
-                <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${
-                  isAtLow
-                    ? "border-green-200 bg-green-50 text-green-700"
-                    : "border-amber-200 bg-amber-50 text-amber-700"
-                }`}>
+                <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${isAtLow ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
                   {isAtLow ? "📉 At 30-day low price" : `📊 30-day low was £${thirtyDayLow.toFixed(2)}`}
                 </div>
               );
             })()}
 
-            <div className="flex flex-wrap items-center justify-between gap-4">
+            {/* Price history chart */}
+            {priceHistory.length >= 2 && (
+              <div className="rounded-xl border bg-card p-3">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">30-day price history</p>
+                <ResponsiveContainer width="100%" height={72}>
+                  <AreaChart data={priceHistory} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" hide />
+                    <YAxis hide domain={["auto", "auto"]} />
+                    <Tooltip
+                      contentStyle={{ fontSize: 11, padding: "4px 8px", borderRadius: 6 }}
+                      formatter={(v: number) => [`£${v.toFixed(2)}`, "Best price"]}
+                      labelFormatter={(l: string) => new Date(l).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                    />
+                    <Area type="monotone" dataKey="price" stroke="hsl(var(--primary))" fill="url(#priceGrad)" strokeWidth={2} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Sort + filter controls */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* UK toggle */}
               <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
-                <span className={`text-xs font-medium transition-colors ${!domesticOnly ? "text-foreground" : "text-muted-foreground"}`}>
-                  🌍 All Retailers
-                </span>
+                <span className={`text-xs font-medium transition-colors ${!domesticOnly ? "text-foreground" : "text-muted-foreground"}`}>🌍 All</span>
                 <Switch checked={domesticOnly} onCheckedChange={setDomesticOnly} />
-                <span className={`text-xs font-medium transition-colors ${domesticOnly ? "text-foreground" : "text-muted-foreground"}`}>
-                  🇬🇧 UK Only
-                </span>
+                <span className={`text-xs font-medium transition-colors ${domesticOnly ? "text-foreground" : "text-muted-foreground"}`}>🇬🇧 UK Only</span>
               </div>
 
-              <div className="flex gap-1 rounded-full border border-border bg-card p-0.5">
-                {([
-                  ["price", "💰 Cheapest"],
-                  ["delivery", "🚚 Fastest"],
-                  ["trust", "⭐ Most Trusted"],
-                ] as const).map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => setSortBy(key)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                      sortBy === key
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                {/* Sort pills */}
+                <div className="flex gap-1 rounded-full border border-border bg-card p-0.5">
+                  {([["price", "💰 Cheapest"], ["delivery", "🚚 Fastest"], ["trust", "⭐ Trusted"]] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setSortBy(key)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${sortBy === key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Filter toggle */}
+                <button
+                  onClick={() => setShowFilters((v) => !v)}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${showFilters || activeFilterCount > 0 ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
+                >
+                  <SlidersHorizontal className="h-3 w-3" />
+                  Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+                </button>
               </div>
             </div>
+
+            {/* Expanded filter panel */}
+            <AnimatePresence>
+              {showFilters && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex flex-wrap gap-3 rounded-xl border bg-card px-4 py-3">
+                    <label className="flex cursor-pointer items-center gap-2 text-xs font-medium">
+                      <input type="checkbox" checked={inStockOnly} onChange={(e) => setInStockOnly(e.target.checked)} className="rounded" />
+                      In Stock Only
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-2 text-xs font-medium">
+                      <input type="checkbox" checked={freeReturnsOnly} onChange={(e) => setFreeReturnsOnly(e.target.checked)} className="rounded" />
+                      Free Returns Only
+                    </label>
+                    <label className="flex items-center gap-2 text-xs font-medium">
+                      Max price £
+                      <input
+                        type="number"
+                        value={maxPrice}
+                        onChange={(e) => setMaxPrice(e.target.value)}
+                        placeholder="e.g. 120"
+                        className="w-20 rounded-md border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </label>
+                    {activeFilterCount > 0 && (
+                      <button
+                        onClick={() => { setInStockOnly(false); setFreeReturnsOnly(false); setMaxPrice(""); }}
+                        className="text-xs text-muted-foreground underline hover:text-foreground"
+                      >
+                        Clear filters
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Filtered count if filters active */}
+            {activeFilterCount > 0 && filtered.length !== results.length && (
+              <p className="text-[10px] text-muted-foreground">
+                Showing {filtered.length} of {results.length} retailers matching filters
+              </p>
+            )}
           </div>
         )}
 
-        {/* Loading – identifying phase: centered spinner */}
+        {/* Loading – identifying phase */}
         {isLoading && phase === "identifying" && (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="mb-4 h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm font-medium text-muted-foreground">
-              Identifying product…
-            </p>
+            <p className="text-sm font-medium text-muted-foreground">Identifying product…</p>
           </div>
         )}
 
-        {/* Loading – scraping phase: progress bar + skeleton cards */}
+        {/* Loading – scraping phase */}
         {isLoading && phase === "scraping" && (
           <>
             <div className="mb-5 rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -353,35 +447,21 @@ const Results = () => {
                 <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-sm font-medium text-foreground">
-                      Searching {product?.retailers?.length || 0} retailers…
-                    </p>
+                    <p className="text-sm font-medium text-foreground">Searching {product?.retailers?.length || 0} retailers…</p>
                     <span className="text-xs text-muted-foreground">{Math.round(progress)}%</span>
                   </div>
                   <Progress value={progress} className="h-1.5" />
                   <AnimatePresence mode="wait">
-                    <motion.p
-                      key={activeRetailer}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="mt-1.5 text-xs text-muted-foreground/70"
-                    >
+                    <motion.p key={activeRetailer} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="mt-1.5 text-xs text-muted-foreground/70">
                       Checking {product?.retailers?.[activeRetailer] || "retailers"}…
                     </motion.p>
                   </AnimatePresence>
                 </div>
               </div>
             </div>
-
             <div className="space-y-3">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="w-full rounded-xl border p-4"
-                  style={{ opacity: 1 - i * 0.15 }}
-                >
+                <div key={i} className="w-full rounded-xl border p-4" style={{ opacity: 1 - i * 0.15 }}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
                       <Skeleton className="h-8 w-8 rounded-full" />
@@ -436,7 +516,7 @@ const Results = () => {
                   setProgress(5);
                   if (product) {
                     scrapePrices(product.product_name, product.retailers, true, product.estimated_retail_price)
-                      .then((resp) => { setResults(resp.results); setDataSource({ cached: resp.cached, cached_at: resp.cached_at }); })
+                      .then((resp) => { setResults(resp.results); setDataSource({ cached: resp.cached, cached_at: resp.cached_at }); if (resp.priceHistory) setPriceHistory(resp.priceHistory); })
                       .catch((e: any) => { toast({ title: "Retry failed", description: e.message || "Please try again.", variant: "destructive" }); })
                       .finally(() => setIsLoading(false));
                   }
@@ -444,9 +524,7 @@ const Results = () => {
               >
                 Retry Search
               </Button>
-              <Button variant="outline" onClick={() => navigate("/")}>
-                New Search
-              </Button>
+              <Button variant="outline" onClick={() => navigate("/")}>New Search</Button>
             </div>
           </div>
         )}
@@ -460,9 +538,7 @@ const Results = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08, duration: 0.35, ease: "easeOut" }}
               whileHover={{ scale: 1.01, y: -2 }}
-              className={`w-full rounded-xl border p-4 text-left transition-shadow hover:shadow-md ${
-                i === 0 ? "border-primary/30 bg-primary/5 shadow-sm" : ""
-              }`}
+              className={`w-full rounded-xl border p-4 text-left transition-shadow hover:shadow-md ${i === 0 ? "border-primary/30 bg-primary/5 shadow-sm" : ""}`}
               style={{ opacity: i === 0 ? 1 : 1 - i * 0.06 }}
             >
               <div className="flex items-start justify-between gap-4">
@@ -472,14 +548,8 @@ const Results = () => {
                   </span>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-foreground">
-                        {r.flag} {r.retailer}
-                      </span>
-                      {i === 0 && (
-                        <Badge className="bg-primary text-primary-foreground">
-                          Best Price
-                        </Badge>
-                      )}
+                      <span className="font-semibold text-foreground">{r.flag} {r.retailer}</span>
+                      {i === 0 && <Badge className="bg-primary text-primary-foreground">Best Price</Badge>}
                       {r.originalPrice && r.originalPrice > r.itemPrice && (
                         <Badge variant="destructive" className="text-[10px]">
                           {Math.round((1 - r.itemPrice / r.originalPrice) * 100)}% Off
@@ -501,13 +571,11 @@ const Results = () => {
                         </span>
                       )}
                       {r.retailerTier === "unverified" && (
-                        <span className="text-[10px] text-amber-600">⚠ Unverified seller</span>
+                        <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">⚠ Unverified seller</span>
                       )}
                     </div>
                     {r.checkedAt && (
-                      <p className="mt-0.5 text-[10px] text-muted-foreground/60">
-                        Checked {formatCheckedTime(r.checkedAt)}
-                      </p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground/60">Checked {formatCheckedTime(r.checkedAt)}</p>
                     )}
                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                       {r.originalPrice && r.originalPrice > r.itemPrice && (
@@ -552,10 +620,8 @@ const Results = () => {
 
                 <div className="flex flex-col items-end gap-2">
                   <div>
-                    <p className="text-xs text-muted-foreground">Total You Pay</p>
-                    <p className="text-2xl font-extrabold text-primary">
-                      £{r.totalYouPay.toFixed(2)}
-                    </p>
+                    <p className="text-xs text-muted-foreground">Total</p>
+                    <p className="text-2xl font-extrabold text-primary">£{r.totalYouPay.toFixed(2)}</p>
                   </div>
                   <Button
                     size="sm"
@@ -572,8 +638,7 @@ const Results = () => {
                       } catch {}
                     }}
                   >
-                    Buy Now
-                    <ExternalLink className="h-3 w-3" />
+                    Buy Now <ExternalLink className="h-3 w-3" />
                   </Button>
                 </div>
               </div>
