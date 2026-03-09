@@ -99,37 +99,34 @@ serve(async (req) => {
       .filter(Boolean)
       .join("\n---\n");
 
-    // Use Gemini to extract trending items
+    // Use Gemini to extract trending items (OpenAI-compatible endpoint, same as price-scrape)
     const aiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: `You are a UK fashion & sneaker trend analyst. Based on the trend data below, identify the TOP 8 most trending fashion/footwear products in the UK right now.
-
-Return ONLY valid JSON in this exact format (no markdown, no explanation):
-{"items":[{"name":"Nike Air Max Dn","category":"shoes","emoji":"👟"},{"name":"Stone Island Patch Crewneck","category":"clothing","emoji":"🧥"}]}
-
-Rules:
-- Mix of shoes AND clothing/accessories
-- Specific searchable product names (brand + model + colourway)
-- category must be exactly: "shoes", "clothing", or "accessories"
-- emoji must be a single emoji
-- 8 items total
-
-Trend data:
-${content}` }],
-          },
-        ],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 512 },
-      }),
-    });
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${GEMINI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gemini-2.5-flash",
+          temperature: 0.4,
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content: `You are a UK fashion & sneaker trend analyst. Return ONLY valid JSON with this exact shape:
+{"items":[{"name":"Nike Air Max Dn","category":"shoes","emoji":"👟"}]}
+Rules: mix shoes + clothing/accessories, specific product names (brand + model + colourway), category must be "shoes"|"clothing"|"accessories", single emoji, exactly 8 items.`,
+            },
+            {
+              role: "user",
+              content: `Identify the top 8 trending fashion/footwear products in the UK right now based on this data:\n\n${content || "No trend data available — use your knowledge of current UK streetwear trends."}`,
+            },
+          ],
+        }),
+      }
+    );
 
     if (!aiResponse.ok) {
       const text = await aiResponse.text();
@@ -138,7 +135,7 @@ ${content}` }],
     }
 
     const aiData = await aiResponse.json();
-    const rawText = aiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const rawText = aiData.choices?.[0]?.message?.content ?? "";
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No trending result from Gemini");
 
