@@ -246,8 +246,12 @@ function isUkDomain(domain: string): boolean {
 
 function isKidsProduct(url: string, text: string): boolean {
   if (KIDS_PATH_PATTERNS.some((p) => p.test(url))) return true;
-  const titleArea = text.slice(0, 300).toLowerCase();
-  return /\b(toddler|infant|kids?|junior|youth|children'?s?)\b/.test(titleArea);
+  const titleArea = text.slice(0, 500).toLowerCase();
+  // Standard keywords
+  if (/\b(toddler|infant|kids?|junior|youth|children'?s?|grade\s*school|preschool)\b/.test(titleArea)) return true;
+  // Common retailer-specific patterns: "(J)", "Juniors", "Junior Sizes", "GS", size ranges like "3Y-7Y"
+  if (/\(j(unior)?\)|\bjuniors?\b|size\s*[0-9]+y\b|\b[0-9]y\s*-/.test(titleArea)) return true;
+  return false;
 }
 
 function isSecondhand(url: string, text: string): boolean {
@@ -378,11 +382,15 @@ Return ONLY a raw JSON array (no markdown, no explanation):
       }
     }
 
-    const valid = allResults.filter((r: any) =>
-      r.is_correct_product &&
-      r.in_stock !== false &&
-      typeof r.current_price_gbp === "number"
-    );
+    const valid = allResults.filter((r: any) => {
+      if (!r.is_correct_product) return false;
+      if (r.in_stock === false) return false;
+      if (typeof r.current_price_gbp !== "number") return false;
+      // Price sanity: if we know the retail price, reject anything below 60% of it
+      // (likely a junior/GS version or wrong product)
+      if (estimatedRrp && r.current_price_gbp < estimatedRrp * 0.6) return false;
+      return true;
+    });
 
     log(`AI returned ${allResults.length} total, ${valid.length} valid.`);
 
@@ -572,33 +580,24 @@ serve(async (req) => {
     log(`Searching for: "${searchName}"`);
 
     // Content queries — scrape 5 results each to get real prices
-    const contentQueries = [
-      `${searchName} buy UK price £`,
-      `${searchName} site:.co.uk buy in stock`,
-      `${searchName} jdsports size schuh endclothing asos buy`,
+    // ── Search strategy: ~60 credits total (fits 50 searches/month on Hobby plan) ──
+    // Broad queries (4 × 10 = 40 credits) — best signal, retailer names inline
+    const broadQueries = [
+      `${searchName} buy UK price`,
+      `${searchName} jdsports size.co.uk schuh offspring footlocker buy`,
+      `${searchName} zalando office endclothing asos flannels buy`,
+      `${searchName} stockx goat laced footpatrol sneakersnstuff buy`,
+    ];
+    // Retailer-seeded queries (4 × 5 = 20 credits) — for top 4 retailers specifically
+    const seededQueries = [
+      `${searchName} nike.com buy`,
+      `${searchName} jdsports.co.uk buy`,
+      `${searchName} size.co.uk buy`,
+      `${searchName} schuh.co.uk buy`,
     ];
 
-    // URL queries — broad URL discovery without scraping
-    const urlQueries = [
-      `${searchName} buy new in stock UK`,
-      `${searchName} offspring footlocker nike adidas`,
-      `${searchName} zalando flannels selfridges stockx goat`,
-      `${searchName} office.co.uk schuh footasylum laced`,
-    ];
-
-    // Seeded site-specific queries for guaranteed retailer coverage
-    const TOP_UK_RETAILERS = [
-      "jdsports.co.uk", "nike.com", "size.co.uk",
-      "endclothing.com", "asos.com", "schuh.co.uk",
-      "footlocker.co.uk", "zalando.co.uk", "office.co.uk",
-      "offspring.co.uk", "footasylum.com", "flannels.com",
-      "footpatrol.com", "stockx.com", "goat.com",
-    ];
-    const seededQueries = TOP_UK_RETAILERS.map(r => `${searchName} site:${r}`);
-
-    const [contentResultSets, urlResultSets, seededResultSets] = await Promise.all([
-      Promise.all(contentQueries.map(q => doSearchUrls(q, 10))),
-      Promise.all(urlQueries.map(q => doSearchUrls(q, 15))),
+    const [broadResultSets, seededResultSets] = await Promise.all([
+      Promise.all(broadQueries.map(q => doSearchUrls(q, 10))),
       Promise.all(seededQueries.map(q => doSearchUrls(q, 5))),
     ]);
 
@@ -606,27 +605,11 @@ serve(async (req) => {
     const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
     // Content results first — richer data for AI
-    for (const result of contentResultSets) {
+    for (const result of [...broadResultSets, ...seededResultSets]) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
           rawCandidates.push({ url: item.url, title: item.title || "", markdown: item.markdown || "", description: item.description || "" });
-        }
-      }
-    }
-    for (const result of urlResultSets) {
-      for (const item of (result.data || [])) {
-        if (item.url && !seenUrls.has(item.url)) {
-          seenUrls.add(item.url);
-          rawCandidates.push({ url: item.url, title: item.title || "", markdown: "", description: item.description || "" });
-        }
-      }
-    }
-    for (const result of seededResultSets) {
-      for (const item of (result.data || [])) {
-        if (item.url && !seenUrls.has(item.url)) {
-          seenUrls.add(item.url);
-          rawCandidates.push({ url: item.url, title: item.title || "", markdown: "", description: item.description || "" });
         }
       }
     }
