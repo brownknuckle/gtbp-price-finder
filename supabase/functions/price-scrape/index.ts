@@ -693,6 +693,10 @@ serve(async (req) => {
       const domain = extractDomain(s.url);
       if (!domain || NON_RETAIL_DOMAINS.some((p) => p.test(domain))) return false;
       if (BLOCKED_DOMAINS.has(domain)) return false;
+      // Only accept URLs from the requested retailer domains — eliminates editorial
+      // sites, aggregators, and off-list retailers in a single check
+      const baseDomain = domain.replace(/^(uk|gb|us|eu|de|fr|m)\./i, "");
+      if (!normalizedRetailers.some(r => domain === r || baseDomain === r)) return false;
       if (!isLikelyProductPage(s.url)) return false;
       if (isKidsProduct(s.url, s.title + " " + s.description)) return false;
       if (isSecondhand(s.url, s.title + " " + s.description)) return false;
