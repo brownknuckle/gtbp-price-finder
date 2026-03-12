@@ -439,7 +439,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { product_name, retailers: retailersInput, skip_cache, estimated_retail_price } = body;
+    const { product_name, retailers: retailersInput, skip_cache, estimated_retail_price, gender } = body;
     let retailers = retailersInput;
 
     // Input validation
@@ -634,10 +634,13 @@ serve(async (req) => {
 
     log(`Found ${rawCandidates.length} unique URLs`);
 
-    // Extract gender intent from product name for URL-level filtering
-    const genderRaw = product_name.match(/\b(men'?s?|women'?s?)\b/i)?.[0]?.toLowerCase() ?? "";
-    const wantsMens = !!genderRaw && genderRaw.startsWith("men") && !genderRaw.startsWith("women");
-    const wantsWomens = !!genderRaw && genderRaw.startsWith("women");
+    // Extract gender intent — prefer explicit param, fall back to product name
+    const genderParam = (gender as string | undefined)?.toLowerCase().trim();
+    const genderFromName = product_name.match(/\b(men'?s?|women'?s?)\b/i)?.[0]?.toLowerCase() ?? "";
+    const wantsMens = genderParam === "men" || genderParam === "male"
+      || (!genderParam && !!genderFromName && genderFromName.startsWith("men") && !genderFromName.startsWith("women"));
+    const wantsWomens = genderParam === "women" || genderParam === "female"
+      || (!genderParam && !!genderFromName && genderFromName.startsWith("women"));
 
     // Filter to clean product pages only
     const candidates = rawCandidates.filter((s) => {
@@ -652,8 +655,8 @@ serve(async (req) => {
       if (/\/(us|au|ca|de|fr|it|es|nl)\//.test(s.url) && !s.url.includes(".co.uk")) return false;
       // Gender filtering — reject opposite-gender URLs
       const urlLower = s.url.toLowerCase();
-      if (wantsMens && /\/womens?[-_]|[-_]womens?[-_]|\/women\//.test(urlLower)) return false;
-      if (wantsWomens && /\/mens?[-_]|[-_]mens?[-_]|\/men\//.test(urlLower)) return false;
+      if (wantsMens && /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|-w-|[-_]wmns/.test(urlLower)) return false;
+      if (wantsWomens && /\/mens?[-_/]|[-_]mens?[-_/]|\/men\//.test(urlLower)) return false;
       return true;
     });
 

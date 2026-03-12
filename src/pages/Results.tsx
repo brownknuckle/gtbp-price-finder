@@ -66,7 +66,7 @@ const Results = () => {
     setProgress(5);
     try {
       const sizeStr = stateSizing ? ` ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}` : "";
-      const resp = await scrapePrices(product.product_name + sizeStr, product.retailers, true, product.estimated_retail_price);
+      const resp = await scrapePrices(product.product_name + sizeStr, product.retailers, true, product.estimated_retail_price, stateSizing?.gender?.toLowerCase() as "men" | "women" | "unisex" | undefined);
       setPhase("done");
       setProgress(100);
       setResults(resp.results);
@@ -150,7 +150,7 @@ const Results = () => {
         setPhase("scraping");
         setProgress(5);
         const sizeStr = stateSizing ? ` ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}` : "";
-        const resp = await scrapePrices(prod.product_name + sizeStr, prod.retailers, false, prod.estimated_retail_price);
+        const resp = await scrapePrices(prod.product_name + sizeStr, prod.retailers, false, prod.estimated_retail_price, stateSizing?.gender?.toLowerCase() as "men" | "women" | "unisex" | undefined);
         setPhase("done");
         setProgress(100);
         setResults(resp.results);
@@ -515,7 +515,7 @@ const Results = () => {
                   setPhase("scraping");
                   setProgress(5);
                   if (product) {
-                    scrapePrices(product.product_name, product.retailers, true, product.estimated_retail_price)
+                    scrapePrices(product.product_name, product.retailers, true, product.estimated_retail_price, stateSizing?.gender?.toLowerCase() as "men" | "women" | "unisex" | undefined)
                       .then((resp) => { setResults(resp.results); setDataSource({ cached: resp.cached, cached_at: resp.cached_at }); if (resp.priceHistory) setPriceHistory(resp.priceHistory); })
                       .catch((e: any) => { toast({ title: "Retry failed", description: e.message || "Please try again.", variant: "destructive" }); })
                       .finally(() => setIsLoading(false));

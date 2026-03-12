@@ -82,12 +82,14 @@ export async function scrapePrices(
   retailers: string[],
   skipCache = false,
   estimatedRetailPrice?: number,
+  gender?: "men" | "women" | "unisex",
 ): Promise<ScrapeResponse> {
   const data = await invokeFunction("price-scrape", {
     product_name: productName,
     retailers,
     skip_cache: skipCache,
     estimated_retail_price: estimatedRetailPrice,
+    gender,
   });
   if (!data?.success) throw new Error(data?.error || "Price scrape failed");
   return {
