@@ -561,7 +561,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
-    // URL+snippet search — no page scraping, uses search result snippets for price extraction
+    // Step 1: snippet search — finds URLs cheaply (1 credit/result)
     const doSearchUrls = async (query: string, limit: number) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 12000);
@@ -574,6 +574,24 @@ serve(async (req) => {
         });
         return await r.json();
       } catch { return { data: [] }; }
+      finally { clearTimeout(timeout); }
+    };
+
+    // Step 2: scrape a product page for real content (1 credit/page)
+    const scrapeProductPage = async (url: string): Promise<string> => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      try {
+        const r = await fetch("https://api.firecrawl.dev/v1/scrape", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+        });
+        if (!r.ok) return "";
+        const data = await r.json();
+        return data?.data?.markdown?.slice(0, 4000) || "";
+      } catch { return ""; }
       finally { clearTimeout(timeout); }
     };
 
@@ -667,18 +685,28 @@ serve(async (req) => {
 
     log(`${enrichedCandidates.length} candidates after domain dedup`);
 
+    // ── Step 2: scrape top 8 product pages in parallel for real content ──
+    const TOP_N_SCRAPE = 8;
+    const toScrape = enrichedCandidates.slice(0, TOP_N_SCRAPE);
+    const scrapedMarkdowns = await Promise.all(toScrape.map(c => scrapeProductPage(c.url)));
+    const scrapedCandidates = toScrape.map((c, i) => ({
+      ...c,
+      markdown: scrapedMarkdowns[i] || c.markdown || "",
+    }));
+    log(`Scraped ${scrapedMarkdowns.filter(Boolean).length}/${toScrape.length} pages`);
+
     // ── AI extracts and validates prices (parallel batches of 8) ──
     const BATCH_SIZE = 8;
-    const batches: typeof enrichedCandidates[] = [];
-    for (let i = 0; i < enrichedCandidates.length; i += BATCH_SIZE) {
-      batches.push(enrichedCandidates.slice(i, i + BATCH_SIZE));
+    const batches: typeof scrapedCandidates[] = [];
+    for (let i = 0; i < scrapedCandidates.length; i += BATCH_SIZE) {
+      batches.push(scrapedCandidates.slice(i, i + BATCH_SIZE));
     }
     const batchResults = await Promise.all(
       batches.map((batch, bi) =>
         extractPricesWithAI(
           batch,
           product_name, LOVABLE_API_KEY, estimated_retail_price
-        ).then(results => results.map(r => ({ ...r, index: (typeof r.index === "number" ? r.index : 0) + bi * BATCH_SIZE })))
+        ).then(results => results.map(r => ({ ...r, index: bi * BATCH_SIZE + (typeof r.index === "number" ? r.index : 0) })))
       )
     );
     const aiResults = batchResults.flat();
@@ -789,8 +817,8 @@ serve(async (req) => {
     const extracted: any[] = [];
     for (const aiResult of aiResults) {
       const idx = (aiResult.index ?? 0) - 1;
-      if (idx < 0 || idx >= enrichedCandidates.length) continue;
-      const source = enrichedCandidates[idx];
+      if (idx < 0 || idx >= scrapedCandidates.length) continue;
+      const source = scrapedCandidates[idx];
       if (!source || !aiResult.current_price_gbp) continue;
 
       const itemPrice = aiResult.current_price_gbp;
