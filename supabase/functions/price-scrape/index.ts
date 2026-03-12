@@ -635,12 +635,7 @@ serve(async (req) => {
           method: "POST",
           headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
           signal: controller.signal,
-          body: JSON.stringify({
-            url,
-            formats: ["markdown"],
-            onlyMainContent: true,
-            waitFor: 1500, // wait for JS to render add-to-cart / stock buttons
-          }),
+          body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
         });
         if (!r.ok) return "";
         const data = await r.json();
