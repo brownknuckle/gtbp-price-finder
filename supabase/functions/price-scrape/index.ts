@@ -639,7 +639,7 @@ serve(async (req) => {
             url,
             formats: ["markdown"],
             onlyMainContent: true,
-            waitFor: 3000, // wait for JS to render add-to-cart / stock buttons
+            waitFor: 1500, // wait for JS to render add-to-cart / stock buttons
           }),
         });
         if (!r.ok) return "";
