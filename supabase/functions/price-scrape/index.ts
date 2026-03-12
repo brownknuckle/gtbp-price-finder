@@ -233,7 +233,9 @@ function extractDomain(url: string): string {
 }
 
 function retailerNameFromDomain(domain: string): string {
-  const cleanDomain = domain.replace(/^m\./, "");
+  // Strip mobile and locale/country subdomains: uk.puma.com → puma.com
+  let cleanDomain = domain.replace(/^m\./, "");
+  cleanDomain = cleanDomain.replace(/^(uk|us|eu|de|fr|it|es|nl|au|ca|en|gb)\./i, "");
   const root = cleanDomain.split(".")[0].replace(/[-_]+/g, " ");
   return root.split(" ").filter(Boolean)
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
@@ -241,7 +243,8 @@ function retailerNameFromDomain(domain: string): string {
 }
 
 function isUkDomain(domain: string): boolean {
-  return domain.endsWith(".uk") || domain.includes(".co.uk") || UK_COM_RETAILERS.has(domain);
+  return domain.endsWith(".uk") || domain.includes(".co.uk") || UK_COM_RETAILERS.has(domain)
+    || /^(uk|gb)\./i.test(domain); // e.g. uk.puma.com, gb.adidas.com
 }
 
 function isKidsProduct(url: string, text: string): boolean {
@@ -871,6 +874,7 @@ serve(async (req) => {
     }
 
     const sorted = Array.from(byDomain.values())
+      .filter(r => r.retailer && r.retailer.length > 2) // drop bogus names like "Uk", "Us"
       .sort((a, b) => a.totalYouPay - b.totalYouPay);
 
     // ── Price outlier filter: hide results > 60% above cheapest ──
