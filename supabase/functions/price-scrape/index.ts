@@ -629,13 +629,18 @@ serve(async (req) => {
     // Step 2: scrape a product page for real content (1 credit/page)
     const scrapeProductPage = async (url: string): Promise<string> => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
+      const timeout = setTimeout(() => controller.abort(), 18000);
       try {
         const r = await fetch("https://api.firecrawl.dev/v1/scrape", {
           method: "POST",
           headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
           signal: controller.signal,
-          body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+          body: JSON.stringify({
+            url,
+            formats: ["markdown"],
+            onlyMainContent: true,
+            waitFor: 3000, // wait for JS to render add-to-cart / stock buttons
+          }),
         });
         if (!r.ok) return "";
         const data = await r.json();
