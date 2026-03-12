@@ -45,8 +45,8 @@ const NON_PRODUCT_PATH_PATTERNS = [
   /\/colour\//i, /\/color\//i, /\/gender\//i,
   /\/p\/trainers/i, /\/p\/shoes/i, /\/p\/clothing/i,
   /\/shoes\/\?/i, /\/trainers\/\?/i, /\/footwear\/\?/i,
-  // Category paths: /footwear/brand-name or /clothing/brand-name with no product ID (no digits or .html)
-  /\/footwear\/[a-z-]+$/i, /\/clothing\/[a-z-]+$/i, /\/accessories\/[a-z-]+$/i,
+  // Category paths: /footwear/model-name or /clothing/model-name (single slug, no product code segment after)
+  /\/footwear\/[a-z0-9-]+$/i, /\/clothing\/[a-z0-9-]+$/i, /\/accessories\/[a-z0-9-]+$/i,
 ];
 
 const MIN_REALISTIC_PRICE = 20;
@@ -329,7 +329,7 @@ For each numbered candidate, extract price data and return a JSON array. Rules:
 
 is_correct_product: true ONLY if ALL of these are true:
   1. The page is a specific product listing (not a category, collection, or search results page)
-  2. The exact model/colourway matches. Use sense with equivalent names: "Triple White"="White/White/White"="Cloud White", "Core Black"="Black/Black/Black", "OG"="Original". Small differences in colourway description are OK if the product image/title clearly matches.
+  2. The exact model/colourway matches. Equivalents allowed: "Triple White"="White/White/White"="Cloud White", "Core Black"="Black/Black/Black". HARD RULE: primary colour must match — if White is searched, Black/Grey/Red is WRONG. If the page colourway is unclear or different, set is_correct_product: false.
   3. Brand new condition (not used, pre-owned, or refurbished)
   4. Correct gender and age group (not kids, junior, grade school, toddler unless searched for)
   REJECT if: wrong colourway/model, kids/GS/PS/TD version, secondhand, category page, wrong gender.
