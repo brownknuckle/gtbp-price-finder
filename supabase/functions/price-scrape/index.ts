@@ -74,9 +74,13 @@ const BLOCKED_DOMAINS = new Set([
 ]);
 
 const AUTHORISED_RETAILERS = new Set([
-  "nike.com", "adidas.co.uk", "adidas.com", "jdsports.co.uk",
-  "footlocker.co.uk", "asos.com", "schuh.co.uk", "size.co.uk",
-  "endclothing.com", "selfridges.com", "harveynichols.com",
+  // Brand direct
+  "nike.com", "adidas.co.uk", "adidas.com", "puma.com", "newbalance.com",
+  "reebok.com", "converse.com", "vans.com", "timberland.com", "ugg.com",
+  "crocs.com", "asics.com", "saucony.com", "brooks.com",
+  // UK authorised stockists
+  "jdsports.co.uk", "footlocker.co.uk", "asos.com", "schuh.co.uk",
+  "size.co.uk", "endclothing.com", "selfridges.com", "harveynichols.com",
   "mrporter.com", "flannels.com", "footasylum.com", "office.co.uk",
   "zalando.co.uk", "offspring.co.uk", "sneakersnstuff.com",
   "solebox.com", "stockx.com", "goat.com", "whatsyoursize.co.uk",
