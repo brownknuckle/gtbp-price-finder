@@ -90,6 +90,42 @@ const FREE_RETURNS_RETAILERS = new Set([
   "zalando.co.uk", "whatsyoursize.co.uk",
 ]);
 
+// ─── Retailer product URL allow-list ─────────────────────────
+// For known retailers, ONLY accept URLs matching these patterns.
+// This eliminates category pages, editorial pages, and comparison
+// sites at source rather than catching them reactively.
+const RETAILER_PRODUCT_PATTERNS: Record<string, RegExp> = {
+  // JD Sports / Size / Offspring — /product/slug/123456/
+  "jdsports.co.uk":    /\/product\/[^/]+\/\d{5,}\/?$/i,
+  "size.co.uk":        /\/product\/[^/]+\/\d{5,}\/?$/i,
+  "offspring.co.uk":   /\/product\/[^/]+\/\d{5,}\/?$/i,
+  // Foot Locker — /en/product/slug/CODE.html
+  "footlocker.co.uk":  /\/en\/product\/[^/]+\/[A-Z0-9]{8,}\.html$/i,
+  // Schuh — /brands/brand/slug/1600-07038/
+  "schuh.co.uk":       /\/\d{3,5}-\d{4,6}\/?$/i,
+  // END. Clothing — /p/slug/E21-0030.html
+  "endclothing.com":   /^\/p\/[^/]+\/[A-Z]{1,3}\d+-\d+\.html$/i,
+  // Nike — /gb/t/slug/CW2288-111
+  "nike.com":          /\/gb\/t\/[^/]+\/[A-Z]{2}\d{4}-\d{3}/i,
+  // Adidas — /slug/IE3439.html
+  "adidas.co.uk":      /\/[A-Z]{2}\d{4,}\.html$/i,
+  "adidas.com":        /\/[A-Z]{2}\d{4,}\.html$/i,
+  // ASOS — /prd/12345678
+  "asos.com":          /\/prd\/\d{6,}/i,
+  // Zalando — slug ends .html (category pages end with /)
+  "zalando.co.uk":     /\.html$/i,
+  // Footasylum — /products/.../slug--134060/
+  "footasylum.com":    /--\d{4,}\/?$/i,
+  // Flannels — /detail/brand/slug/12345
+  "flannels.com":      /\/detail\/[^/]+\/[^/]+\/\d{5,}\/?$/i,
+  // MR PORTER — /product/brand/slug/12345678
+  "mrporter.com":      /\/product\/[^/]+\/[^/]+\/\d{5,}\/?$/i,
+  // New Balance — /en-gb/550/BB550WT1.html
+  "newbalance.com":    /\/[A-Z]{2,3}\d{3,}[A-Z0-9]*\.html/i,
+  // Solebox — /en/brand/slug/CW2288-111.html
+  "solebox.com":       /\/[A-Z]{2}\d{4,}[^/]*\.html$/i,
+};
+
 const KIDS_PATH_PATTERNS = [
   /\/kids?\//i, /\/toddler/i, /\/junior/i, /\/infant/i, /\/youth/i,
   /\/children/i, /\/boys?\//i, /\/girls?\//i, /\/baby/i,
@@ -193,21 +229,23 @@ function isLikelyProductPage(url: string): boolean {
   try {
     const parsed = new URL(url);
     const { pathname, search } = parsed;
+    // Normalise domain (strip www/m/locale prefixes to match RETAILER_PRODUCT_PATTERNS keys)
+    const hostname = parsed.hostname
+      .replace(/^www\./, "").replace(/^m\./, "")
+      .replace(/^(uk|gb|us|eu|de|fr)\./i, "");
+
+    // For known retailers use the exact allow-list pattern — much stricter than heuristics
+    const knownPattern = RETAILER_PRODUCT_PATTERNS[hostname];
+    if (knownPattern) return knownPattern.test(pathname);
+
+    // Unknown domains — fall back to heuristics
     if (NON_PRODUCT_PATH_PATTERNS.some((p) => p.test(pathname))) return false;
     const segments = pathname.split("/").filter(Boolean);
     if (segments.length < 1) return false;
     if (/[?&](q|query|search|s)=/i.test(search)) return false;
-    const lastSegment = segments[segments.length - 1];
     if (segments.length === 1) {
-      const hasProductIdentifier = /\d/.test(lastSegment) || lastSegment.length > 20;
-      if (!hasProductIdentifier) return false;
-    }
-    // Adidas filter/category pages use underscore separators (e.g. /samba-trainers-leather_upper)
-    // Real product pages have a numeric style code or end in .html
-    const hostname = parsed.hostname.replace(/^www\./, "");
-    if ((hostname === "adidas.co.uk" || hostname === "adidas.com")
-        && !pathname.match(/\d/) && !pathname.endsWith(".html")) {
-      return false;
+      const last = segments[0];
+      if (!/\d/.test(last) && last.length <= 20) return false;
     }
     return true;
   } catch {
