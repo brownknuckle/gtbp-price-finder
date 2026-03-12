@@ -293,9 +293,13 @@ async function extractPricesWithAI(
 ): Promise<Array<{ index: number; current_price_gbp: number; original_price_gbp: number | null; in_stock: boolean | null; coupon_code: string | null; price_confidence: string | null }>> {
   if (!candidates.length) return [];
 
-  const candidateText = candidates.map((s, i) =>
-    `[${i + 1}] URL: ${s.url}\nTitle: ${s.title || "(no title)"}\nContent: ${(s.markdown || s.description || "").slice(0, 700)}`
-  ).join("\n---\n");
+  // Use more content for pages we fully scraped (markdown) vs snippet-only (description)
+  const candidateText = candidates.map((s, i) => {
+    const content = s.markdown
+      ? s.markdown.slice(0, 3000)          // full scrape — use generous slice
+      : (s.description || "").slice(0, 500); // snippet only — keep short
+    return `[${i + 1}] URL: ${s.url}\nTitle: ${s.title || "(no title)"}\nContent: ${content}`;
+  }).join("\n---\n");
 
   const rrpHint = estimatedRrp ? ` The estimated retail price is £${estimatedRrp}.` : "";
   const sizeHint = productName.match(/\b(UK|US|EU)\s*\d+\.?\d*/i)?.[0];
@@ -593,7 +597,7 @@ serve(async (req) => {
         });
         if (!r.ok) return "";
         const data = await r.json();
-        return data?.data?.markdown?.slice(0, 4000) || "";
+        return data?.data?.markdown?.slice(0, 5000) || "";
       } catch { return ""; }
       finally { clearTimeout(timeout); }
     };
