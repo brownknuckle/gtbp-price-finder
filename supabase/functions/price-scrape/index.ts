@@ -646,33 +646,28 @@ serve(async (req) => {
 
     log(`Searching for: "${searchName}"`);
 
-    // Content queries — scrape 5 results each to get real prices
-    // ── Search strategy: ~60 credits total (fits 50 searches/month on Hobby plan) ──
-    // Broad queries (4 × 10 = 40 credits) — best signal, retailer names inline
+    // ── Search strategy ──────────────────────────────────────────────────────
+    // Site-specific queries: target each retailer directly so Firecrawl returns
+    // product pages rather than editorial content. Up to 8 retailers × 5 = 40 credits.
+    // Two broad fallback queries catch retailers not indexed well by site:.
+    const TOP_SITE_RETAILERS = normalizedRetailers.slice(0, 8);
+    const siteQueries = TOP_SITE_RETAILERS.map(r => `${searchName} site:${r}`);
     const broadQueries = [
       `${searchName} buy UK price`,
-      `${searchName} jdsports size.co.uk schuh offspring footlocker buy`,
-      `${searchName} zalando office endclothing asos flannels buy`,
-      `${searchName} stockx goat laced footpatrol sneakersnstuff buy`,
-    ];
-    // Retailer-seeded queries (4 × 5 = 20 credits) — for top 4 retailers specifically
-    const seededQueries = [
-      `${searchName} nike.com buy`,
-      `${searchName} jdsports.co.uk buy`,
-      `${searchName} size.co.uk buy`,
-      `${searchName} schuh.co.uk buy`,
+      `${searchName} jdsports size schuh offspring zalando endclothing buy UK`,
     ];
 
-    const [broadResultSets, seededResultSets] = await Promise.all([
-      Promise.all(broadQueries.map(q => doSearchUrls(q, 10))),
-      Promise.all(seededQueries.map(q => doSearchUrls(q, 5))),
+    const [siteResultSets, broadResultSets] = await Promise.all([
+      Promise.all(siteQueries.map(q => doSearchUrls(q, 5))),
+      Promise.all(broadQueries.map(q => doSearchUrls(q, 5))),
     ]);
+    const seededResultSets: any[] = [];
 
     const seenUrls = new Set<string>();
     const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
-    // Content results first — richer data for AI
-    for (const result of [...broadResultSets, ...seededResultSets]) {
+    // Site: results first (highest quality), then broad fallback
+    for (const result of [...siteResultSets, ...broadResultSets, ...seededResultSets]) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
@@ -697,8 +692,8 @@ serve(async (req) => {
       const domain = extractDomain(s.url);
       if (!domain || NON_RETAIL_DOMAINS.some((p) => p.test(domain))) return false;
       if (BLOCKED_DOMAINS.has(domain)) return false;
-      // Only accept URLs from the requested retailer domains — eliminates editorial
-      // sites, aggregators, and off-list retailers in a single check
+      // Only accept URLs from target retailers — site: queries ensure most results
+      // are on-domain; broad queries are filtered here before reaching AI
       const baseDomain = domain.replace(/^(uk|gb|us|eu|de|fr|m)\./i, "");
       if (!normalizedRetailers.some(r => domain === r || baseDomain === r)) return false;
       if (!isLikelyProductPage(s.url)) return false;
