@@ -606,19 +606,19 @@ serve(async (req) => {
     log(`Searching for: "${searchName}"`);
 
     // ── Search strategy ──────────────────────────────────────────────────────
-    // Site-specific queries: target each retailer directly so Firecrawl returns
-    // product pages rather than editorial content. Up to 8 retailers × 5 = 40 credits.
-    // Two broad fallback queries catch retailers not indexed well by site:.
-    const TOP_SITE_RETAILERS = normalizedRetailers.slice(0, 8);
-    const siteQueries = TOP_SITE_RETAILERS.map(r => `${searchName} site:${r}`);
+    // Mix of broad queries (high recall) + targeted site: queries (high precision).
+    // Broad queries find most retailers; site: queries fill gaps for specific stores.
     const broadQueries = [
       `${searchName} buy UK price`,
-      `${searchName} jdsports size schuh offspring zalando endclothing buy UK`,
+      `${searchName} jdsports size.co.uk schuh offspring footlocker buy`,
+      `${searchName} zalando office endclothing asos flannels buy`,
     ];
+    const TOP_SITE_RETAILERS = normalizedRetailers.slice(0, 5);
+    const siteQueries = TOP_SITE_RETAILERS.map(r => `${searchName} site:${r}`);
 
-    const [siteResultSets, broadResultSets] = await Promise.all([
+    const [broadResultSets, siteResultSets] = await Promise.all([
+      Promise.all(broadQueries.map(q => doSearchUrls(q, 8))),
       Promise.all(siteQueries.map(q => doSearchUrls(q, 5))),
-      Promise.all(broadQueries.map(q => doSearchUrls(q, 5))),
     ]);
     const seededResultSets: any[] = [];
 
@@ -651,10 +651,12 @@ serve(async (req) => {
       const domain = extractDomain(s.url);
       if (!domain || NON_RETAIL_DOMAINS.some((p) => p.test(domain))) return false;
       if (BLOCKED_DOMAINS.has(domain)) return false;
-      // Only accept URLs from target retailers — site: queries ensure most results
-      // are on-domain; broad queries are filtered here before reaching AI
+      // Accept URLs from target retailers OR known authorised retailers
+      // (broad queries may surface extra stockists beyond the requested list)
       const baseDomain = domain.replace(/^(uk|gb|us|eu|de|fr|m)\./i, "");
-      if (!normalizedRetailers.some(r => domain === r || baseDomain === r)) return false;
+      const isKnownRetailer = normalizedRetailers.some(r => domain === r || baseDomain === r)
+        || AUTHORISED_RETAILERS.has(domain) || AUTHORISED_RETAILERS.has(baseDomain);
+      if (!isKnownRetailer) return false;
       if (!isLikelyProductPage(s.url)) return false;
       if (isKidsProduct(s.url, s.title + " " + s.description)) return false;
       if (isSecondhand(s.url, s.title + " " + s.description)) return false;
