@@ -435,7 +435,7 @@ const Index = () => {
               </p>
 
               {/* Size selectors - secondary row on mobile */}
-              <div className="mt-2 flex flex-wrap gap-2 sm:mt-0 sm:hidden">
+              <div className="mt-2 flex flex-wrap justify-center gap-2 sm:mt-0 sm:hidden">
                 <Select value={gender} onValueChange={(v) => setGender(v as "men" | "women" | "unisex")}>
                   <SelectTrigger className="h-10 flex-1 rounded-md text-xs">
                     <SelectValue />
@@ -487,7 +487,7 @@ const Index = () => {
               </div>
 
               {/* Desktop size selectors inline - hidden on mobile */}
-              <div className="hidden sm:mt-3 sm:flex sm:gap-2">
+              <div className="hidden sm:mt-3 sm:flex sm:justify-center sm:gap-2">
                 <Select value={gender} onValueChange={(v) => setGender(v as "men" | "women" | "unisex")}>
                   <SelectTrigger className="h-10 w-28 rounded-md text-xs">
                     <SelectValue />
