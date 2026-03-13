@@ -430,7 +430,7 @@ const Index = () => {
               </div>
 
               {/* Colorway hint */}
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
+              <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
                 💡 Include the <span className="font-semibold">colorway</span> for precise results — e.g. <em>Adidas Samba White Black</em>
               </p>
 
