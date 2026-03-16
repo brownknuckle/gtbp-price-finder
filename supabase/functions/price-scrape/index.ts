@@ -562,6 +562,57 @@ serve(async (req) => {
       }
     }
 
+    // ── Affiliate feed query (runs in parallel with Firecrawl) ──
+    // Returns structured results from the affiliate_products table (populated by feed-ingest).
+    // Falls back gracefully to [] if the table doesn't exist or is empty.
+    const queryAffiliateFeed = async (): Promise<any[]> => {
+      try {
+        const { data, error } = await sb
+          .from("affiliate_products")
+          .select("merchant, product_name, brand, price, rrp, deep_link, in_stock")
+          .textSearch("product_name", searchName, { type: "websearch", config: "english" })
+          .order("price", { ascending: true })
+          .limit(30);
+        if (error || !data?.length) return [];
+        const feedResults: any[] = [];
+        for (const row of data) {
+          const domain = extractDomain(row.deep_link);
+          if (!domain) continue;
+          const baseDomain = domain.replace(/^(uk|gb|us|eu|de|fr|m)\./i, "");
+          const isKnown = normalizedRetailers.some(r => domain === r || baseDomain === r)
+            || AUTHORISED_RETAILERS.has(domain) || AUTHORISED_RETAILERS.has(baseDomain);
+          if (!isKnown) continue;
+          const itemPrice = Number(row.price);
+          if (!itemPrice || isNaN(itemPrice)) continue;
+          const uk = isUkDomain(domain);
+          const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
+          const duties = calculateDuties(itemPrice, uk);
+          feedResults.push({
+            retailer: retailerNameFromDomain(domain),
+            country: uk ? "UK" : "International",
+            flag: uk ? "🇬🇧" : "🌍",
+            itemPrice,
+            shipping,
+            duties,
+            totalYouPay: Number((itemPrice + shipping + duties).toFixed(2)),
+            originalPrice: row.rrp && Number(row.rrp) > itemPrice ? Number(row.rrp) : null,
+            delivery: getDeliveryTime(domain, uk),
+            trustRating: getTrustRating(domain),
+            currency: "GBP",
+            url: row.deep_link,
+            inStock: row.in_stock,
+            checkedAt: new Date().toISOString(),
+            couponCode: null,
+            priceConfidence: "high",
+            retailerTier: AUTHORISED_RETAILERS.has(domain) ? "authorised"
+              : TRUST_RATINGS[domain] ? "trusted" : "unverified",
+            freeReturns: FREE_RETURNS_RETAILERS.has(domain),
+          });
+        }
+        return feedResults;
+      } catch { return []; }
+    };
+
     // ── Firecrawl search ──
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     if (!FIRECRAWL_API_KEY) throw new Error("FIRECRAWL_API_KEY not configured");
@@ -616,9 +667,10 @@ serve(async (req) => {
     const TOP_SITE_RETAILERS = normalizedRetailers.slice(0, 5);
     const siteQueries = TOP_SITE_RETAILERS.map(r => `${searchName} site:${r}`);
 
-    const [broadResultSets, siteResultSets] = await Promise.all([
+    const [broadResultSets, siteResultSets, feedResults] = await Promise.all([
       Promise.all(broadQueries.map(q => doSearchUrls(q, 8))),
       Promise.all(siteQueries.map(q => doSearchUrls(q, 5))),
+      queryAffiliateFeed(),
     ]);
     const seededResultSets: any[] = [];
 
@@ -867,6 +919,14 @@ serve(async (req) => {
         freeReturns: FREE_RETURNS_RETAILERS.has(domain),
       });
     }
+
+    // Merge affiliate feed results — feed takes precedence over scraped (higher confidence)
+    for (const feedEntry of feedResults) {
+      const domain = extractDomain(feedEntry.url);
+      const alreadySeen = extracted.some(e => extractDomain(e.url) === domain);
+      if (!alreadySeen) extracted.push(feedEntry);
+    }
+    log(`After feed merge: ${extracted.length} total extracted`);
 
     // ── Deduplicate by domain (keep cheapest) ──
     const byDomain = new Map<string, any>();
