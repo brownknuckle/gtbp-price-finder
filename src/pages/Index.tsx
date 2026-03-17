@@ -220,7 +220,7 @@ const Index = () => {
     <PageTransition>
       <div className="flex min-h-[calc(100vh-57px)] flex-col">
         {/* Hero Section */}
-        <div className="flex flex-1 flex-col items-center justify-center px-4 py-12">
+        <div className="flex flex-1 flex-col items-center justify-center px-4 py-12 [background-image:radial-gradient(circle,_#d1d5db_1px,_transparent_1px)] [background-size:22px_22px]">
           <div className="w-full max-w-2xl text-center">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
