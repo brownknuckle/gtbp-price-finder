@@ -250,23 +250,6 @@ const Index = () => {
               Search any sneaker or clothing item — we instantly compare prices across UK retailers so you never overpay.
             </motion.p>
 
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.45, duration: 0.4 }}
-              className="mb-8 flex flex-wrap justify-center gap-2"
-            >
-              {[
-                "20+ UK retailers",
-                "Real-time prices",
-                "No account needed",
-              ].map((pill) => (
-                <span key={pill} className="rounded-full border border-border bg-background px-3 py-1 text-[11px] font-medium text-muted-foreground">
-                  ✓ {pill}
-                </span>
-              ))}
-            </motion.div>
-
             {/* Search bar */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
