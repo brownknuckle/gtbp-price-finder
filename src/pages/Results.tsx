@@ -45,6 +45,8 @@ const Results = () => {
   const [phase, setPhase] = useState<"identifying" | "scraping" | "done">("identifying");
   const { add: addToWatchlist, isInWatchlist } = useWatchlist();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const lastRefreshRef = useRef<number>(0);
+  const REFRESH_COOLDOWN_MS = 60_000; // 60 seconds between refreshes
   const [dataSource, setDataSource] = useState<{ cached: boolean; cached_at?: string } | null>(null);
   const [thirtyDayLow, setThirtyDayLow] = useState<number | null>(null);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryPoint[]>([]);
@@ -60,6 +62,13 @@ const Results = () => {
 
   const refreshResults = useCallback(async () => {
     if (!product || isRefreshing) return;
+    const now = Date.now();
+    const secondsLeft = Math.ceil((REFRESH_COOLDOWN_MS - (now - lastRefreshRef.current)) / 1000);
+    if (lastRefreshRef.current && secondsLeft > 0) {
+      toast({ title: "Please wait", description: `You can refresh again in ${secondsLeft}s.` });
+      return;
+    }
+    lastRefreshRef.current = now;
     setIsRefreshing(true);
     setIsLoading(true);
     setPhase("scraping");
@@ -266,7 +275,7 @@ const Results = () => {
             <div className="flex items-center gap-2 shrink-0">
               <Button variant="outline" size="sm" className="gap-1.5" onClick={refreshResults} disabled={isRefreshing}>
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                Refresh
+                {isRefreshing ? "Refreshing…" : "Refresh"}
               </Button>
               <Button
                 variant={isInWatchlist(product.product_name) ? "default" : "outline"}
