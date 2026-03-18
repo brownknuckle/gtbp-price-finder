@@ -249,12 +249,12 @@ const Results = () => {
         <div className="mb-6 flex items-start gap-4">
           {product?.image_url && (
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="shrink-0">
-              <div className="h-28 w-28 sm:h-36 sm:w-36 overflow-hidden rounded-2xl border bg-secondary flex items-center justify-center">
+              <div className="h-36 w-36 sm:h-48 sm:w-48 overflow-hidden rounded-2xl border bg-secondary flex items-center justify-center">
                 {!imageError ? (
                   <img
                     src={product.image_url}
                     alt={product.product_name}
-                    className="h-full w-full object-contain p-2"
+                    className="h-full w-full object-contain p-1"
                     onError={() => setImageError(true)}
                     loading="eager"
                   />

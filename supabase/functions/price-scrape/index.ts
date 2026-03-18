@@ -662,13 +662,14 @@ serve(async (req) => {
     const broadQueries = [
       `${searchName} buy UK price`,
       `${searchName} jdsports size.co.uk schuh offspring footlocker buy`,
-      `${searchName} zalando office endclothing asos flannels buy`,
+      `${searchName} zalando endclothing asos flannels mrporter buy`,
+      `${searchName} schuh footasylum office offspring size buy UK`,
     ];
     const TOP_SITE_RETAILERS = normalizedRetailers.slice(0, 5);
     const siteQueries = TOP_SITE_RETAILERS.map(r => `${searchName} site:${r}`);
 
     const [broadResultSets, siteResultSets, feedResults] = await Promise.all([
-      Promise.all(broadQueries.map(q => doSearchUrls(q, 8))),
+      Promise.all(broadQueries.map(q => doSearchUrls(q, 10))),
       Promise.all(siteQueries.map(q => doSearchUrls(q, 5))),
       queryAffiliateFeed(),
     ]);
@@ -949,10 +950,10 @@ serve(async (req) => {
       .filter(r => r.retailer && r.retailer.length > 2) // drop bogus names like "Uk", "Us"
       .sort((a, b) => a.totalYouPay - b.totalYouPay);
 
-    // ── Price outlier filter: hide results > 60% above cheapest ──
+    // ── Price outlier filter: hide results > 80% above cheapest (only when 4+ results) ──
     const cheapest = sorted[0]?.totalYouPay ?? 0;
-    const cutoff = cheapest * 1.6;
-    const finalResults = (sorted.length >= 3 ? sorted.filter(r => r.totalYouPay <= cutoff) : sorted)
+    const cutoff = cheapest * 1.8;
+    const finalResults = (sorted.length >= 4 ? sorted.filter(r => r.totalYouPay <= cutoff) : sorted)
       .map((r, i) => ({ ...r, rank: i + 1 }));
 
     log(`Final: ${finalResults.length} unique retailers (cutoff £${cutoff.toFixed(0)})`);
