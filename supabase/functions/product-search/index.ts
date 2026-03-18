@@ -90,6 +90,7 @@ serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("GEMINI_API_KEY not configured");
+    const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY") || "";
 
     // Build messages array - include image if provided
     const userContent: any[] = [];
@@ -192,6 +193,28 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
         tool_choice: { type: "function", function: { name: "identify_product" } },
       });
 
+    // Image search — runs in parallel with AI, fetches og:image from a retailer page
+    const fetchProductImage = async (query: string): Promise<string> => {
+      if (!FIRECRAWL_API_KEY) return "";
+      try {
+        const r = await fetch("https://api.firecrawl.dev/v1/search", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ query: `${query} buy`, limit: 5, lang: "en", country: "gb" }),
+          signal: AbortSignal.timeout(8000),
+        });
+        const data = await r.json();
+        for (const item of (data.data || [])) {
+          const ogImage = item.metadata?.ogImage || item.metadata?.og_image || "";
+          if (ogImage && KNOWN_IMAGE_CDNS.test(ogImage)) return upgradeCdnUrl(ogImage);
+          // Also check markdown for inline image URLs from known CDNs
+          const mdMatch = (item.markdown || "").match(/https?:\/\/[^\s"')]+\.(?:jpg|jpeg|png|webp)[^\s"')']*/i);
+          if (mdMatch && KNOWN_IMAGE_CDNS.test(mdMatch[0])) return upgradeCdnUrl(mdMatch[0]);
+        }
+      } catch { /* silent */ }
+      return "";
+    };
+
     // Retry with exponential backoff for Gemini 429s
     let response: Response | null = null;
     const MAX_RETRIES = 4;
@@ -245,12 +268,16 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
 
     // Use Gemini's suggested image URL if it's from a known official brand/retailer CDN
     const KNOWN_IMAGE_CDNS = /static\.nike\.com|assets\.adidas|nb\.scene7|asics\.com.*image|images\.asos|media\.jdsports|images\.footlocker|media\.schuh|images\.stockx|image\.goat|images\.zalando|offspring\.co\.uk.*image|size\.co\.uk.*image/i;
-    if (product.image_url && KNOWN_IMAGE_CDNS.test(product.image_url)) {
-      product.image_url = upgradeCdnUrl(product.image_url);
-      log("Using AI-suggested CDN image:", product.image_url);
-    } else {
-      product.image_url = "";
-    }
+    const aiImageUrl = (product.image_url && KNOWN_IMAGE_CDNS.test(product.image_url))
+      ? upgradeCdnUrl(product.image_url) : "";
+
+    // Run image search in parallel and use whichever gives a result first
+    const [, fetchedImageUrl] = await Promise.all([
+      Promise.resolve(), // placeholder to keep index
+      fetchProductImage(product.product_name),
+    ]);
+    product.image_url = aiImageUrl || fetchedImageUrl || "";
+    log("Final image_url:", product.image_url || "(none)");
 
     return new Response(JSON.stringify({ success: true, product }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

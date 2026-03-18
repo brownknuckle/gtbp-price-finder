@@ -749,15 +749,21 @@ serve(async (req) => {
 
     log(`${enrichedCandidates.length} candidates after domain dedup`);
 
-    // ── Step 2: scrape top 8 product pages in parallel for real content ──
+    // ── Step 2: smart scraping — skip pages whose snippet already has a clear price ──
+    // This avoids wasting time scraping pages that already returned price data in their snippet.
     const TOP_N_SCRAPE = 8;
-    const toScrape = enrichedCandidates.slice(0, TOP_N_SCRAPE);
-    const scrapedMarkdowns = await Promise.all(toScrape.map(c => scrapeProductPage(c.url)));
-    const scrapedCandidates = toScrape.map((c, i) => ({
-      ...c,
-      markdown: scrapedMarkdowns[i] || c.markdown || "",
-    }));
-    log(`Scraped ${scrapedMarkdowns.filter(Boolean).length}/${toScrape.length} pages`);
+    const SNIPPET_PRICE_RE = /£\s?\d{2,4}(?:\.\d{2})?/;
+    const toProcess = enrichedCandidates.slice(0, TOP_N_SCRAPE);
+    const needsScraping = toProcess.filter(c => !SNIPPET_PRICE_RE.test((c.description || "") + " " + (c.markdown || "")));
+    const hasSnippetPrice = toProcess.filter(c => SNIPPET_PRICE_RE.test((c.description || "") + " " + (c.markdown || "")));
+    log(`Scraping ${needsScraping.length} pages (${hasSnippetPrice.length} already have price in snippet)`);
+    const scrapedMarkdowns = await Promise.all(needsScraping.map(c => scrapeProductPage(c.url)));
+    const scrapedCandidates = toProcess.map((c) => {
+      const idx = needsScraping.findIndex(n => n.url === c.url);
+      if (idx !== -1) return { ...c, markdown: scrapedMarkdowns[idx] || c.markdown || "" };
+      return { ...c, markdown: c.markdown || c.description || "" };
+    });
+    log(`Scraped ${scrapedMarkdowns.filter(Boolean).length}/${needsScraping.length} pages`);
 
     // ── AI extracts and validates prices (parallel batches of 8) ──
     const BATCH_SIZE = 8;
