@@ -681,23 +681,37 @@ const Index = () => {
         </section>
 
         {/* Footer */}
-        <footer className="border-t px-4 py-8">
-          <div className="mx-auto max-w-4xl text-center">
-            <p className="font-display text-lg uppercase tracking-wider text-primary">GTBP</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Get The Best Price — Compare prices across UK retailers instantly.
-            </p>
-            <p className="mt-3 text-xs text-muted-foreground/80">
-              GTBP is a price comparison service. We are not affiliated with any retailer.
-              Prices are indicative — always verify on the retailer's site before purchasing.
-            </p>
-            <div className="mt-3 flex justify-center gap-4 text-xs text-muted-foreground/60">
-              <Link to="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
-              <Link to="/terms" className="hover:text-primary transition-colors">Terms of Use</Link>
+        <footer className="border-t px-4 py-10">
+          <div className="mx-auto max-w-4xl">
+            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:justify-between">
+              <div className="text-center sm:text-left">
+                <p className="font-display text-lg uppercase tracking-wider text-primary">GTBP</p>
+                <p className="mt-1 text-xs text-muted-foreground">Get The Best Price</p>
+                <p className="mt-2 max-w-xs text-xs leading-relaxed text-muted-foreground/70">
+                  The UK's smartest way to compare sneaker and clothing prices across 30+ retailers.
+                </p>
+              </div>
+              <div className="flex gap-10 text-xs">
+                <div className="space-y-2">
+                  <p className="font-semibold uppercase tracking-wider text-foreground">Company</p>
+                  <div className="space-y-1.5">
+                    <div><Link to="/about" className="text-muted-foreground transition-colors hover:text-primary">About</Link></div>
+                    <div><Link to="/partner" className="text-muted-foreground transition-colors hover:text-primary">Partner with us</Link></div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="font-semibold uppercase tracking-wider text-foreground">Legal</p>
+                  <div className="space-y-1.5">
+                    <div><Link to="/privacy" className="text-muted-foreground transition-colors hover:text-primary">Privacy Policy</Link></div>
+                    <div><Link to="/terms" className="text-muted-foreground transition-colors hover:text-primary">Terms of Use</Link></div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <p className="mt-3 text-xs text-muted-foreground/50">
-              © {new Date().getFullYear()} GTBP. All rights reserved.
-            </p>
+            <div className="mt-8 border-t pt-5 text-center text-xs text-muted-foreground/50">
+              <p>GTBP is a price comparison service. We are not affiliated with any retailer. Prices are indicative — always verify on the retailer's site before purchasing.</p>
+              <p className="mt-1">© {new Date().getFullYear()} GTBP. All rights reserved.</p>
+            </div>
           </div>
         </footer>
       </div>

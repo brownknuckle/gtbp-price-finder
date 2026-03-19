@@ -6,12 +6,14 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Navbar from "@/components/Navbar";
+import CookieBanner from "@/components/CookieBanner";
 import Index from "./pages/Index";
 import Results from "./pages/Results";
-
 import Watchlist from "./pages/Watchlist";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import About from "./pages/About";
+import Partner from "./pages/Partner";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +28,8 @@ const AnimatedRoutes = () => {
         <Route path="/watchlist" element={<Watchlist />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/partner" element={<Partner />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>
@@ -41,6 +45,7 @@ const App = () => (
         <BrowserRouter>
           <Navbar />
           <AnimatedRoutes />
+          <CookieBanner />
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

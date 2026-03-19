@@ -8,14 +8,30 @@ const Navbar = () => {
   return (
     <nav className="sticky top-0 z-50 bg-primary px-4 py-3 shadow-sm">
       <div className="mx-auto flex max-w-6xl items-center justify-between">
-        <Link to="/" className="flex items-center gap-3">
-          <span className="font-display text-3xl uppercase leading-none tracking-wide text-primary-foreground">
-            GTBP
-          </span>
-          <span className="hidden text-[10px] font-medium uppercase tracking-[0.25em] text-primary-foreground/60 sm:inline">
-            Get The Best Price
-          </span>
-        </Link>
+        <div className="flex items-center gap-6">
+          <Link to="/" className="flex items-center gap-3">
+            <span className="font-display text-3xl uppercase leading-none tracking-wide text-primary-foreground">
+              GTBP
+            </span>
+            <span className="hidden text-[10px] font-medium uppercase tracking-[0.25em] text-primary-foreground/60 sm:inline">
+              Get The Best Price
+            </span>
+          </Link>
+          <div className="hidden items-center gap-4 sm:flex">
+            <Link
+              to="/about"
+              className="text-xs font-medium uppercase tracking-wider text-primary-foreground/70 transition-colors hover:text-primary-foreground"
+            >
+              About
+            </Link>
+            <Link
+              to="/partner"
+              className="text-xs font-medium uppercase tracking-wider text-primary-foreground/70 transition-colors hover:text-primary-foreground"
+            >
+              Partner
+            </Link>
+          </div>
+        </div>
 
         <div className="flex items-center gap-1">
           <button
