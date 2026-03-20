@@ -112,3 +112,19 @@ export async function fetchTrending(): Promise<TrendingItem[]> {
   if (!data?.success) throw new Error(data?.error || "Trending fetch failed");
   return data.trending;
 }
+
+export interface ReleaseItem {
+  name: string;
+  brand: string;
+  category: "shoes" | "clothing" | "accessories";
+  releaseDate: string | null;
+  retailPrice: number;
+  emoji: string;
+  searchQuery: string;
+}
+
+export async function fetchReleases(): Promise<ReleaseItem[]> {
+  const data = await invokeFunction("releases", {});
+  if (!data?.success) throw new Error(data?.error || "Releases fetch failed");
+  return data.releases;
+}

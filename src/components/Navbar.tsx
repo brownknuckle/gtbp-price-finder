@@ -19,6 +19,12 @@ const Navbar = () => {
           </Link>
           <div className="hidden items-center gap-4 sm:flex">
             <Link
+              to="/releases"
+              className="text-xs font-medium uppercase tracking-wider text-primary-foreground/70 transition-colors hover:text-primary-foreground"
+            >
+              Releases
+            </Link>
+            <Link
               to="/about"
               className="text-xs font-medium uppercase tracking-wider text-primary-foreground/70 transition-colors hover:text-primary-foreground"
             >

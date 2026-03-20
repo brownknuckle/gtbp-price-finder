@@ -14,6 +14,8 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import About from "./pages/About";
 import Partner from "./pages/Partner";
+import Releases from "./pages/Releases";
+import Brand from "./pages/Brand";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,6 +33,8 @@ const AnimatedRoutes = () => {
         <Route path="/terms" element={<Terms />} />
         <Route path="/about" element={<About />} />
         <Route path="/partner" element={<Partner />} />
+        <Route path="/releases" element={<Releases />} />
+        <Route path="/brand/:brandSlug" element={<Brand />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>

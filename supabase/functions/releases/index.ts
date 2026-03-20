@@ -1,0 +1,162 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+const CACHE_KEY = "__upcoming_releases__";
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+const rateLimits = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(req: Request): Response | null {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const now = Date.now();
+  const entry = rateLimits.get(ip);
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= 20) {
+      return new Response(JSON.stringify({ error: "Rate limit exceeded." }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    entry.count++;
+  } else {
+    rateLimits.set(ip, { count: 1, resetAt: now + 60_000 });
+  }
+  return null;
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const rateLimitResponse = checkRateLimit(req);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const sb = createClient(supabaseUrl, supabaseKey);
+
+    // Check cache
+    const { data: cached } = await sb
+      .from("price_cache")
+      .select("results, created_at")
+      .eq("product_key", CACHE_KEY)
+      .gte("created_at", new Date(Date.now() - CACHE_TTL_MS).toISOString())
+      .maybeSingle();
+
+    if (cached) {
+      return new Response(JSON.stringify({ success: true, releases: cached.results }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+    if (!FIRECRAWL_API_KEY) throw new Error("FIRECRAWL_API_KEY not configured");
+
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
+
+    const today = new Date().toISOString().split("T")[0];
+
+    // Search for upcoming releases
+    const searches = [
+      `upcoming sneaker releases UK ${today} release dates`,
+      "new trainer releases UK 2026 Nike Adidas Jordan New Balance",
+      "upcoming streetwear drops UK clothing releases 2026",
+    ];
+
+    const searchResults = await Promise.all(
+      searches.map((query) =>
+        fetch("https://api.firecrawl.dev/v1/search", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ query, limit: 5, lang: "en", country: "gb" }),
+          signal: AbortSignal.timeout(10000),
+        }).then((r) => r.json()).catch(() => ({ data: [] }))
+      )
+    );
+
+    const content = searchResults
+      .flatMap((r) => (r.data || []).map((d: any) => d.description || d.markdown?.slice(0, 500) || ""))
+      .filter(Boolean)
+      .join("\n---\n");
+
+    const aiResponse = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${GEMINI_API_KEY}` },
+        body: JSON.stringify({
+          model: "gemini-2.5-flash",
+          temperature: 0.3,
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content: `You are a UK sneaker and streetwear release calendar expert. Today is ${today}.
+
+Extract upcoming product releases from the content below, or use your knowledge of confirmed upcoming UK releases.
+
+Return ONLY valid JSON:
+{
+  "releases": [
+    {
+      "name": "Full product name including colourway",
+      "brand": "Brand name",
+      "category": "shoes" | "clothing" | "accessories",
+      "releaseDate": "YYYY-MM-DD or null if unknown",
+      "retailPrice": 120,
+      "emoji": "👟",
+      "searchQuery": "Optimised search query for this product"
+    }
+  ]
+}
+
+Rules:
+- Include 12-16 releases
+- Mix of shoes and clothing
+- Prioritise UK-confirmed releases
+- releaseDate must be today or in the future, or null if unconfirmed
+- retailPrice in GBP (integer)
+- searchQuery should be the best search term to find this product on GTBP
+- Include a mix of brands: Nike, Jordan, Adidas, New Balance, ASICS, Salomon, Arc'teryx, Stone Island, etc.
+- Specific colourways only (not "Nike Dunk various colourways")`,
+            },
+            {
+              role: "user",
+              content: content || `No fresh data — use your knowledge of confirmed upcoming UK releases for ${today} and beyond.`,
+            },
+          ],
+        }),
+      }
+    );
+
+    if (!aiResponse.ok) throw new Error("Gemini releases fetch failed");
+
+    const aiData = await aiResponse.json();
+    const rawText = aiData.choices?.[0]?.message?.content ?? "";
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No releases result from Gemini");
+
+    const { releases } = JSON.parse(jsonMatch[0]);
+
+    // Cache results
+    await sb.from("price_cache").upsert(
+      { product_key: CACHE_KEY, results: releases, product_info: { type: "releases", updated: today } },
+      { onConflict: "product_key" }
+    );
+
+    return new Response(JSON.stringify({ success: true, releases }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    console.error("releases error:", e);
+    return new Response(
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});

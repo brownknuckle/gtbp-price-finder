@@ -712,7 +712,17 @@ const Index = () => {
                   The UK's smartest way to compare sneaker and clothing prices across 30+ retailers.
                 </p>
               </div>
-              <div className="flex gap-10 text-xs">
+              <div className="flex flex-wrap gap-8 text-xs">
+                <div className="space-y-2">
+                  <p className="font-semibold uppercase tracking-wider text-foreground">Discover</p>
+                  <div className="space-y-1.5">
+                    <div><Link to="/releases" className="text-muted-foreground transition-colors hover:text-primary">Upcoming Releases</Link></div>
+                    <div><Link to="/brand/nike" className="text-muted-foreground transition-colors hover:text-primary">Nike Prices</Link></div>
+                    <div><Link to="/brand/adidas" className="text-muted-foreground transition-colors hover:text-primary">Adidas Prices</Link></div>
+                    <div><Link to="/brand/jordan" className="text-muted-foreground transition-colors hover:text-primary">Jordan Prices</Link></div>
+                    <div><Link to="/brand/new-balance" className="text-muted-foreground transition-colors hover:text-primary">New Balance Prices</Link></div>
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <p className="font-semibold uppercase tracking-wider text-foreground">Company</p>
                   <div className="space-y-1.5">

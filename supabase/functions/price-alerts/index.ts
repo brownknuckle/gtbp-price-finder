@@ -175,7 +175,7 @@ serve(async (req) => {
                       </div>
                     </div>
 
-                    <a href="${Deno.env.get("SITE_URL") || "https://gtbp.lovable.app"}/results?q=${encodeURIComponent(item.product_name)}"
+                    <a href="${Deno.env.get("SITE_URL") || "https://getthebestprice.co.uk"}/product/${item.product_name.toLowerCase().replace(/[^a-z0-9\s-]/g," ").replace(/\s+/g,"-").replace(/-+/g,"-").trim()}"
                        style="display: block; text-align: center; background: #1A3A6B; color: white; padding: 14px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
                       Search Current Prices →
                     </a>

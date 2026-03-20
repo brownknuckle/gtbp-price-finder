@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useSearchParams, useLocation, useParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation, useParams, Link } from "react-router-dom";
 import { toProductSlug, fromProductSlug } from "@/lib/utils";
 import { Star, Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag, ShieldCheck, Search, SlidersHorizontal } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,7 +34,7 @@ const Results = () => {
   const [results, setResults] = useState<PriceResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [domesticOnly, setDomesticOnly] = useState(false);
-  const [inStockOnly, setInStockOnly] = useState(false);
+  const [inStockOnly, setInStockOnly] = useState(true);
   const [freeReturnsOnly, setFreeReturnsOnly] = useState(false);
   const [maxPrice, setMaxPrice] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
@@ -714,6 +714,15 @@ const Results = () => {
             </motion.div>
           ))}
         </div>
+
+        {/* Affiliate disclosure */}
+        {!isLoading && results.length > 0 && (
+          <p className="mt-8 text-center text-[10px] text-muted-foreground/50">
+            GTBP earns a small commission when you buy via our links — at no extra cost to you. This never affects how results are ranked.{" "}
+            <Link to="/privacy" className="underline hover:text-primary transition-colors">Learn more</Link>
+          </p>
+        )}
+
       </div>
     </PageTransition>
   );
