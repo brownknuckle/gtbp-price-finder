@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation, useParams } from "react-router-dom";
+import { toProductSlug, fromProductSlug } from "@/lib/utils";
 import { Star, Loader2, ExternalLink, Heart, RefreshCw, CheckCircle2, Tag, ShieldCheck, Search, SlidersHorizontal } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
@@ -22,7 +23,8 @@ const Results = () => {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const location = useLocation();
-  const query = searchParams.get("q") || "";
+  const { slug } = useParams<{ slug: string }>();
+  const query = slug ? fromProductSlug(slug) : (searchParams.get("q") || "");
   const stateProduct = (location.state as any)?.product as ProductInfo | undefined;
   const stateSizing = (location.state as any)?.sizing as {
     gender: string; sizeType: string; sizeRegion: string; size: string;
@@ -127,6 +129,64 @@ const Results = () => {
     return () => { document.getElementById("gtbp-product-ld")?.remove(); };
   }, [product, results]);
 
+  // Redirect /results?q= to canonical /product/:slug URL
+  useEffect(() => {
+    if (!slug && query) {
+      const canonicalSlug = toProductSlug(query);
+      navigate(`/product/${canonicalSlug}`, {
+        replace: true,
+        state: location.state,
+      });
+    }
+  }, [slug, query]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Inject canonical URL, meta description, and OG tags per product
+  useEffect(() => {
+    const productName = product?.product_name || query;
+    const canonicalSlug = toProductSlug(productName || query);
+    const canonicalUrl = `https://getthebestprice.co.uk/product/${canonicalSlug}`;
+    const description = productName
+      ? `Find the cheapest price for ${productName} across 30+ UK retailers. Compare live prices from JD Sports, Size?, Foot Locker, END. and more — including shipping.`
+      : "Compare prices across 30+ UK retailers instantly.";
+
+    // Canonical
+    let canonical = document.querySelector("link[rel='canonical']") as HTMLLinkElement | null;
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+    }
+    canonical.href = canonicalUrl;
+
+    // Meta description
+    let metaDesc = document.querySelector("meta[name='description']") as HTMLMetaElement | null;
+    if (!metaDesc) {
+      metaDesc = document.createElement("meta");
+      metaDesc.name = "description";
+      document.head.appendChild(metaDesc);
+    }
+    metaDesc.content = description;
+
+    // OG tags
+    const setOg = (property: string, content: string) => {
+      let el = document.querySelector(`meta[property='${property}']`) as HTMLMetaElement | null;
+      if (!el) { el = document.createElement("meta"); el.setAttribute("property", property); document.head.appendChild(el); }
+      el.content = content;
+    };
+    setOg("og:title", productName ? `${productName} — Best Prices | GTBP` : "GTBP — Get The Best Price");
+    setOg("og:description", description);
+    setOg("og:url", canonicalUrl);
+    if (product?.image_url) setOg("og:image", product.image_url);
+
+    return () => {
+      // Restore homepage defaults on unmount
+      const homeCanonical = document.querySelector("link[rel='canonical']") as HTMLLinkElement | null;
+      if (homeCanonical) homeCanonical.href = "https://getthebestprice.co.uk";
+      const homeDesc = document.querySelector("meta[name='description']") as HTMLMetaElement | null;
+      if (homeDesc) homeDesc.content = "Find the cheapest price for sneakers, clothing and accessories across UK retailers. Compare prices from Nike, JD Sports, Size?, Foot Locker, END. and more.";
+    };
+  }, [product, query, slug]);
+
   // Fetch prices — re-runs when query changes (fixes stale results bug)
   useEffect(() => {
     // If query changed mid-session, reset and refetch
@@ -230,7 +290,7 @@ const Results = () => {
           className="mb-5 flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            if (newSearch.trim()) navigate(`/results?q=${encodeURIComponent(newSearch.trim())}`);
+            if (newSearch.trim()) navigate(`/product/${toProductSlug(newSearch.trim())}`);
           }}
         >
           <div className="relative flex-1">
@@ -507,7 +567,7 @@ const Results = () => {
                   {product.suggestions.slice(0, 3).map((s) => (
                     <button
                       key={s}
-                      onClick={() => navigate(`/results?q=${encodeURIComponent(s)}`, { state: { sizing: (location.state as any)?.sizing } })}
+                      onClick={() => navigate(`/product/${toProductSlug(s)}`, { state: { sizing: (location.state as any)?.sizing } })}
                       className="rounded-lg border border-border bg-card px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:border-primary hover:bg-primary/5"
                     >
                       {s}

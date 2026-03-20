@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Search, ArrowRight, Loader2, ShieldCheck, Zap, Globe, Camera, X, CheckCircle, AlertTriangle, Edit3 } from "lucide-react";
+import { toProductSlug } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,8 +25,28 @@ const fallbackTrending = [
   "Adidas Samba OG White Black",
 ];
 
+const FAQ_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Is GTBP free to use?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, completely free. We don't charge you anything — just search and buy directly from the retailer." } },
+    { "@type": "Question", "name": "How do you find the prices?", "acceptedAnswer": { "@type": "Answer", "text": "We use AI to search across 30+ UK and international retailers in real-time, extracting actual product page prices — not estimates." } },
+    { "@type": "Question", "name": "Are shipping costs included?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. We estimate shipping and import duties for non-UK retailers so the 'Total You Pay' is the real landed cost." } },
+    { "@type": "Question", "name": "Do you sell products?", "acceptedAnswer": { "@type": "Answer", "text": "No. GTBP is a price comparison tool. When you click Buy Now, you go directly to the retailer's website." } },
+  ],
+};
+
 const Index = () => {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.type = "application/ld+json";
+    script.id = "gtbp-faq-ld";
+    script.text = JSON.stringify(FAQ_SCHEMA);
+    if (!document.getElementById("gtbp-faq-ld")) document.head.appendChild(script);
+    return () => { document.getElementById("gtbp-faq-ld")?.remove(); };
+  }, []);
   const { toast } = useToast();
   const [query, setQuery] = useState("");
   const [gender, setGender] = useState<"men" | "women" | "unisex">("men");
@@ -168,7 +189,7 @@ const Index = () => {
         return;
       }
 
-      navigate(`/results?q=${encodeURIComponent(product.product_name || q)}`, {
+      navigate(`/product/${toProductSlug(product.product_name || q)}`, {
         state: { product, sizing: { gender, sizeType, sizeRegion, size } },
       });
     } catch (e: any) {
