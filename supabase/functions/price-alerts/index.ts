@@ -27,11 +27,11 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const resendKey = Deno.env.get("RESEND_API_KEY");
     const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY");
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
 
     if (!resendKey) throw new Error("RESEND_API_KEY not configured");
     if (!firecrawlKey) throw new Error("FIRECRAWL_API_KEY not configured");
-    if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
+    if (!geminiKey) throw new Error("GEMINI_API_KEY not configured");
 
     const sb = createClient(supabaseUrl, supabaseKey);
     const resend = new Resend(resendKey);
@@ -104,30 +104,25 @@ serve(async (req) => {
               .join("\n---\n");
 
             // Quick price extraction via AI
-            const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${lovableKey}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model: "google/gemini-2.5-flash-lite",
-                messages: [
-                  {
-                    role: "system",
-                    content: "Extract the lowest price in GBP for the product from the scraped content. Return ONLY a JSON object: {\"lowest_price\": number} or {\"lowest_price\": null} if no price found.",
-                  },
-                  {
-                    role: "user",
-                    content: `Product: ${items[0].product_name}\n\n${scrapedContent}`,
-                  },
-                ],
-              }),
-            });
+            const aiResponse = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${geminiKey}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contents: [{
+                    parts: [{
+                      text: `Extract the lowest price in GBP for the product from the scraped content. Return ONLY a JSON object: {"lowest_price": number} or {"lowest_price": null} if no price found.\n\nProduct: ${items[0].product_name}\n\n${scrapedContent}`,
+                    }],
+                  }],
+                  generationConfig: { temperature: 0, maxOutputTokens: 64 },
+                }),
+              }
+            );
 
             if (aiResponse.ok) {
               const aiData = await aiResponse.json();
-              const content = aiData.choices?.[0]?.message?.content || "";
+              const content = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
               const match = content.match(/\{[^}]*"lowest_price"\s*:\s*(\d+\.?\d*)/);
               if (match) {
                 currentBestPrice = parseFloat(match[1]);
