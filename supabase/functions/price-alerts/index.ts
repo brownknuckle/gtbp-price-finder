@@ -157,7 +157,7 @@ serve(async (req) => {
               console.log(`Price drop detected for ${item.product_name}, notifying user`);
 
               await resend.emails.send({
-                from: "GTBP Price Alerts <onboarding@resend.dev>",
+                from: "GTBP Price Alerts <alerts@getthebestprice.co.uk>",
                 to: [userEmail],
                 subject: `💰 Price Drop: ${item.product_name} now £${currentBestPrice.toFixed(2)} (-${percentDrop}%)`,
                 html: `
