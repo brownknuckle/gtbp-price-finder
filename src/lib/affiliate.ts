@@ -14,7 +14,7 @@
 //   1. Get approved at impact.com
 //   2. Replace the Impact campaign IDs below
 
-const AWIN_PUBLISHER_ID = ""; // e.g. "123456" — fill in once approved
+const AWIN_PUBLISHER_ID = "2815746";
 const RAKUTEN_SITE_ID = "";   // e.g. "1234567" — fill in once approved
 
 // AWIN merchant IDs — verify each in your AWIN dashboard after approval
