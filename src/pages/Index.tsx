@@ -721,6 +721,7 @@ const Index = () => {
                     <div><Link to="/brand/adidas" className="text-muted-foreground transition-colors hover:text-primary">Adidas Prices</Link></div>
                     <div><Link to="/brand/jordan" className="text-muted-foreground transition-colors hover:text-primary">Jordan Prices</Link></div>
                     <div><Link to="/brand/new-balance" className="text-muted-foreground transition-colors hover:text-primary">New Balance Prices</Link></div>
+                    <div><Link to="/brand/asics" className="text-muted-foreground transition-colors hover:text-primary">ASICS Prices</Link></div>
                   </div>
                 </div>
                 <div className="space-y-2">

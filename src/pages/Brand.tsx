@@ -113,16 +113,6 @@ const BRANDS: Record<string, BrandData> = {
     founded: "1949",
     country: "Japan",
   },
-  "new-balance-running": {
-    name: "New Balance",
-    emoji: "N",
-    description: "",
-    longDescription: "",
-    popularProducts: [],
-    categories: [],
-    founded: "",
-    country: "",
-  },
 };
 
 const Brand = () => {

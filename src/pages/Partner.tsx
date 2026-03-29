@@ -44,7 +44,7 @@ const faqs = [
   },
   {
     q: "Do you work with affiliate networks?",
-    a: "Yes — we work with AWIN, Rakuten, and Impact. If you manage an affiliate programme on any of these networks and want to discuss a partnership, reach out via the form below.",
+    a: "Yes — we work with AWIN, Rakuten, and Impact. If you manage an affiliate programme on any of these networks and want to discuss a partnership, email us at partnerships@getthebestprice.co.uk.",
   },
 ];
 
