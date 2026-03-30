@@ -17,6 +17,10 @@
 const AWIN_PUBLISHER_ID = "2815746";
 const RAKUTEN_SITE_ID = "";   // e.g. "1234567" — fill in once approved
 
+// Amazon Associates UK — replace with your tag from affiliate-program.amazon.co.uk
+// Tag format is typically "yourname-21"
+const AMAZON_ASSOCIATES_TAG = "";  // e.g. "gtbp-21"
+
 // AWIN merchant IDs — verify each in your AWIN dashboard after approval
 const AWIN_MERCHANTS: Record<string, string> = {
   "jdsports.co.uk":      "2441",
@@ -53,9 +57,23 @@ function buildRakutenUrl(merchantId: string, destinationUrl: string): string {
   return `https://click.linksynergy.com/deeplink?id=${RAKUTEN_SITE_ID}&mid=${merchantId}&murl=${encodeURIComponent(destinationUrl)}`;
 }
 
+const AMAZON_DOMAINS = ["amazon.co.uk", "amazon.com"];
+
+function buildAmazonUrl(destinationUrl: string): string {
+  try {
+    const u = new URL(destinationUrl);
+    // Preserve existing tag param if present, otherwise inject ours
+    u.searchParams.set("tag", AMAZON_ASSOCIATES_TAG);
+    return u.toString();
+  } catch {
+    return destinationUrl;
+  }
+}
+
 export function toAffiliateUrl(url: string, domain: string): string {
-  // Only wrap if publisher IDs are configured
-  if (!AWIN_PUBLISHER_ID && !RAKUTEN_SITE_ID) return url;
+  if (AMAZON_ASSOCIATES_TAG && AMAZON_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) {
+    return buildAmazonUrl(url);
+  }
 
   if (AWIN_PUBLISHER_ID && AWIN_MERCHANTS[domain]) {
     return buildAwinUrl(AWIN_MERCHANTS[domain], url);
@@ -70,5 +88,5 @@ export function toAffiliateUrl(url: string, domain: string): string {
 }
 
 export function isAffiliateReady(): boolean {
-  return !!(AWIN_PUBLISHER_ID || RAKUTEN_SITE_ID);
+  return !!(AWIN_PUBLISHER_ID || RAKUTEN_SITE_ID || AMAZON_ASSOCIATES_TAG);
 }
