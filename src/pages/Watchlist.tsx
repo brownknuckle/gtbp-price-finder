@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWatchlist, WatchlistEntry } from "@/hooks/useWatchlist";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageTransition from "@/components/PageTransition";
+import AuthDialog from "@/components/AuthDialog";
 import {
   DndContext,
   closestCenter,
@@ -141,7 +142,10 @@ const Watchlist = () => {
           >
             <Heart className="mb-4 h-10 w-10 text-muted-foreground/40" />
             <p className="text-sm font-medium text-muted-foreground">Sign in to use your watchlist</p>
-            <p className="mt-1 text-xs text-muted-foreground/60">Save products from search results to track prices over time.</p>
+            <p className="mt-1 mb-6 text-xs text-muted-foreground/60">Save products from search results to track prices over time.</p>
+            <div className="rounded-lg bg-primary [&_button]:!text-primary-foreground [&_button]:hover:bg-primary-foreground/20">
+              <AuthDialog />
+            </div>
           </motion.div>
         )}
 

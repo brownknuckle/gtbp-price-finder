@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Search, ArrowRight, Loader2, ShieldCheck, Zap, Globe, Camera, X, CheckCircle, AlertTriangle, Edit3 } from "lucide-react";
 import { toProductSlug } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -38,6 +38,12 @@ const FAQ_SCHEMA = {
 
 const Index = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const prefill = (location.state as any)?.prefill as string | undefined;
+    if (prefill) setQuery(prefill);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const script = document.createElement("script");
@@ -207,7 +213,7 @@ const Index = () => {
   const handleConfirmProduct = () => {
     if (!pendingProduct) return;
     const finalProduct = { ...pendingProduct, product_name: editedName || pendingProduct.product_name };
-    navigate(`/results?q=${encodeURIComponent(finalProduct.product_name)}`, {
+    navigate(`/product/${toProductSlug(finalProduct.product_name)}`, {
       state: { product: finalProduct, sizing: { gender, sizeType, sizeRegion, size } },
     });
   };

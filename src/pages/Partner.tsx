@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { ShieldCheck, TrendingUp, Users, Globe, CheckCircle } from "lucide-react";
+import { ShieldCheck, TrendingUp, Users, Globe, CheckCircle, Mail } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import PageTransition from "@/components/PageTransition";
 
 const benefits = [
@@ -193,6 +194,24 @@ const Partner = () => {
           </div>
         </motion.section>
 
+        {/* CTA */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45, duration: 0.45 }}
+          className="flex flex-col items-center gap-4 rounded-xl border border-primary/20 bg-primary/5 p-8 text-center"
+        >
+          <Mail className="h-8 w-8 text-primary" />
+          <h2 className="text-lg font-bold text-foreground">Get in touch</h2>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Ready to explore a partnership? Email us and we'll get back to you within 2 business days.
+          </p>
+          <a href="mailto:partnerships@getthebestprice.co.uk">
+            <Button className="font-display uppercase tracking-wider">
+              partnerships@getthebestprice.co.uk
+            </Button>
+          </a>
+        </motion.div>
 
       </div>
     </PageTransition>
