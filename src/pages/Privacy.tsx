@@ -34,7 +34,9 @@ const Privacy = () => (
             <li><span className="font-semibold text-foreground">Firecrawl</span> — fetches publicly available product pages from retailer websites to extract prices.</li>
             <li><span className="font-semibold text-foreground">Google Gemini AI</span> — analyses page content to identify and validate prices.</li>
             <li><span className="font-semibold text-foreground">Supabase</span> — stores anonymous price cache data.</li>
-            <li><span className="font-semibold text-foreground">Lovable</span> — our hosting platform. Their privacy policy governs platform-level data (e.g. server logs).</li>
+            <li><span className="font-semibold text-foreground">Vercel</span> — our hosting platform. Their privacy policy governs platform-level data (e.g. server logs).</li>
+            <li><span className="font-semibold text-foreground">Google Analytics</span> — used to understand site usage (only if you consent via the cookie banner).</li>
+            <li><span className="font-semibold text-foreground">Resend</span> — sends price drop notification emails to users who have saved products to their watchlist.</li>
           </ul>
           <p className="mt-2 text-muted-foreground">
             We do not share any personal data with these services because we do not collect personal data.
@@ -43,11 +45,11 @@ const Privacy = () => (
 
         <section>
           <h2 className="mb-2 text-base font-bold">4. Cookies</h2>
-          <p>
-            GTBP does not set first-party cookies. Our hosting platform (Lovable) may set technically
-            necessary cookies for security and performance. We do not use tracking, advertising, or
-            analytics cookies.
-          </p>
+          <p className="mb-2">We use two types of cookies:</p>
+          <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
+            <li><span className="font-semibold text-foreground">Essential cookies</span> — required for the site to function (e.g. your sign-in session). Cannot be disabled.</li>
+            <li><span className="font-semibold text-foreground">Analytics cookies</span> — we use Google Analytics to understand how people use GTBP so we can improve it. This is only enabled if you click "Accept All" in the cookie banner. No personal data is sold. You can decline analytics cookies and still use all features of the site.</li>
+          </ul>
         </section>
 
         <section>
