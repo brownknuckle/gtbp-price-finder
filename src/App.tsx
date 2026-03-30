@@ -19,6 +19,9 @@ import Brand from "./pages/Brand";
 import NikeAirForce1Guide from "./pages/guides/NikeAirForce1Guide";
 import AdidasSambaGuide from "./pages/guides/AdidasSambaGuide";
 import NewBalance550Guide from "./pages/guides/NewBalance550Guide";
+import AirJordan1Guide from "./pages/guides/AirJordan1Guide";
+import AdidasGazelleGuide from "./pages/guides/AdidasGazelleGuide";
+import AsicsGelKayano14Guide from "./pages/guides/AsicsGelKayano14Guide";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +44,9 @@ const AnimatedRoutes = () => {
         <Route path="/guides/nike-air-force-1" element={<NikeAirForce1Guide />} />
         <Route path="/guides/adidas-samba" element={<AdidasSambaGuide />} />
         <Route path="/guides/new-balance-550" element={<NewBalance550Guide />} />
+        <Route path="/guides/air-jordan-1" element={<AirJordan1Guide />} />
+        <Route path="/guides/adidas-gazelle" element={<AdidasGazelleGuide />} />
+        <Route path="/guides/asics-gel-kayano-14" element={<AsicsGelKayano14Guide />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>

@@ -28,11 +28,19 @@
     {"@context":"https://schema.org","@type":"Organization","name":"GTBP","url":"https://getthebestprice.co.uk","description":"UK price comparison for sneakers, clothing and accessories"}
     </script>
 
-    <!-- Google Analytics 4 -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9C2LWGY3MD"></script>
+    <!-- Google Analytics 4 — consent mode: denied by default until user accepts -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+      gtag('consent', 'default', { analytics_storage: 'denied', ad_storage: 'denied' });
+      try {
+        if (localStorage.getItem('gtbp_cookie_consent') === 'accepted') {
+          gtag('consent', 'update', { analytics_storage: 'granted' });
+        }
+      } catch(e) {}
+    </script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9C2LWGY3MD"></script>
+    <script>
       gtag('js', new Date());
       gtag('config', 'G-9C2LWGY3MD');
     </script>

@@ -61,6 +61,21 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://getthebestprice.co.uk/guides/air-jordan-1</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/guides/adidas-gazelle</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/guides/asics-gel-kayano-14</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://getthebestprice.co.uk/privacy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>

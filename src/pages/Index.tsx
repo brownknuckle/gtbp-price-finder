@@ -230,7 +230,7 @@ const Index = () => {
       try {
         analytics.search(nameToSearch);
         const product = await searchProduct(nameToSearch);
-        navigate(`/results?q=${encodeURIComponent(product.product_name)}`, {
+        navigate(`/product/${toProductSlug(product.product_name)}`, {
           state: { product, sizing: { gender, sizeType, sizeRegion, size } },
         });
       } catch (e: any) {
@@ -736,6 +736,9 @@ const Index = () => {
                     <div><Link to="/guides/nike-air-force-1" className="text-muted-foreground transition-colors hover:text-primary">Air Force 1 Guide</Link></div>
                     <div><Link to="/guides/adidas-samba" className="text-muted-foreground transition-colors hover:text-primary">Adidas Samba Guide</Link></div>
                     <div><Link to="/guides/new-balance-550" className="text-muted-foreground transition-colors hover:text-primary">New Balance 550 Guide</Link></div>
+                    <div><Link to="/guides/air-jordan-1" className="text-muted-foreground transition-colors hover:text-primary">Air Jordan 1 Guide</Link></div>
+                    <div><Link to="/guides/adidas-gazelle" className="text-muted-foreground transition-colors hover:text-primary">Adidas Gazelle Guide</Link></div>
+                    <div><Link to="/guides/asics-gel-kayano-14" className="text-muted-foreground transition-colors hover:text-primary">ASICS Gel-Kayano 14 Guide</Link></div>
                   </div>
                 </div>
                 <div className="space-y-2">
