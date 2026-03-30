@@ -34,7 +34,7 @@ const Results = () => {
   const [results, setResults] = useState<PriceResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [domesticOnly, setDomesticOnly] = useState(false);
-  const [inStockOnly, setInStockOnly] = useState(true);
+  const [inStockOnly, setInStockOnly] = useState(false);
   const [freeReturnsOnly, setFreeReturnsOnly] = useState(false);
   const [maxPrice, setMaxPrice] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
