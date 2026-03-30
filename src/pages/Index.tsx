@@ -725,10 +725,19 @@ const Index = () => {
                   </div>
                 </div>
                 <div className="space-y-2">
+                  <p className="font-semibold uppercase tracking-wider text-foreground">Guides</p>
+                  <div className="space-y-1.5">
+                    <div><Link to="/guides/nike-air-force-1" className="text-muted-foreground transition-colors hover:text-primary">Air Force 1 Guide</Link></div>
+                    <div><Link to="/guides/adidas-samba" className="text-muted-foreground transition-colors hover:text-primary">Adidas Samba Guide</Link></div>
+                    <div><Link to="/guides/new-balance-550" className="text-muted-foreground transition-colors hover:text-primary">New Balance 550 Guide</Link></div>
+                  </div>
+                </div>
+                <div className="space-y-2">
                   <p className="font-semibold uppercase tracking-wider text-foreground">Company</p>
                   <div className="space-y-1.5">
                     <div><Link to="/about" className="text-muted-foreground transition-colors hover:text-primary">About</Link></div>
                     <div><Link to="/partner" className="text-muted-foreground transition-colors hover:text-primary">Partner with us</Link></div>
+                    <div><a href="mailto:hello@getthebestprice.co.uk" className="text-muted-foreground transition-colors hover:text-primary">Contact</a></div>
                   </div>
                 </div>
                 <div className="space-y-2">

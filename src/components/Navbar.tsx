@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Heart, Menu, X } from "lucide-react";
+import { Heart, Menu, X, Search } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import AuthDialog from "@/components/AuthDialog";
 
@@ -43,6 +43,15 @@ const Navbar = () => {
 
         {/* Right side */}
         <div className="flex items-center gap-1">
+          {location.pathname !== "/" && (
+            <button
+              onClick={() => navigate("/")}
+              className="rounded-md p-2.5 text-primary-foreground/70 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground"
+              aria-label="Search"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+          )}
           <button
             onClick={() => navigate("/watchlist")}
             className="rounded-md p-2.5 text-primary-foreground/70 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground"

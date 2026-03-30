@@ -16,6 +16,9 @@ import About from "./pages/About";
 import Partner from "./pages/Partner";
 import Releases from "./pages/Releases";
 import Brand from "./pages/Brand";
+import NikeAirForce1Guide from "./pages/guides/NikeAirForce1Guide";
+import AdidasSambaGuide from "./pages/guides/AdidasSambaGuide";
+import NewBalance550Guide from "./pages/guides/NewBalance550Guide";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +38,9 @@ const AnimatedRoutes = () => {
         <Route path="/partner" element={<Partner />} />
         <Route path="/releases" element={<Releases />} />
         <Route path="/brand/:brandSlug" element={<Brand />} />
+        <Route path="/guides/nike-air-force-1" element={<NikeAirForce1Guide />} />
+        <Route path="/guides/adidas-samba" element={<AdidasSambaGuide />} />
+        <Route path="/guides/new-balance-550" element={<NewBalance550Guide />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>

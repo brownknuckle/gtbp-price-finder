@@ -46,6 +46,21 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://getthebestprice.co.uk/guides/nike-air-force-1</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/guides/adidas-samba</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/guides/new-balance-550</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://getthebestprice.co.uk/privacy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>

@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import PageTransition from "@/components/PageTransition";
 
 const stats = [
-  { value: "30+", label: "Retailers compared" },
-  { value: "UK", label: "Focused market" },
-  { value: "Free", label: "Always free to use" },
-  { value: "<30s", label: "Average search time" },
+  { value: "30+", label: "UK & EU retailers" },
+  { value: "£0", label: "Always free to use" },
+  { value: "AI", label: "Powered price search" },
+  { value: "Real‑time", label: "Live price data" },
 ];
 
 const values = [
