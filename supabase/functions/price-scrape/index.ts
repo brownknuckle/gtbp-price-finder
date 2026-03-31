@@ -664,13 +664,16 @@ serve(async (req) => {
       `${searchName} jdsports size.co.uk schuh offspring footlocker buy`,
       `${searchName} zalando endclothing asos flannels mrporter buy`,
       `${searchName} schuh footasylum office offspring size buy UK`,
+      `${searchName} stockx goat klekt laced resell price`,
+      `${searchName} nike adidas newbalance asics buy online UK`,
+      `${searchName} selfridges harveynichols tessuti scotts buy`,
     ];
-    const TOP_SITE_RETAILERS = normalizedRetailers.slice(0, 5);
+    const TOP_SITE_RETAILERS = normalizedRetailers.slice(0, 12);
     const siteQueries = TOP_SITE_RETAILERS.map(r => `${searchName} site:${r}`);
 
     const [broadResultSets, siteResultSets, feedResults] = await Promise.all([
-      Promise.all(broadQueries.map(q => doSearchUrls(q, 10))),
-      Promise.all(siteQueries.map(q => doSearchUrls(q, 5))),
+      Promise.all(broadQueries.map(q => doSearchUrls(q, 15))),
+      Promise.all(siteQueries.map(q => doSearchUrls(q, 8))),
       queryAffiliateFeed(),
     ]);
     const seededResultSets: any[] = [];
@@ -752,7 +755,7 @@ serve(async (req) => {
 
     // ── Step 2: smart scraping — skip pages whose snippet already has a clear price ──
     // This avoids wasting time scraping pages that already returned price data in their snippet.
-    const TOP_N_SCRAPE = 8;
+    const TOP_N_SCRAPE = 20;
     const SNIPPET_PRICE_RE = /£\s?\d{2,4}(?:\.\d{2})?/;
     const toProcess = enrichedCandidates.slice(0, TOP_N_SCRAPE);
     const needsScraping = toProcess.filter(c => !SNIPPET_PRICE_RE.test((c.description || "") + " " + (c.markdown || "")));
