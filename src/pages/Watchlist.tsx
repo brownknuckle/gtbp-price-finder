@@ -2,6 +2,7 @@ import { Heart, Trash2, Search, ArrowRight, GripVertical } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { toProductSlug } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useWatchlist, WatchlistEntry } from "@/hooks/useWatchlist";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -124,7 +125,7 @@ const Watchlist = () => {
     reorder(reordered);
   };
 
-  const handleSearch = (name: string) => navigate(`/results?q=${encodeURIComponent(name)}`);
+  const handleSearch = (name: string) => navigate(`/product/${toProductSlug(name)}`);
 
   return (
     <PageTransition>

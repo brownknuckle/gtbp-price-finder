@@ -15,6 +15,7 @@ interface BrandData {
   founded: string;
   country: string;
   emoji: string;
+  guides?: { label: string; slug: string }[];
 }
 
 const BRANDS: Record<string, BrandData> = {
@@ -36,6 +37,7 @@ const BRANDS: Record<string, BrandData> = {
     categories: ["Trainers", "Running", "Lifestyle", "Apparel", "Accessories"],
     founded: "1964",
     country: "USA",
+    guides: [{ label: "Nike Air Force 1 Buying Guide", slug: "nike-air-force-1" }],
   },
   adidas: {
     name: "Adidas",
@@ -55,6 +57,10 @@ const BRANDS: Record<string, BrandData> = {
     categories: ["Trainers", "Running", "Originals", "Football", "Apparel"],
     founded: "1949",
     country: "Germany",
+    guides: [
+      { label: "Adidas Samba Buying Guide", slug: "adidas-samba" },
+      { label: "Adidas Gazelle Buying Guide", slug: "adidas-gazelle" },
+    ],
   },
   "new-balance": {
     name: "New Balance",
@@ -74,6 +80,7 @@ const BRANDS: Record<string, BrandData> = {
     categories: ["Trainers", "Running", "Lifestyle", "Made in USA", "Apparel"],
     founded: "1906",
     country: "USA",
+    guides: [{ label: "New Balance 550 Buying Guide", slug: "new-balance-550" }],
   },
   jordan: {
     name: "Jordan",
@@ -93,6 +100,7 @@ const BRANDS: Record<string, BrandData> = {
     categories: ["Basketball", "Lifestyle", "Retro", "Collaboration", "Apparel"],
     founded: "1984",
     country: "USA",
+    guides: [{ label: "Air Jordan 1 Buying Guide", slug: "air-jordan-1" }],
   },
   asics: {
     name: "ASICS",
@@ -112,6 +120,7 @@ const BRANDS: Record<string, BrandData> = {
     categories: ["Running", "Lifestyle", "Trail", "Court", "Apparel"],
     founded: "1949",
     country: "Japan",
+    guides: [{ label: "ASICS Gel-Kayano 14 Buying Guide", slug: "asics-gel-kayano-14" }],
   },
 };
 
@@ -229,6 +238,30 @@ const Brand = () => {
             ))}
           </div>
         </motion.section>
+
+        {/* Buying guides */}
+        {brand.guides && brand.guides.length > 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.22, duration: 0.4 }}
+            className="mb-8"
+          >
+            <h2 className="mb-3 text-lg font-bold text-foreground">{brand.name} buying guides</h2>
+            <div className="flex flex-col gap-2">
+              {brand.guides.map((g) => (
+                <Link
+                  key={g.slug}
+                  to={`/guides/${g.slug}`}
+                  className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium text-foreground transition-all hover:border-primary hover:bg-primary/5 hover:text-primary group"
+                >
+                  {g.label}
+                  <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+                </Link>
+              ))}
+            </div>
+          </motion.section>
+        )}
 
         {/* Other brands */}
         <motion.section
