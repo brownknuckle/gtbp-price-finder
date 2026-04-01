@@ -129,7 +129,8 @@ Rules:
   STREETWEAR: Supreme, Palace, Stone Island, Carhartt WIP, Stussy, A Bathing Ape, Off-White, Fear of God, Represent, Trapstar, CP Company, Arc'teryx, The North Face, Corteiz, Kith
   LUXURY/SPORT: Loewe, Moncler, Canada Goose, Salehe Bembury, Bodega, Concepts
 - Specific colourways only — never vague entries like "Nike Dunk various colourways"
-- Each item must have a distinct name/colourway — no duplicates`,
+- Each item must have a distinct name/colourway — no duplicates
+- image_url: provide a REAL, publicly accessible product image URL from a known retailer CDN (e.g. static.nike.com, assets.adidas.com, nb.scene7.com, images.stockx.com). Must be a direct .jpg/.png/.webp link. Do NOT fabricate URLs.`,
             },
             {
               role: "user",
