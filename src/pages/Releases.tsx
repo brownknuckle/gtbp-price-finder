@@ -151,20 +151,27 @@ const Releases = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.04, duration: 0.3 }}
-                  className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md"
+                  className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md cursor-pointer"
+                  onClick={() => navigate(`/product/${toProductSlug(release.searchQuery || release.name)}`, {
+                    state: { sizing: { gender: "men", sizeType: "shoes", sizeRegion: "UK", size: "9" } }
+                  })}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-secondary text-2xl overflow-hidden">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-secondary overflow-hidden sm:h-20 sm:w-20">
                       {release.image_url ? (
                         <img
                           src={release.image_url}
                           alt={release.name}
-                          className="h-full w-full object-contain p-0.5"
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; e.currentTarget.parentElement!.textContent = release.emoji; }}
+                          className="h-full w-full object-contain p-1"
+                          onError={(e) => {
+                            const el = e.currentTarget as HTMLImageElement;
+                            el.style.display = "none";
+                            el.parentElement!.innerHTML = `<span class="text-3xl select-none">${release.emoji}</span>`;
+                          }}
                           loading="lazy"
                         />
                       ) : (
-                        release.emoji
+                        <span className="text-3xl select-none">{release.emoji}</span>
                       )}
                     </div>
                     <div>
@@ -195,9 +202,7 @@ const Releases = () => {
                     size="sm"
                     variant={urgency === "today" ? "default" : "outline"}
                     className="shrink-0 gap-1 text-xs"
-                    onClick={() => navigate(`/product/${toProductSlug(release.searchQuery || release.name)}`, {
-                      state: { sizing: { gender: "men", sizeType: "shoes", sizeRegion: "UK", size: "9" } }
-                    })}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     Compare <ArrowRight className="h-3 w-3" />
                   </Button>
