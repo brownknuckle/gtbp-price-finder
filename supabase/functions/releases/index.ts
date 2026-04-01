@@ -111,7 +111,8 @@ Return ONLY valid JSON:
       "releaseDate": "YYYY-MM-DD or null if unknown",
       "retailPrice": 120,
       "emoji": "👟",
-      "searchQuery": "Optimised search query for this product"
+      "searchQuery": "Optimised search query for this product",
+      "image_url": "Direct URL to a real product image from a known CDN"
     }
   ]
 }
