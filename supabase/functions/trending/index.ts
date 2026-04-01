@@ -89,7 +89,8 @@ serve(async (req) => {
             Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ query, limit: 5, lang: "en", country: "gb" }),
+          body: JSON.stringify({ query, limit: 3, lang: "en", country: "gb" }),
+          signal: AbortSignal.timeout(6000),
         }).then((r) => r.json()).catch(() => ({ data: [] }))
       )
     );
