@@ -147,7 +147,10 @@ export interface ReleaseItem {
 }
 
 export async function fetchReleases(): Promise<ReleaseItem[]> {
+  const cached = getSessionCache<ReleaseItem[]>("gtbp_releases");
+  if (cached) return cached;
   const data = await invokeFunction("releases", {});
   if (!data?.success) throw new Error(data?.error || "Releases fetch failed");
+  setSessionCache("gtbp_releases", data.releases);
   return data.releases;
 }
