@@ -14,11 +14,11 @@
 //   1. Get approved at impact.com
 //   2. Replace the Impact campaign IDs below
 
-const AWIN_PUBLISHER_ID = "2815746";
-const RAKUTEN_SITE_ID = "";   // e.g. "1234567" — fill in once approved
+// AWIN: applications pending re-approval — disable until confirmed
+const AWIN_PUBLISHER_ID = "";  // restore "2815746" once retailer applications approved
+const RAKUTEN_SITE_ID = "";    // fill in once approved at rakutenadvertising.com
 
-// Amazon Associates UK — replace with your tag from affiliate-program.amazon.co.uk
-// Tag format is typically "yourname-21"
+// Amazon Associates UK — fill in once approved at affiliate-program.amazon.co.uk
 const AMAZON_ASSOCIATES_TAG = "";  // e.g. "gtbp-21"
 
 // AWIN merchant IDs — verify each in your AWIN dashboard after approval

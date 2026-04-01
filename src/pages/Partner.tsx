@@ -29,7 +29,7 @@ const benefits = [
 const faqs = [
   {
     q: "How does GTBP make money?",
-    a: "We earn a small affiliate commission when a user clicks through to a retailer and makes a purchase, via programmes like AWIN, Rakuten, and Impact. There is no cost to users and no cost to retailers for being listed.",
+    a: "GTBP is currently in its early growth phase. Our revenue model is affiliate commissions — earned when users click through to a retailer and make a purchase. We are actively building affiliate relationships with UK retailers. There is no cost to users and no cost to retailers for being listed.",
   },
   {
     q: "Do you list all retailers automatically?",
@@ -45,7 +45,7 @@ const faqs = [
   },
   {
     q: "Do you work with affiliate networks?",
-    a: "Yes — we work with AWIN, Rakuten, and Impact. If you manage an affiliate programme on any of these networks and want to discuss a partnership, email us at partnerships@getthebestprice.co.uk.",
+    a: "We are applying to work with major affiliate networks including AWIN, Rakuten, and Impact. If you manage a programme on any of these networks and would like to invite us, email partnerships@getthebestprice.co.uk.",
   },
 ];
 
@@ -154,7 +154,7 @@ const Partner = () => {
             {[
               {
                 title: "Affiliate programmes (AWIN, Rakuten, Impact)",
-                desc: "If you manage an affiliate programme on AWIN, Rakuten, or Impact — simply approve our application or invite us to your programme. We'll handle the rest.",
+                desc: "We are actively applying to affiliate programmes across major networks. If you manage a programme on AWIN, Rakuten, or Impact and would like to work with us, get in touch.",
               },
               {
                 title: "Direct partnerships",

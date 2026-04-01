@@ -715,11 +715,11 @@ const Results = () => {
           ))}
         </div>
 
-        {/* Affiliate disclosure */}
+        {/* Disclosure */}
         {!isLoading && results.length > 0 && (
           <p className="mt-8 text-center text-[10px] text-muted-foreground/50">
-            GTBP earns a small commission when you buy via our links — at no extra cost to you. This never affects how results are ranked.{" "}
-            <Link to="/privacy" className="underline hover:text-primary transition-colors">Learn more</Link>
+            Prices are fetched in real time and may change. Always verify the final price on the retailer's site before purchasing.{" "}
+            <Link to="/privacy" className="underline hover:text-primary transition-colors">Privacy policy</Link>
           </p>
         )}
 
