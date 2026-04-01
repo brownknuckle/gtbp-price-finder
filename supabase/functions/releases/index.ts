@@ -91,7 +91,7 @@ serve(async (req) => {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${GEMINI_API_KEY}` },
         body: JSON.stringify({
-          model: "gemini-2.5-flash",
+          model: "gemini-2.5-flash-lite",
           temperature: 0.3,
           response_format: { type: "json_object" },
           messages: [

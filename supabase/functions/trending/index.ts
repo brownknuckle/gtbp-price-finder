@@ -109,7 +109,7 @@ serve(async (req) => {
           Authorization: `Bearer ${GEMINI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gemini-2.5-flash",
+          model: "gemini-2.5-flash-lite",
           temperature: 0.4,
           response_format: { type: "json_object" },
           messages: [
