@@ -117,8 +117,9 @@ serve(async (req) => {
             {
               role: "system",
               content: `You are a UK fashion & sneaker trend analyst. Return ONLY valid JSON with this exact shape:
-{"items":[{"name":"Nike Air Max Dn","category":"shoes","emoji":"👟"}]}
-Rules: mix shoes + clothing/accessories, specific product names (brand + model + colourway), category must be "shoes"|"clothing"|"accessories", single emoji, exactly 8 items.`,
+{"items":[{"name":"Nike Air Max Dn","category":"shoes","emoji":"👟","image_url":"https://..."}]}
+Rules: mix shoes + clothing/accessories, specific product names (brand + model + colourway), category must be "shoes"|"clothing"|"accessories", single emoji, exactly 8 items.
+For image_url: provide a REAL, publicly accessible product image URL from a known retailer CDN (e.g. static.nike.com, assets.adidas.com, nb.scene7.com, images.stockx.com, image.goat.com). The URL must be a direct link to a .jpg/.png/.webp image. Do NOT fabricate URLs — only use URLs you are confident exist.`,
             },
             {
               role: "user",
