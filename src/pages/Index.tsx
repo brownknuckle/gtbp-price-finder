@@ -585,16 +585,16 @@ const Index = () => {
               <p className="text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                 🔥 Trending Now
               </p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+              <div className="flex flex-wrap justify-center gap-2">
                 {(trendingItems.length > 0
                   ? trendingItems
                   : fallbackTrending.map((name) => ({ name, category: "shoes" as const, emoji: "👟" }))
                 ).slice(0, 8).map((item, i) => (
                   <motion.button
                     key={item.name}
-                    whileHover={{ scale: 1.03, y: -2 }}
-                    whileTap={{ scale: 0.97 }}
-                    initial={{ opacity: 0, y: 12 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.6 + i * 0.06 }}
                     disabled={isSearching}
@@ -602,28 +602,9 @@ const Index = () => {
                       setQuery(item.name);
                       handleSearch(item.name);
                     }}
-                    className="group flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-3 shadow-xs transition-all hover:border-primary hover:shadow-md disabled:opacity-50"
+                    className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-xs transition-all hover:border-primary hover:shadow-md disabled:opacity-50 sm:text-sm"
                   >
-                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg bg-secondary sm:h-20 sm:w-20">
-                      {item.image_url ? (
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="h-full w-full object-contain p-1"
-                          onError={(e) => {
-                            const el = e.currentTarget as HTMLImageElement;
-                            el.style.display = "none";
-                            el.parentElement!.innerHTML = `<span class="text-3xl select-none">${item.emoji}</span>`;
-                          }}
-                          loading="lazy"
-                        />
-                      ) : (
-                        <span className="text-3xl select-none">{item.emoji}</span>
-                      )}
-                    </div>
-                    <span className="line-clamp-2 text-center text-[11px] font-semibold leading-tight text-foreground group-hover:text-primary sm:text-xs">
-                      {item.name}
-                    </span>
+                    {item.emoji} {item.name}
                   </motion.button>
                 ))}
               </div>
