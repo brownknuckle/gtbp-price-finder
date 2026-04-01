@@ -128,8 +128,11 @@ export interface TrendingItem {
 }
 
 export async function fetchTrending(): Promise<TrendingItem[]> {
+  const cached = getSessionCache<TrendingItem[]>("gtbp_trending");
+  if (cached) return cached;
   const data = await invokeFunction("trending", {});
   if (!data?.success) throw new Error(data?.error || "Trending fetch failed");
+  setSessionCache("gtbp_trending", data.trending);
   return data.trending;
 }
 
