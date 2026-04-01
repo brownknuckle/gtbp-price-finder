@@ -64,8 +64,9 @@ serve(async (req) => {
     // Search for upcoming releases
     const searches = [
       `upcoming sneaker releases UK ${today} release dates`,
-      "new trainer releases UK 2026 Nike Adidas Jordan New Balance",
-      "upcoming streetwear drops UK clothing releases 2026",
+      "new trainer releases UK 2026 Nike Adidas Jordan New Balance ASICS",
+      "upcoming streetwear drops UK Supreme Palace Stone Island Carhartt 2026",
+      "upcoming shoe releases UK Salomon New Balance On Running Hoka 2026",
     ];
 
     const searchResults = await Promise.all(
@@ -116,14 +117,18 @@ Return ONLY valid JSON:
 }
 
 Rules:
-- Include 12-16 releases
-- Mix of shoes and clothing
-- Prioritise UK-confirmed releases
+- Include 20-25 releases
+- Mix of shoes (at least 12) and clothing (at least 6)
+- Prioritise UK-confirmed releases with known dates
 - releaseDate must be today or in the future, or null if unconfirmed
 - retailPrice in GBP (integer)
 - searchQuery should be the best search term to find this product on GTBP
-- Include a mix of brands: Nike, Jordan, Adidas, New Balance, ASICS, Salomon, Arc'teryx, Stone Island, etc.
-- Specific colourways only (not "Nike Dunk various colourways")`,
+- REQUIRED brand coverage — must include items from at least 10 different brands spanning:
+  FOOTWEAR: Nike, Air Jordan, Adidas, New Balance, ASICS, Salomon, On Running, Hoka, Reebok, Converse, Vans, Timberland, Dr. Martens, Saucony, Brooks, Mizuno
+  STREETWEAR: Supreme, Palace, Stone Island, Carhartt WIP, Stussy, A Bathing Ape, Off-White, Fear of God, Represent, Trapstar, CP Company, Arc'teryx, The North Face, Corteiz, Kith
+  LUXURY/SPORT: Loewe, Moncler, Canada Goose, Salehe Bembury, Bodega, Concepts
+- Specific colourways only — never vague entries like "Nike Dunk various colourways"
+- Each item must have a distinct name/colourway — no duplicates`,
             },
             {
               role: "user",

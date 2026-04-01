@@ -16,6 +16,7 @@ import About from "./pages/About";
 import Partner from "./pages/Partner";
 import Releases from "./pages/Releases";
 import Brand from "./pages/Brand";
+import Clothing from "./pages/Clothing";
 import Guides from "./pages/Guides";
 import NikeAirForce1Guide from "./pages/guides/NikeAirForce1Guide";
 import AdidasSambaGuide from "./pages/guides/AdidasSambaGuide";
@@ -42,6 +43,7 @@ const AnimatedRoutes = () => {
         <Route path="/partner" element={<Partner />} />
         <Route path="/releases" element={<Releases />} />
         <Route path="/brand/:brandSlug" element={<Brand />} />
+        <Route path="/clothing" element={<Clothing />} />
         <Route path="/guides" element={<Guides />} />
         <Route path="/guides/nike-air-force-1" element={<NikeAirForce1Guide />} />
         <Route path="/guides/adidas-samba" element={<AdidasSambaGuide />} />

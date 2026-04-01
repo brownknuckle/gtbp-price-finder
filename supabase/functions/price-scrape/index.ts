@@ -75,15 +75,29 @@ const BLOCKED_DOMAINS = new Set([
 
 const AUTHORISED_RETAILERS = new Set([
   // Brand direct
-  "nike.com", "adidas.co.uk", "adidas.com", "puma.com", "newbalance.com",
-  "reebok.com", "converse.com", "vans.com", "timberland.com", "ugg.com",
-  "crocs.com", "asics.com", "saucony.com", "brooks.com",
-  // UK authorised stockists
-  "jdsports.co.uk", "footlocker.co.uk", "asos.com", "schuh.co.uk",
-  "size.co.uk", "endclothing.com", "selfridges.com", "harveynichols.com",
-  "mrporter.com", "flannels.com", "footasylum.com", "office.co.uk",
-  "zalando.co.uk", "offspring.co.uk", "sneakersnstuff.com",
-  "solebox.com", "stockx.com", "goat.com", "whatsyoursize.co.uk",
+  "nike.com", "adidas.co.uk", "adidas.com", "newbalance.co.uk", "newbalance.com",
+  "puma.com", "reebok.com", "reebok.co.uk", "converse.com", "vans.com", "vans.co.uk",
+  "timberland.com", "timberland.co.uk", "ugg.com", "crocs.com",
+  "asics.com", "asics.co.uk", "saucony.com", "brooks.com", "hoka.com",
+  "on-running.com", "salomon.com", "drmartens.com",
+  // UK high street
+  "jdsports.co.uk", "footlocker.co.uk", "schuh.co.uk", "size.co.uk",
+  "offspring.co.uk", "footasylum.com", "office.co.uk", "sportsdirect.com",
+  "flannels.com", "tessuti.co.uk", "scottsmenswear.com", "mainlinemenswear.co.uk",
+  // UK online
+  "asos.com", "endclothing.com", "selfridges.com", "harveynichols.com",
+  "mrporter.com", "zalando.co.uk", "very.co.uk", "next.co.uk",
+  "urbanoutfitters.com", "matchesfashion.com", "brownsfashion.com",
+  // Sneaker specialist
+  "sneakersnstuff.com", "solebox.com", "footpatrol.com", "hanon-shop.com",
+  "klekt.com", "laced.com", "laced.co.uk", "thesolesupplier.co.uk",
+  "crepsuk.com", "samedaytrainers.co.uk", "whatsyoursize.co.uk",
+  "aphrodite1994.com", "urbanindustry.co.uk", "eightyeightstore.com",
+  // Resale / global
+  "stockx.com", "goat.com", "farfetch.com", "ssense.com",
+  "footshop.eu", "asphaltgold.com", "bstn.com", "overkillshop.com",
+  "allikestore.com", "titolo.ch", "kickz.com", "courir.com",
+  "snipes.com", "sivasdescalzo.com", "nakedcph.com",
 ]);
 
 const FREE_RETURNS_RETAILERS = new Set([
@@ -109,25 +123,33 @@ const KIDS_PATH_PATTERNS = [
 
 const TRUST_RATINGS: Record<string, number> = {
   // Brand direct (UK Trustpilot scores)
-  "nike.com": 1.6, "adidas.co.uk": 1.2, "adidas.com": 1.2,
-  "newbalance.com": 2.1, "puma.com": 2.3, "reebok.com": 2.0,
-  "converse.com": 1.8, "vans.com": 1.9, "timberland.com": 2.2,
-  // UK retailers
-  "jdsports.co.uk": 3.8, "footlocker.co.uk": 1.5, "asos.com": 1.9,
-  "endclothing.com": 4.3, "size.co.uk": 3.9, "offspring.co.uk": 2.2,
-  "schuh.co.uk": 2.1, "amazon.co.uk": 1.4, "ebay.co.uk": 1.3,
-  "flannels.com": 3.4, "selfridges.com": 1.8, "footasylum.com": 4.5,
-  "sportsdirect.com": 3.1, "office.co.uk": 1.7, "next.co.uk": 4.3,
-  "zalando.co.uk": 2.0, "very.co.uk": 3.8,
+  "nike.com": 1.6, "adidas.co.uk": 1.9, "adidas.com": 1.9,
+  "newbalance.com": 2.1, "newbalance.co.uk": 2.1, "puma.com": 2.3, "reebok.com": 2.0, "reebok.co.uk": 2.0,
+  "converse.com": 1.8, "vans.com": 1.9, "vans.co.uk": 1.9, "timberland.com": 2.2, "timberland.co.uk": 2.2,
+  "asics.com": 2.8, "asics.co.uk": 2.8, "hoka.com": 3.2, "on-running.com": 3.5, "saucony.com": 2.5,
+  "drmartens.com": 2.4,
+  // UK high street (Trustpilot UK scores — verified 2025)
+  "jdsports.co.uk": 2.0, "footlocker.co.uk": 1.5, "asos.com": 1.9,
+  "endclothing.com": 4.3, "size.co.uk": 3.9, "offspring.co.uk": 4.2,
+  "schuh.co.uk": 4.6, "amazon.co.uk": 1.4, "ebay.co.uk": 1.3,
+  "flannels.com": 2.0, "tessuti.co.uk": 2.1, "selfridges.com": 2.0, "footasylum.com": 4.2,
+  "sportsdirect.com": 2.0, "office.co.uk": 1.7, "next.co.uk": 3.8,
+  "zalando.co.uk": 2.3, "very.co.uk": 1.8, "urbanoutfitters.com": 2.5,
+  "mainlinemenswear.co.uk": 4.5, "scottsmenswear.com": 4.3,
   // Sneaker specialist
-  "stockx.com": 4.2, "goat.com": 3.9, "laced.com": 4.1,
-  "klekt.com": 3.6, "thesolesupplier.co.uk": 4.3,
-  "sneakersnstuff.com": 3.0, "solebox.com": 3.0, "whatsyoursize.co.uk": 4.1,
+  "stockx.com": 3.7, "goat.com": 3.4, "laced.com": 4.3, "laced.co.uk": 4.3,
+  "klekt.com": 4.0, "thesolesupplier.co.uk": 4.3,
+  "sneakersnstuff.com": 3.2, "solebox.com": 3.4, "whatsyoursize.co.uk": 4.1,
+  "footpatrol.com": 4.0, "hanon-shop.com": 3.8,
   "crepsuk.com": 4.0, "samedaytrainers.co.uk": 4.9,
-  "fatbuddhastore.com": 4.4, "shucentre.co.uk": 2.8,
+  "urbanindustry.co.uk": 4.1, "aphrodite1994.com": 3.9,
   // Luxury
-  "harveynichols.com": 2.0, "mrporter.com": 3.6,
-  "matchesfashion.com": 3.8, "farfetch.com": 4.0,
+  "harveynichols.com": 2.0, "mrporter.com": 3.6, "selfridges.com": 2.0,
+  "matchesfashion.com": 3.8, "farfetch.com": 4.0, "ssense.com": 3.2,
+  "brownsfashion.com": 3.5,
+  // European
+  "asphaltgold.com": 4.1, "bstn.com": 3.8, "footshop.eu": 3.7,
+  "overkillshop.com": 3.6, "snipes.com": 3.5, "courir.com": 3.2,
 };
 
 // ─── Delivery times per retailer ─────────────────────────────
@@ -337,7 +359,7 @@ For each numbered candidate, extract price data and return a JSON array. Rules:
 
 is_correct_product: true ONLY if ALL of these are true:
   1. The page is a specific product listing (not a category, collection, or search results page)
-  2. The exact model/colourway matches. Equivalents allowed: "Triple White"="White/White/White"="Cloud White", "Core Black"="Black/Black/Black". HARD RULE: primary colour must match — if White is searched, Black/Grey/Red is WRONG. If the page colourway is unclear or different, set is_correct_product: false.
+  2. The model matches AND the colourway is compatible. Common equivalents: "Cloud White"="White"="Off White"="Triple White"="White/White/White", "Core Black"="Black"="Triple Black"="Black/Black/Black", "Cream"="Ivory"="Natural", "Grey"="Gray"="Smoke Grey". RULE: only reject if the page CLEARLY shows a DIFFERENT primary colour (e.g. searching White but page shows Red, Blue, Green, Yellow, Pink, Orange). If the colourway is not explicitly stated but the model name matches, set is_correct_product: true.
   3. Brand new condition (not used, pre-owned, or refurbished)
   4. Correct gender and age group (not kids, junior, grade school, toddler unless searched for)
   REJECT if: wrong colourway/model, kids/GS/PS/TD version, secondhand, category page, wrong gender.
@@ -495,11 +517,18 @@ serve(async (req) => {
       });
     }
 
-    // Strip sizing info for search queries
+    // Strip sizing info and SKU/style codes for search queries
+    // e.g. "Nike Air Max Dn 'All Night' (DV8212-001) Men's UK 9" → "Nike Air Max Dn All Night"
     const searchName = product_name
       .replace(/\b(men'?s?|women'?s?|unisex)\b/gi, "")
       .replace(/\b(UK|US|EU)\s*\d+\.?\d*/gi, "")
       .replace(/\bsize\s*\d+\.?\d*/gi, "")
+      // Strip SKU/style codes in parentheses or brackets: (DV8212-001), [BQ6806-101]
+      .replace(/[\[(][A-Z]{1,4}[-_]?\d{3,}[-]\d{3,}[\])]/gi, "")
+      // Strip any remaining parenthesised codes shorter than 20 chars
+      .replace(/\([^)]{1,20}\)/g, "")
+      // Remove surrounding single quotes from colourway names: 'All Night' → All Night
+      .replace(/'([^']+)'/g, "$1")
       .replace(/\s{2,}/g, " ").trim();
 
     // ── Cache check ──
@@ -621,31 +650,71 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     // Step 1: snippet search — finds URLs cheaply (1 credit/result)
-    const doSearchUrls = async (query: string, limit: number) => {
+    // includeDomains filters results to specific domains (Firecrawl native param — more reliable than site: in query)
+    const doSearchUrls = async (query: string, limit: number, includeDomains?: string[]) => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
+      const timeout = setTimeout(() => controller.abort(), 10000);
       try {
         const r = await fetch("https://api.firecrawl.dev/v1/search", {
           method: "POST",
           headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
           signal: controller.signal,
-          body: JSON.stringify({ query, limit, lang: "en", country: "gb" }),
+          body: JSON.stringify({
+            query, limit, lang: "en", country: "gb",
+            ...(includeDomains?.length ? { includeDomains } : {}),
+          }),
         });
         return await r.json();
       } catch { return { data: [] }; }
       finally { clearTimeout(timeout); }
     };
 
-    // Step 2: scrape a product page for real content (1 credit/page)
-    const scrapeProductPage = async (url: string): Promise<string> => {
+    // JS-heavy retailers that need extra wait time for price to render
+    const JS_HEAVY_RETAILERS = new Set([
+      "jdsports.co.uk", "size.co.uk", "footlocker.co.uk", "schuh.co.uk",
+      "offspring.co.uk", "footasylum.com", "sportsdirect.com",
+    ]);
+
+    // Direct resale platform search — scrapes search result pages to extract product URLs.
+    // Bypasses Firecrawl's search index, so works even for niche/new/limited products.
+    const scrapeResaleSearch = async (searchUrl: string, urlPattern: RegExp): Promise<Array<{ url: string; title: string; markdown: string; description: string }>> => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 18000);
+      const timeout = setTimeout(() => controller.abort(), 10000);
       try {
         const r = await fetch("https://api.firecrawl.dev/v1/scrape", {
           method: "POST",
           headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
           signal: controller.signal,
-          body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+          body: JSON.stringify({ url: searchUrl, formats: ["markdown"], onlyMainContent: true, waitFor: 1500 }),
+        });
+        if (!r.ok) return [];
+        const data = await r.json();
+        const md: string = data?.data?.markdown || "";
+        const links: Array<{ url: string; title: string; markdown: string; description: string }> = [];
+        for (const m of md.matchAll(urlPattern)) {
+          if (!links.some(l => l.url === m[0])) links.push({ url: m[0], title: "", markdown: "", description: "" });
+          if (links.length >= 3) break;
+        }
+        return links;
+      } catch { return []; }
+      finally { clearTimeout(timeout); }
+    };
+
+    // Step 2: scrape a product page for real content (1 credit/page)
+    const scrapeProductPage = async (url: string): Promise<string> => {
+      const domain = extractDomain(url);
+      const jsHeavy = JS_HEAVY_RETAILERS.has(domain);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), jsHeavy ? 15000 : 9000);
+      try {
+        const r = await fetch("https://api.firecrawl.dev/v1/scrape", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            url, formats: ["markdown"], onlyMainContent: true,
+            ...(jsHeavy ? { waitFor: 3000 } : {}),
+          }),
         });
         if (!r.ok) return "";
         const data = await r.json();
@@ -657,37 +726,73 @@ serve(async (req) => {
     log(`Searching for: "${searchName}"`);
 
     // ── Search strategy ──────────────────────────────────────────────────────
-    // Mix of broad queries (high recall) + targeted site: queries (high precision).
-    // Broad queries find most retailers; site: queries fill gaps for specific stores.
+    // Broad queries for general discovery + two includeDomains queries targeting
+    // UK high street and boutique retailers directly (replaces broken site: queries).
     const broadQueries = [
       `${searchName} buy UK price`,
-      `${searchName} jdsports size.co.uk schuh offspring footlocker buy`,
-      `${searchName} zalando endclothing asos flannels mrporter buy`,
-      `${searchName} schuh footasylum office offspring size buy UK`,
-      `${searchName} stockx goat klekt laced resell price`,
-      `${searchName} nike adidas newbalance asics buy online UK`,
-      `${searchName} selfridges harveynichols tessuti scotts buy`,
+      `${searchName} stockx goat klekt laced buy price`,
+      `${searchName} selfridges farfetch ssense mrporter buy`,
     ];
-    const TOP_SITE_RETAILERS = normalizedRetailers.slice(0, 12);
-    const siteQueries = TOP_SITE_RETAILERS.map(r => `${searchName} site:${r}`);
 
-    const [broadResultSets, siteResultSets, feedResults] = await Promise.all([
-      Promise.all(broadQueries.map(q => doSearchUrls(q, 15))),
-      Promise.all(siteQueries.map(q => doSearchUrls(q, 8))),
+    // includeDomains ensures results come only from these domains — far more reliable than site: in query string
+    const UK_HIGHSTREET_DOMAINS = [
+      "jdsports.co.uk", "size.co.uk", "schuh.co.uk", "footlocker.co.uk",
+      "offspring.co.uk", "footasylum.com", "endclothing.com", "asos.com",
+      "zalando.co.uk", "flannels.com", "tessuti.co.uk", "office.co.uk",
+    ];
+    const BOUTIQUE_DOMAINS = [
+      "sneakersnstuff.com", "solebox.com", "footpatrol.com", "hanon-shop.com",
+      "asphaltgold.com", "bstn.com", "overkillshop.com", "allikestore.com",
+      "snipes.com", "courir.com", "footshop.eu", "urbanindustry.co.uk",
+    ];
+    // Resale platforms carry virtually every sneaker — safety net for limited/exclusive releases
+    const RESALE_DOMAINS = [
+      "stockx.com", "goat.com", "klekt.com", "laced.com", "laced.co.uk",
+      "thesolesupplier.co.uk", "crepsuk.com",
+    ];
+
+    // Strip colour words to get model-only name — UK retailers often omit the official colourway
+    // e.g. "Nike Air Max DN All Night" → "Nike Air Max DN"
+    //      "Adidas Samba OG Cloud White Core Black" → "Adidas Samba OG"
+    const COLOUR_STRIP_RE = /\b(cloud\s+white|core\s+black|triple\s+white|triple\s+black|all\s+night|pure\s+platinum|volt|phantom|clear\s+granite|sail|natural|off\s+white|cream\s+white|ghost|light\s+bone|particle\s+grey|dark\s+grey|smoke\s+grey|medium\s+grey|light\s+grey|[a-z]+\s+grey|[a-z]+\s+gray|[a-z]+\s+blue|[a-z]+\s+red|[a-z]+\s+green|[a-z]+\s+black|[a-z]+\s+white|white|black|red|blue|green|yellow|orange|purple|pink|brown|grey|gray|beige|cream|navy|khaki|tan|silver|gold|olive|burgundy|coral|sage|slate|indigo|teal|mint|sand|stone|chalk)\b/gi;
+    const modelOnly = searchName.replace(COLOUR_STRIP_RE, "").replace(/\s{2,}/g, " ").trim();
+
+    const resaleQuery = encodeURIComponent(modelOnly && modelOnly !== searchName ? modelOnly : searchName);
+    const [broadResultSets, ukAnchorResults, ukAnchorFallback, boutiqueResults, resaleResults, feedResults, stockxLinks, klektLinks] = await Promise.all([
+      Promise.all(broadQueries.map(q => doSearchUrls(q, 12))),
+      doSearchUrls(`${searchName} buy`, 20, UK_HIGHSTREET_DOMAINS),
+      modelOnly && modelOnly !== searchName ? doSearchUrls(`${modelOnly} buy`, 12, UK_HIGHSTREET_DOMAINS) : Promise.resolve({ data: [] }),
+      doSearchUrls(`${searchName} buy`, 12, BOUTIQUE_DOMAINS),
+      doSearchUrls(searchName, 15, RESALE_DOMAINS),
       queryAffiliateFeed(),
+      // Direct scrapes bypass Firecrawl index gaps — always find product pages on resale platforms
+      scrapeResaleSearch(
+        `https://stockx.com/search?s=${resaleQuery}`,
+        /https?:\/\/stockx\.com\/(?!search|how-it|buy|sell|news|about|sneakers$|streetwear$)[a-z0-9][a-z0-9-]{8,}/gi
+      ),
+      scrapeResaleSearch(
+        `https://klekt.com/search?q=${resaleQuery}`,
+        /https?:\/\/(?:www\.)?klekt\.com\/[a-z0-9-]{8,}/gi
+      ),
     ]);
-    const seededResultSets: any[] = [];
 
     const seenUrls = new Set<string>();
     const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
-    // Site: results first (highest quality), then broad fallback
-    for (const result of [...siteResultSets, ...broadResultSets, ...seededResultSets]) {
+    // includeDomains + direct scrapes first (highest precision), then broad fallback
+    for (const result of [...[ukAnchorResults, ukAnchorFallback, boutiqueResults, resaleResults], ...broadResultSets]) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
           rawCandidates.push({ url: item.url, title: item.title || "", markdown: item.markdown || "", description: item.description || "" });
         }
+      }
+    }
+    // Inject direct resale scrape results
+    for (const item of [...stockxLinks, ...klektLinks]) {
+      if (!seenUrls.has(item.url)) {
+        seenUrls.add(item.url);
+        rawCandidates.push(item);
       }
     }
 
@@ -755,7 +860,7 @@ serve(async (req) => {
 
     // ── Step 2: smart scraping — skip pages whose snippet already has a clear price ──
     // This avoids wasting time scraping pages that already returned price data in their snippet.
-    const TOP_N_SCRAPE = 20;
+    const TOP_N_SCRAPE = 15;
     const SNIPPET_PRICE_RE = /£\s?\d{2,4}(?:\.\d{2})?/;
     const toProcess = enrichedCandidates.slice(0, TOP_N_SCRAPE);
     const needsScraping = toProcess.filter(c => !SNIPPET_PRICE_RE.test((c.description || "") + " " + (c.markdown || "")));
@@ -929,6 +1034,52 @@ serve(async (req) => {
         freeReturns: FREE_RETURNS_RETAILERS.has(domain),
       });
     }
+
+    // ── Regex fallback for AUTHORISED_RETAILERS that AI couldn't price ──
+    // JS-heavy pages (JD Sports, Size?, Foot Locker etc.) often return empty scrape markdown.
+    // For trusted domains, extract price from snippet/title as low-confidence fallback.
+    const aiCoveredDomains = new Set(extracted.map(e => extractDomain(e.url)));
+    for (const c of enrichedCandidates) {
+      const domain = extractDomain(c.url);
+      if (aiCoveredDomains.has(domain)) continue;
+      if (!AUTHORISED_RETAILERS.has(domain)) continue;
+      const text = `${c.title || ""} ${c.markdown || ""} ${c.description || ""}`;
+      const prices: number[] = [];
+      for (const m of text.replace(/,/g, "").matchAll(/£\s?(\d{1,4}(?:\.\d{1,2})?)/gi)) {
+        const v = Number(m[1]);
+        if (!isNaN(v) && v >= priceFloor && v <= priceCeiling) prices.push(v);
+      }
+      if (!prices.length) continue;
+      prices.sort((a, b) => a - b);
+      const itemPrice = estimated_retail_price
+        ? prices.reduce((best, p) => Math.abs(p - estimated_retail_price) < Math.abs(best - estimated_retail_price) ? p : best, prices[0])
+        : prices[0];
+      const uk = isUkDomain(domain);
+      const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
+      const duties = calculateDuties(itemPrice, uk);
+      extracted.push({
+        retailer: retailerNameFromDomain(domain),
+        country: uk ? "UK" : "International",
+        flag: uk ? "🇬🇧" : "🌍",
+        itemPrice,
+        shipping,
+        duties,
+        totalYouPay: Number((itemPrice + shipping + duties).toFixed(2)),
+        originalPrice: null,
+        delivery: getDeliveryTime(domain, uk),
+        trustRating: getTrustRating(domain),
+        currency: "GBP",
+        url: cleanUrl(c.url),
+        inStock: null,
+        checkedAt: new Date().toISOString(),
+        couponCode: null,
+        priceConfidence: "low",
+        retailerTier: "authorised",
+        freeReturns: FREE_RETURNS_RETAILERS.has(domain),
+      });
+      aiCoveredDomains.add(domain);
+    }
+    log(`After regex fallback for authorised retailers: ${extracted.length} total`);
 
     // Merge affiliate feed results — feed takes precedence over scraped (higher confidence)
     for (const feedEntry of feedResults) {

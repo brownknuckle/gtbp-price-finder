@@ -196,23 +196,36 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
     // Image search — runs in parallel with AI, fetches og:image from a retailer page
     const fetchProductImage = async (query: string): Promise<string> => {
       if (!FIRECRAWL_API_KEY) return "";
-      try {
-        const r = await fetch("https://api.firecrawl.dev/v1/search", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ query: `${query} buy`, limit: 5, lang: "en", country: "gb" }),
-          signal: AbortSignal.timeout(8000),
-        });
-        const data = await r.json();
-        for (const item of (data.data || [])) {
-          const ogImage = item.metadata?.ogImage || item.metadata?.og_image || "";
-          if (ogImage && KNOWN_IMAGE_CDNS.test(ogImage)) return upgradeCdnUrl(ogImage);
-          // Also check markdown for inline image URLs from known CDNs
-          const mdMatch = (item.markdown || "").match(/https?:\/\/[^\s"')]+\.(?:jpg|jpeg|png|webp)[^\s"')']*/i);
-          if (mdMatch && KNOWN_IMAGE_CDNS.test(mdMatch[0])) return upgradeCdnUrl(mdMatch[0]);
-        }
-      } catch { /* silent */ }
-      return "";
+      const trySearch = async (body: object): Promise<string> => {
+        try {
+          const r = await fetch("https://api.firecrawl.dev/v1/search", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(8000),
+          });
+          const data = await r.json();
+          for (const item of (data.data || [])) {
+            const ogImage = item.metadata?.ogImage || item.metadata?.og_image || "";
+            if (ogImage && looksLikeImage(ogImage)) return upgradeCdnUrl(ogImage);
+            for (const mdMatch of (item.markdown || "").matchAll(/https?:\/\/[^\s"')]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')\]>]*)?/gi)) {
+              if (looksLikeImage(mdMatch[0])) return upgradeCdnUrl(mdMatch[0]);
+            }
+          }
+        } catch { /* silent */ }
+        return "";
+      };
+      // 1. Target StockX/GOAT first — always have clean white-background product images
+      const img1 = await trySearch({
+        query: `${query}`, limit: 5, lang: "en", country: "gb",
+        includeDomains: ["stockx.com", "goat.com", "images.stockx.com"],
+      });
+      if (img1) return img1;
+      // 2. Fall back to UK retailers (often have og:image in search snippets)
+      return trySearch({
+        query: `${query} buy`, limit: 8, lang: "en", country: "gb",
+        includeDomains: ["nike.com", "adidas.co.uk", "newbalance.co.uk", "asics.com", "size.co.uk", "jdsports.co.uk"],
+      });
     };
 
     // Retry with exponential backoff for Gemini 429s
@@ -266,9 +279,11 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
       throw new Error("AI returned malformed product data — please try again.");
     }
 
-    // Use Gemini's suggested image URL if it's from a known official brand/retailer CDN
-    const KNOWN_IMAGE_CDNS = /static\.nike\.com|assets\.adidas|nb\.scene7|asics\.com.*image|images\.asos|media\.jdsports|images\.footlocker|media\.schuh|images\.stockx|image\.goat|images\.zalando|offspring\.co\.uk.*image|size\.co\.uk.*image/i;
-    const aiImageUrl = (product.image_url && KNOWN_IMAGE_CDNS.test(product.image_url))
+    // Accept Gemini's image URL if it looks like a real HTTPS image — browser onError handles broken URLs
+    const KNOWN_IMAGE_CDNS = /static\.nike\.com|assets\.adidas|img\.adidas|nb\.scene7|scene7\.com|images\.newbalance|asics\.com|images\.asos|media\.jdsports|images\.footlocker|media\.schuh|images\.schuh|images\.stockx|image\.goat|images\.zalando|offspring\.co\.uk|size\.co\.uk|endclothing\.com|selfridges\.com|cdn-images\.farfetch|images\.farfetch|res\.cloudinary\.com|\.imgix\.net|images\.ssense|images\.mrporter|images\.matchesfashion|puma\.com|reebok\.com|converse\.com|vans\.com|hoka\.com|on\.com|newbalance\.com/i;
+    const looksLikeImage = (url: string) =>
+      /^https:\/\/.{15,}\.(?:jpg|jpeg|png|webp)(?:[?#][^\s]*)?$/i.test(url) || KNOWN_IMAGE_CDNS.test(url);
+    const aiImageUrl = (product.image_url && looksLikeImage(product.image_url))
       ? upgradeCdnUrl(product.image_url) : "";
 
     // Run image search in parallel and use whichever gives a result first
