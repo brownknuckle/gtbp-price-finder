@@ -5,6 +5,26 @@ import { supabase } from "@/integrations/supabase/client";
 const GTBP_URL = "https://jbftwbduusnjoufsotpq.supabase.co";
 const GTBP_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpiZnR3YmR1dXNuam91ZnNvdHBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxOTYyMDYsImV4cCI6MjA4Nzc3MjIwNn0.tOZMYXjsYZX24KIMM7IalVk3IOCT7BK_zwshYc7jHrI";
 
+// ─── Client-side session cache ──────────────────────────────
+const SESSION_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+function getSessionCache<T>(key: string): T | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > SESSION_CACHE_TTL_MS) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+    return data as T;
+  } catch { return null; }
+}
+
+function setSessionCache(key: string, data: unknown): void {
+  try { sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch { /* quota */ }
+}
+
 async function invokeFunction(name: string, body: Record<string, any>): Promise<any> {
   const res = await fetch(`${GTBP_URL}/functions/v1/${name}`, {
     method: "POST",
@@ -108,8 +128,11 @@ export interface TrendingItem {
 }
 
 export async function fetchTrending(): Promise<TrendingItem[]> {
+  const cached = getSessionCache<TrendingItem[]>("gtbp_trending");
+  if (cached) return cached;
   const data = await invokeFunction("trending", {});
   if (!data?.success) throw new Error(data?.error || "Trending fetch failed");
+  setSessionCache("gtbp_trending", data.trending);
   return data.trending;
 }
 
@@ -124,7 +147,10 @@ export interface ReleaseItem {
 }
 
 export async function fetchReleases(): Promise<ReleaseItem[]> {
+  const cached = getSessionCache<ReleaseItem[]>("gtbp_releases");
+  if (cached) return cached;
   const data = await invokeFunction("releases", {});
   if (!data?.success) throw new Error(data?.error || "Releases fetch failed");
+  setSessionCache("gtbp_releases", data.releases);
   return data.releases;
 }

@@ -144,7 +144,7 @@ const TRUST_RATINGS: Record<string, number> = {
   "crepsuk.com": 4.0, "samedaytrainers.co.uk": 4.9,
   "urbanindustry.co.uk": 4.1, "aphrodite1994.com": 3.9,
   // Luxury
-  "harveynichols.com": 2.0, "mrporter.com": 3.6, "selfridges.com": 2.0,
+  "harveynichols.com": 2.0, "mrporter.com": 3.6,
   "matchesfashion.com": 3.8, "farfetch.com": 4.0, "ssense.com": 3.2,
   "brownsfashion.com": 3.5,
   // European

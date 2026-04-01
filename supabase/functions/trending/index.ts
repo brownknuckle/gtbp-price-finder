@@ -89,7 +89,8 @@ serve(async (req) => {
             Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ query, limit: 5, lang: "en", country: "gb" }),
+          body: JSON.stringify({ query, limit: 3, lang: "en", country: "gb" }),
+          signal: AbortSignal.timeout(6000),
         }).then((r) => r.json()).catch(() => ({ data: [] }))
       )
     );
@@ -109,7 +110,7 @@ serve(async (req) => {
           Authorization: `Bearer ${GEMINI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gemini-2.5-flash",
+          model: "gemini-2.5-flash-lite",
           temperature: 0.4,
           response_format: { type: "json_object" },
           messages: [
