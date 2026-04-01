@@ -145,6 +145,7 @@ export interface ReleaseItem {
   retailPrice: number;
   emoji: string;
   searchQuery: string;
+  image_url?: string;
 }
 
 export async function fetchReleases(): Promise<ReleaseItem[]> {

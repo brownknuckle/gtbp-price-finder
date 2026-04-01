@@ -154,8 +154,18 @@ const Releases = () => {
                   className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-secondary text-2xl">
-                      {release.emoji}
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-secondary text-2xl overflow-hidden">
+                      {release.image_url ? (
+                        <img
+                          src={release.image_url}
+                          alt={release.name}
+                          className="h-full w-full object-contain p-0.5"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; e.currentTarget.parentElement!.textContent = release.emoji; }}
+                          loading="lazy"
+                        />
+                      ) : (
+                        release.emoji
+                      )}
                     </div>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
