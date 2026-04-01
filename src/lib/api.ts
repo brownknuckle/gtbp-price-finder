@@ -125,6 +125,7 @@ export interface TrendingItem {
   name: string;
   category: "shoes" | "clothing" | "accessories";
   emoji: string;
+  image_url?: string;
 }
 
 export async function fetchTrending(): Promise<TrendingItem[]> {
