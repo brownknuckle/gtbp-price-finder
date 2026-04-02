@@ -75,12 +75,36 @@ async function fetchImageForProduct(name: string, apiKey: string): Promise<strin
   });
 }
 
+async function verifyImageUrl(url: string): Promise<boolean> {
+  try {
+    const r = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(4000), redirect: "follow" });
+    const ct = r.headers.get("content-type") || "";
+    return r.ok && ct.startsWith("image/");
+  } catch {
+    return false;
+  }
+}
+
 async function fillMissingImages(items: any[], apiKey: string): Promise<void> {
+  // First: validate all AI-generated image URLs with HEAD requests
+  console.log(`Validating ${items.length} image URLs…`);
+  await Promise.all(
+    items.map(async (item) => {
+      if (item.image_url && looksLikeImage(item.image_url)) {
+        const valid = await verifyImageUrl(item.image_url);
+        if (!valid) {
+          console.log(`Invalid image URL for "${item.name}": ${item.image_url}`);
+          item.image_url = "";
+        }
+      }
+    })
+  );
+
+  // Then: fetch images via Firecrawl for any items still missing
   const needsImage = items.filter(i => !i.image_url || !looksLikeImage(i.image_url));
   if (needsImage.length === 0) return;
 
-  // Limit to 10 parallel searches to avoid rate limits
-  const batch = needsImage.slice(0, 10);
+  const batch = needsImage.slice(0, 15);
   console.log(`Fetching images for ${batch.length} items via Firecrawl…`);
   await Promise.all(
     batch.map(async (item) => {
