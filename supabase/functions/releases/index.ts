@@ -43,65 +43,50 @@ function upgradeCdnUrl(url: string): string {
 }
 
 async function fetchImageForProduct(name: string, apiKey: string): Promise<string> {
-  const trySearch = async (body: object): Promise<string> => {
+  const trySearch = async (query: string, domains: string[]): Promise<string> => {
     try {
       const r = await fetch("https://api.firecrawl.dev/v1/search", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(5000),
+        body: JSON.stringify({ query, limit: 3, lang: "en", country: "gb", includeDomains: domains }),
+        signal: AbortSignal.timeout(6000),
       });
       const data = await r.json();
       for (const item of (data.data || [])) {
+        // Check og:image first
         const ogImage = item.metadata?.ogImage || item.metadata?.og_image || "";
         if (ogImage && looksLikeImage(ogImage)) return upgradeCdnUrl(ogImage);
+        // Check for image URLs in markdown content
         for (const mdMatch of (item.markdown || "").matchAll(/https?:\/\/[^\s"')]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')\]>]*)?/gi)) {
           if (looksLikeImage(mdMatch[0])) return upgradeCdnUrl(mdMatch[0]);
         }
       }
-    } catch { /* timeout or error — silent */ }
+    } catch { /* timeout or error */ }
     return "";
   };
 
-  const img = await trySearch({
-    query: name, limit: 3, lang: "en", country: "gb",
-    includeDomains: ["stockx.com", "goat.com"],
-  });
+  // Try StockX/GOAT first (most reliable for product images)
+  const img = await trySearch(name, ["stockx.com", "goat.com"]);
   if (img) return img;
 
-  return trySearch({
-    query: `${name} buy`, limit: 3, lang: "en", country: "gb",
-    includeDomains: ["nike.com", "adidas.co.uk", "newbalance.co.uk", "size.co.uk", "jdsports.co.uk", "endclothing.com"],
-  });
-}
+  // Try brand-specific retailers
+  const img2 = await trySearch(`${name} buy`, ["nike.com", "adidas.co.uk", "newbalance.co.uk", "size.co.uk", "jdsports.co.uk", "endclothing.com", "footlocker.co.uk"]);
+  if (img2) return img2;
 
-async function verifyImageUrl(url: string): Promise<boolean> {
-  try {
-    const r = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(4000), redirect: "follow" });
-    const ct = r.headers.get("content-type") || "";
-    return r.ok && ct.startsWith("image/");
-  } catch {
-    return false;
-  }
+  // Last resort: open web search for product image
+  return trySearch(`${name} product image`, []);
 }
 
 async function fillMissingImages(items: any[], apiKey: string): Promise<void> {
-  // First: validate all AI-generated image URLs with HEAD requests
-  console.log(`Validating ${items.length} image URLs…`);
-  await Promise.all(
-    items.map(async (item) => {
-      if (item.image_url && looksLikeImage(item.image_url)) {
-        const valid = await verifyImageUrl(item.image_url);
-        if (!valid) {
-          console.log(`Invalid image URL for "${item.name}": ${item.image_url}`);
-          item.image_url = "";
-        }
-      }
-    })
-  );
+  // Keep AI-generated URLs from known CDNs (don't verify — CDNs block HEAD requests)
+  items.forEach(item => {
+    if (item.image_url && !KNOWN_IMAGE_CDNS.test(item.image_url)) {
+      item.image_url = ""; // Clear non-CDN hallucinated URLs
+    }
+  });
 
-  // Then: fetch images via Firecrawl for any items still missing
-  const needsImage = items.filter(i => !i.image_url || !looksLikeImage(i.image_url));
+  // Fetch images via Firecrawl for items without CDN images
+  const needsImage = items.filter(i => !i.image_url);
   if (needsImage.length === 0) return;
 
   const batch = needsImage.slice(0, 15);
@@ -109,7 +94,10 @@ async function fillMissingImages(items: any[], apiKey: string): Promise<void> {
   await Promise.all(
     batch.map(async (item) => {
       const url = await fetchImageForProduct(item.name, apiKey);
-      if (url) item.image_url = url;
+      if (url) {
+        item.image_url = url;
+        console.log(`Found image for "${item.name}": ${url.slice(0, 80)}`);
+      }
     })
   );
 }
@@ -198,7 +186,7 @@ Return ONLY valid JSON:
       "retailPrice": 120,
       "emoji": "👟",
       "searchQuery": "Optimised search query for this product",
-      "image_url": "Direct URL to a real product image from a known CDN"
+      "image_url": "Direct URL to a real product image from a known retailer CDN (static.nike.com, assets.adidas.com, nb.scene7.com, images.stockx.com, image.goat.com etc). Must be a real existing URL. If unsure, omit this field."
     }
   ]
 }
@@ -210,13 +198,9 @@ Rules:
 - releaseDate must be today or in the future, or null if unconfirmed
 - retailPrice in GBP (integer)
 - searchQuery should be the best search term to find this product on GTBP
-- REQUIRED brand coverage — must include items from at least 10 different brands spanning:
-  FOOTWEAR: Nike, Air Jordan, Adidas, New Balance, ASICS, Salomon, On Running, Hoka, Reebok, Converse, Vans, Timberland, Dr. Martens, Saucony, Brooks, Mizuno
-  STREETWEAR: Supreme, Palace, Stone Island, Carhartt WIP, Stussy, A Bathing Ape, Off-White, Fear of God, Represent, Trapstar, CP Company, Arc'teryx, The North Face, Corteiz, Kith
-  LUXURY/SPORT: Loewe, Moncler, Canada Goose, Salehe Bembury, Bodega, Concepts
-- Specific colourways only — never vague entries like "Nike Dunk various colourways"
-- Each item must have a distinct name/colourway — no duplicates
-- image_url: provide a REAL, publicly accessible product image URL from a known retailer CDN (e.g. static.nike.com, assets.adidas.com, nb.scene7.com, images.stockx.com). Must be a direct .jpg/.png/.webp link. Do NOT fabricate URLs.`,
+- REQUIRED brand coverage — must include items from at least 10 different brands
+- Specific colourways only — no duplicates
+- image_url: ONLY use URLs you are confident are real and publicly accessible. Prefer omitting over fabricating.`,
             },
             {
               role: "user",

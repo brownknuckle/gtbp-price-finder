@@ -151,8 +151,9 @@ export interface ReleaseItem {
 export async function fetchReleases(): Promise<ReleaseItem[]> {
   const cached = getSessionCache<ReleaseItem[]>("gtbp_releases");
   if (cached) return cached;
-  const data = await invokeFunction("releases", {});
-  if (!data?.success) throw new Error(data?.error || "Releases fetch failed");
+  // Releases function is deployed to Lovable Cloud (has image sourcing logic)
+  const { data, error } = await supabase.functions.invoke("releases", { body: {} });
+  if (error || !data?.success) throw new Error(data?.error || error?.message || "Releases fetch failed");
   setSessionCache("gtbp_releases", data.releases);
   return data.releases;
 }
