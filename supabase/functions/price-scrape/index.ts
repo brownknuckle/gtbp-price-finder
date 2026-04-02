@@ -798,7 +798,7 @@ serve(async (req) => {
     const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
     // includeDomains + direct scrapes first (highest precision), then broad fallback
-    for (const result of [...[ukAnchorResults, ukAnchorFallback, boutiqueResults, resaleResults], ...broadResultSets]) {
+    for (const result of [...[ukAnchorResults, ukAnchorFallback, brandDirectResults, luxuryResults, boutiqueResults, resaleResults], ...broadResultSets]) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
