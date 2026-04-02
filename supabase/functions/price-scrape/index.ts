@@ -878,7 +878,7 @@ serve(async (req) => {
 
     // ── Step 2: smart scraping — skip pages whose snippet already has a clear price ──
     // This avoids wasting time scraping pages that already returned price data in their snippet.
-    const TOP_N_SCRAPE = 15;
+    const TOP_N_SCRAPE = 20;
     const SNIPPET_PRICE_RE = /£\s?\d{2,4}(?:\.\d{2})?/;
     const toProcess = enrichedCandidates.slice(0, TOP_N_SCRAPE);
     const needsScraping = toProcess.filter(c => !SNIPPET_PRICE_RE.test((c.description || "") + " " + (c.markdown || "")));
