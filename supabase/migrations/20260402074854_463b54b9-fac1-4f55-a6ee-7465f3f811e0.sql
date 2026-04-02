@@ -1,0 +1,1 @@
+DELETE FROM price_cache WHERE product_key = '__upcoming_releases__';
