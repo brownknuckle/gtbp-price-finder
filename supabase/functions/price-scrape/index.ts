@@ -199,9 +199,15 @@ const DELIVERY_TIMES: Record<string, string> = {
   "stockx.com": "7-14 days",
   "goat.com": "7-14 days",
   "farfetch.com": "3-7 days",
-  "sneakersnstuff.com": "5-10 days",
-  "solebox.com": "5-10 days",
-  "matchesfashion.com": "2-4 days",
+  "sneakersnstuff.com": 5-10, "solebox.com": "5-10 days",
+  "matchesfashion.com": "2-4 days", "harrods.com": "2-4 days",
+  "brownsfashion.com": "3-5 days", "ssense.com": "5-10 days",
+  // European
+  "asphaltgold.com": "5-10 days", "bstn.com": "5-10 days",
+  "footshop.eu": "5-10 days", "overkillshop.com": "5-10 days",
+  "snipes.com": "5-10 days", "courir.com": "5-10 days",
+  "sivasdescalzo.com": "5-10 days", "nakedcph.com": "5-10 days",
+  "whatsyoursize.co.uk": "2-4 days",
 };
 
 function getDeliveryTime(domain: string, isUk: boolean): string {
