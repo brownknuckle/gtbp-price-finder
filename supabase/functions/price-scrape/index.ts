@@ -100,6 +100,8 @@ const AUTHORISED_RETAILERS = new Set([
   "footshop.eu", "asphaltgold.com", "bstn.com", "overkillshop.com",
   "allikestore.com", "titolo.ch", "kickz.com", "courir.com",
   "snipes.com", "sivasdescalzo.com", "nakedcph.com",
+  // Department / luxury
+  "harrods.com", "brownsfashion.com",
 ]);
 
 const FREE_RETURNS_RETAILERS = new Set([
