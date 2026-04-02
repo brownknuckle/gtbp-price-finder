@@ -166,12 +166,15 @@ const Releases = () => {
                         onError={(e) => {
                           const el = e.currentTarget as HTMLImageElement;
                           el.style.display = "none";
-                          el.parentElement!.innerHTML = `<span class="text-4xl select-none">${release.emoji}</span>`;
+                          el.parentElement!.innerHTML = `<div class="flex flex-col items-center justify-center gap-1 text-muted-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><span class="text-[9px] font-medium">No image</span></div>`;
                         }}
                         loading="lazy"
                       />
                     ) : (
-                      <span className="text-4xl select-none">{release.emoji}</span>
+                      <div className="flex flex-col items-center justify-center gap-1 text-muted-foreground">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                        <span className="text-[9px] font-medium text-muted-foreground">No image</span>
+                      </div>
                     )}
                   </div>
 

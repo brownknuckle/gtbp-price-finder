@@ -78,8 +78,13 @@ async function fetchImageForProduct(name: string, apiKey: string): Promise<strin
 async function verifyImageUrl(url: string): Promise<boolean> {
   try {
     const r = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(4000), redirect: "follow" });
+    if (!r.ok) return false;
     const ct = r.headers.get("content-type") || "";
-    return r.ok && ct.startsWith("image/");
+    if (!ct.startsWith("image/")) return false;
+    // Reject tiny placeholders (< 5KB usually means a placeholder or error image)
+    const cl = parseInt(r.headers.get("content-length") || "0", 10);
+    if (cl > 0 && cl < 5000) return false;
+    return true;
   } catch {
     return false;
   }
