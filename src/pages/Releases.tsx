@@ -142,7 +142,7 @@ const Releases = () => {
 
         {/* Release cards */}
         {!isLoading && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-3">
             {sorted.map((release, i) => {
               const { label: dateLabel, urgency } = formatDate(release.releaseDate);
               return (
@@ -151,64 +151,63 @@ const Releases = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.03, duration: 0.3 }}
-                  className="group flex flex-col rounded-2xl border border-border bg-card overflow-hidden transition-shadow hover:shadow-lg cursor-pointer"
+                  className="group flex items-center gap-4 rounded-xl border border-border bg-card p-3 transition-shadow hover:shadow-md cursor-pointer"
                   onClick={() => navigate(`/product/${toProductSlug(release.searchQuery || release.name)}`, {
                     state: { sizing: { gender: "men", sizeType: "shoes", sizeRegion: "UK", size: "9" } }
                   })}
                 >
-                  {/* Image area */}
-                  <div className="flex h-44 items-center justify-center bg-secondary sm:h-52">
+                  {/* Thumbnail */}
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-secondary">
                     {release.image_url ? (
                       <img
                         src={release.image_url}
                         alt={release.name}
-                        className="h-full w-full object-contain p-4 transition-transform group-hover:scale-105"
+                        className="h-full w-full object-contain p-1.5"
                         onError={(e) => {
                           const el = e.currentTarget as HTMLImageElement;
                           el.style.display = "none";
-                          el.parentElement!.innerHTML = `<span class="text-5xl select-none">${release.emoji}</span>`;
+                          el.parentElement!.innerHTML = `<span class="text-3xl select-none">${release.emoji}</span>`;
                         }}
                         loading="lazy"
                       />
                     ) : (
-                      <span className="text-5xl select-none">{release.emoji}</span>
+                      <span className="text-3xl select-none">{release.emoji}</span>
                     )}
                   </div>
 
-                  {/* Info area */}
-                  <div className="flex flex-1 flex-col justify-between p-4">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold text-foreground leading-tight">{release.name}</span>
-                        {urgency === "today" && (
-                          <Badge className="bg-green-500 text-[10px] text-white">Out Today</Badge>
-                        )}
-                        {urgency === "soon" && (
-                          <Badge variant="secondary" className="text-[10px]">This Week</Badge>
-                        )}
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">{release.brand}</span>
-                        <span className="capitalize">{release.category}</span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {dateLabel}
-                        </span>
-                        {release.retailPrice > 0 && (
-                          <span className="font-medium">RRP £{release.retailPrice}</span>
-                        )}
-                      </div>
+                  {/* Info */}
+                  <div className="flex flex-1 flex-col gap-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-bold text-foreground leading-tight truncate">{release.name}</span>
+                      {urgency === "today" && (
+                        <Badge className="bg-green-500 text-[10px] text-white">Out Today</Badge>
+                      )}
+                      {urgency === "soon" && (
+                        <Badge variant="secondary" className="text-[10px]">This Week</Badge>
+                      )}
                     </div>
-
-                    <Button
-                      size="sm"
-                      variant={urgency === "today" ? "default" : "outline"}
-                      className="mt-3 w-full gap-1 text-xs"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Compare Prices <ArrowRight className="h-3 w-3" />
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">{release.brand}</span>
+                      <span className="capitalize">{release.category}</span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {dateLabel}
+                      </span>
+                      {release.retailPrice > 0 && (
+                        <span className="font-medium">RRP £{release.retailPrice}</span>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Action */}
+                  <Button
+                    size="sm"
+                    variant={urgency === "today" ? "default" : "outline"}
+                    className="shrink-0 gap-1 text-xs hidden sm:flex"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Compare <ArrowRight className="h-3 w-3" />
+                  </Button>
                 </motion.div>
               );
             })}
