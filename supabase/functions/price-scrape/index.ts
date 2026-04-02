@@ -774,11 +774,13 @@ serve(async (req) => {
     const modelOnly = searchName.replace(COLOUR_STRIP_RE, "").replace(/\s{2,}/g, " ").trim();
 
     const resaleQuery = encodeURIComponent(modelOnly && modelOnly !== searchName ? modelOnly : searchName);
-    const [broadResultSets, ukAnchorResults, ukAnchorFallback, boutiqueResults, resaleResults, feedResults, stockxLinks, klektLinks] = await Promise.all([
+    const [broadResultSets, ukAnchorResults, ukAnchorFallback, brandDirectResults, luxuryResults, boutiqueResults, resaleResults, feedResults, stockxLinks, klektLinks] = await Promise.all([
       Promise.all(broadQueries.map(q => doSearchUrls(q, 12))),
       doSearchUrls(`${searchName} buy`, 20, UK_HIGHSTREET_DOMAINS),
       modelOnly && modelOnly !== searchName ? doSearchUrls(`${modelOnly} buy`, 12, UK_HIGHSTREET_DOMAINS) : Promise.resolve({ data: [] }),
-      doSearchUrls(`${searchName} buy`, 12, BOUTIQUE_DOMAINS),
+      doSearchUrls(`${searchName} buy`, 14, BRAND_DIRECT_DOMAINS),
+      doSearchUrls(`${searchName} buy`, 10, LUXURY_DOMAINS),
+      doSearchUrls(`${searchName} buy`, 14, BOUTIQUE_DOMAINS),
       doSearchUrls(searchName, 15, RESALE_DOMAINS),
       queryAffiliateFeed(),
       // Direct scrapes bypass Firecrawl index gaps — always find product pages on resale platforms
