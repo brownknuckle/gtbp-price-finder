@@ -43,36 +43,38 @@ function upgradeCdnUrl(url: string): string {
 }
 
 async function fetchImageForProduct(name: string, apiKey: string): Promise<string> {
-  const trySearch = async (body: object): Promise<string> => {
+  const trySearch = async (query: string, domains: string[]): Promise<string> => {
     try {
       const r = await fetch("https://api.firecrawl.dev/v1/search", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(5000),
+        body: JSON.stringify({ query, limit: 3, lang: "en", country: "gb", includeDomains: domains }),
+        signal: AbortSignal.timeout(6000),
       });
       const data = await r.json();
       for (const item of (data.data || [])) {
+        // Check og:image first
         const ogImage = item.metadata?.ogImage || item.metadata?.og_image || "";
         if (ogImage && looksLikeImage(ogImage)) return upgradeCdnUrl(ogImage);
+        // Check for image URLs in markdown content
         for (const mdMatch of (item.markdown || "").matchAll(/https?:\/\/[^\s"')]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')\]>]*)?/gi)) {
           if (looksLikeImage(mdMatch[0])) return upgradeCdnUrl(mdMatch[0]);
         }
       }
-    } catch { /* timeout or error — silent */ }
+    } catch { /* timeout or error */ }
     return "";
   };
 
-  const img = await trySearch({
-    query: name, limit: 3, lang: "en", country: "gb",
-    includeDomains: ["stockx.com", "goat.com"],
-  });
+  // Try StockX/GOAT first (most reliable for product images)
+  const img = await trySearch(name, ["stockx.com", "goat.com"]);
   if (img) return img;
 
-  return trySearch({
-    query: `${name} buy`, limit: 3, lang: "en", country: "gb",
-    includeDomains: ["nike.com", "adidas.co.uk", "newbalance.co.uk", "size.co.uk", "jdsports.co.uk", "endclothing.com"],
-  });
+  // Try brand-specific retailers
+  const img2 = await trySearch(`${name} buy`, ["nike.com", "adidas.co.uk", "newbalance.co.uk", "size.co.uk", "jdsports.co.uk", "endclothing.com", "footlocker.co.uk"]);
+  if (img2) return img2;
+
+  // Last resort: open web search for product image
+  return trySearch(`${name} product image`, []);
 }
 
 async function verifyImageUrl(url: string): Promise<boolean> {
