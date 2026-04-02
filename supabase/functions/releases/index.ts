@@ -199,8 +199,7 @@ Return ONLY valid JSON:
       "releaseDate": "YYYY-MM-DD or null if unknown",
       "retailPrice": 120,
       "emoji": "👟",
-      "searchQuery": "Optimised search query for this product",
-      "image_url": "Direct URL to a real product image from a known CDN"
+      "searchQuery": "Optimised search query for this product"
     }
   ]
 }
@@ -218,7 +217,7 @@ Rules:
   LUXURY/SPORT: Loewe, Moncler, Canada Goose, Salehe Bembury, Bodega, Concepts
 - Specific colourways only — never vague entries like "Nike Dunk various colourways"
 - Each item must have a distinct name/colourway — no duplicates
-- image_url: provide a REAL, publicly accessible product image URL from a known retailer CDN (e.g. static.nike.com, assets.adidas.com, nb.scene7.com, images.stockx.com). Must be a direct .jpg/.png/.webp link. Do NOT fabricate URLs.`,
+- Do NOT include image_url — images will be sourced separately`,
             },
             {
               role: "user",
