@@ -109,7 +109,9 @@ const FREE_RETURNS_RETAILERS = new Set([
   "footlocker.co.uk", "asos.com", "schuh.co.uk", "size.co.uk",
   "endclothing.com", "selfridges.com", "harveynichols.com",
   "mrporter.com", "flannels.com", "footasylum.com", "office.co.uk",
-  "zalando.co.uk", "whatsyoursize.co.uk",
+  "zalando.co.uk", "whatsyoursize.co.uk", "harrods.com",
+  "matchesfashion.com", "farfetch.com", "ssense.com", "brownsfashion.com",
+  "next.co.uk",
 ]);
 
 
