@@ -488,8 +488,8 @@ serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (retailers.length > 30) {
-      retailers = retailers.slice(0, 30);
+    if (retailers.length > 40) {
+      retailers = retailers.slice(0, 40);
     }
     // Validate retailer format (must look like domain names)
     for (let i = 0; i < retailers.length; i++) {
