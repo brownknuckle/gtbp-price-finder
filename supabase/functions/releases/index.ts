@@ -185,7 +185,8 @@ Return ONLY valid JSON:
       "releaseDate": "YYYY-MM-DD or null if unknown",
       "retailPrice": 120,
       "emoji": "👟",
-      "searchQuery": "Optimised search query for this product"
+      "searchQuery": "Optimised search query for this product",
+      "image_url": "Direct URL to a real product image from a known retailer CDN (static.nike.com, assets.adidas.com, nb.scene7.com, images.stockx.com, image.goat.com etc). Must be a real existing URL. If unsure, omit this field."
     }
   ]
 }
@@ -197,13 +198,9 @@ Rules:
 - releaseDate must be today or in the future, or null if unconfirmed
 - retailPrice in GBP (integer)
 - searchQuery should be the best search term to find this product on GTBP
-- REQUIRED brand coverage — must include items from at least 10 different brands spanning:
-  FOOTWEAR: Nike, Air Jordan, Adidas, New Balance, ASICS, Salomon, On Running, Hoka, Reebok, Converse, Vans, Timberland, Dr. Martens, Saucony, Brooks, Mizuno
-  STREETWEAR: Supreme, Palace, Stone Island, Carhartt WIP, Stussy, A Bathing Ape, Off-White, Fear of God, Represent, Trapstar, CP Company, Arc'teryx, The North Face, Corteiz, Kith
-  LUXURY/SPORT: Loewe, Moncler, Canada Goose, Salehe Bembury, Bodega, Concepts
-- Specific colourways only — never vague entries like "Nike Dunk various colourways"
-- Each item must have a distinct name/colourway — no duplicates
-- Do NOT include image_url — images will be sourced separately`,
+- REQUIRED brand coverage — must include items from at least 10 different brands
+- Specific colourways only — no duplicates
+- image_url: ONLY use URLs you are confident are real and publicly accessible. Prefer omitting over fabricating.`,
             },
             {
               role: "user",
