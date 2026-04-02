@@ -199,7 +199,7 @@ const DELIVERY_TIMES: Record<string, string> = {
   "stockx.com": "7-14 days",
   "goat.com": "7-14 days",
   "farfetch.com": "3-7 days",
-  "sneakersnstuff.com": 5-10, "solebox.com": "5-10 days",
+  "sneakersnstuff.com": "5-10 days", "solebox.com": "5-10 days",
   "matchesfashion.com": "2-4 days", "harrods.com": "2-4 days",
   "brownsfashion.com": "3-5 days", "ssense.com": "5-10 days",
   // European
