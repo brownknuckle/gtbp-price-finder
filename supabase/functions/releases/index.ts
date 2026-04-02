@@ -77,40 +77,26 @@ async function fetchImageForProduct(name: string, apiKey: string): Promise<strin
   return trySearch(`${name} product image`, []);
 }
 
-async function verifyImageUrl(url: string): Promise<boolean> {
-  try {
-    const r = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(4000), redirect: "follow" });
-    if (!r.ok) return false;
-    const ct = r.headers.get("content-type") || "";
-    if (!ct.startsWith("image/")) return false;
-    // Reject tiny placeholders (< 5KB usually means a placeholder or error image)
-    const cl = parseInt(r.headers.get("content-length") || "0", 10);
-    if (cl > 0 && cl < 5000) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function fillMissingImages(items: any[], apiKey: string): Promise<void> {
-  // Strip any AI-hallucinated image URLs
-  items.forEach(item => { item.image_url = ""; });
+  // Keep AI-generated URLs from known CDNs (don't verify — CDNs block HEAD requests)
+  items.forEach(item => {
+    if (item.image_url && !KNOWN_IMAGE_CDNS.test(item.image_url)) {
+      item.image_url = ""; // Clear non-CDN hallucinated URLs
+    }
+  });
 
-  // Fetch real images via Firecrawl for all items (batch of 20)
-  const batch = items.slice(0, 20);
+  // Fetch images via Firecrawl for items without CDN images
+  const needsImage = items.filter(i => !i.image_url);
+  if (needsImage.length === 0) return;
+
+  const batch = needsImage.slice(0, 15);
   console.log(`Fetching images for ${batch.length} items via Firecrawl…`);
   await Promise.all(
     batch.map(async (item) => {
       const url = await fetchImageForProduct(item.name, apiKey);
       if (url) {
-        // Verify the found URL is actually valid
-        const valid = await verifyImageUrl(url);
-        if (valid) {
-          item.image_url = url;
-          console.log(`Found image for "${item.name}": ${url.slice(0, 80)}`);
-        } else {
-          console.log(`Found but invalid image for "${item.name}": ${url.slice(0, 80)}`);
-        }
+        item.image_url = url;
+        console.log(`Found image for "${item.name}": ${url.slice(0, 80)}`);
       }
     })
   );
