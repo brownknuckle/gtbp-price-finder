@@ -27,10 +27,12 @@ const UK_COM_RETAILERS = new Set([
   "farfetch.com", "sportsdirect.com", "jdsports.com", "very.co.uk",
   "laced.com", "klekt.com", "thesolesupplier.co.uk",
   "crepsuk.com", "launches.co.uk", "samedaytrainers.co.uk",
-  "fatbuddhastore.com", "shucentre.co.uk",
+  "fatbuddhastore.com", "shucentre.co.uk", "whatsyoursize.co.uk",
   "nike.com", "adidas.com", "newbalance.com", "puma.com", "reebok.com",
   "converse.com", "vans.com", "timberland.com", "ugg.com", "crocs.com",
   "stockx.com", "goat.com", "sneakersnstuff.com", "solebox.com",
+  "hoka.com", "on-running.com", "saucony.com", "drmartens.com",
+  "harrods.com", "brownsfashion.com", "ssense.com",
 ]);
 
 const NON_PRODUCT_PATH_PATTERNS = [
