@@ -27,10 +27,12 @@ const UK_COM_RETAILERS = new Set([
   "farfetch.com", "sportsdirect.com", "jdsports.com", "very.co.uk",
   "laced.com", "klekt.com", "thesolesupplier.co.uk",
   "crepsuk.com", "launches.co.uk", "samedaytrainers.co.uk",
-  "fatbuddhastore.com", "shucentre.co.uk",
+  "fatbuddhastore.com", "shucentre.co.uk", "whatsyoursize.co.uk",
   "nike.com", "adidas.com", "newbalance.com", "puma.com", "reebok.com",
   "converse.com", "vans.com", "timberland.com", "ugg.com", "crocs.com",
   "stockx.com", "goat.com", "sneakersnstuff.com", "solebox.com",
+  "hoka.com", "on-running.com", "saucony.com", "drmartens.com",
+  "harrods.com", "brownsfashion.com", "ssense.com",
 ]);
 
 const NON_PRODUCT_PATH_PATTERNS = [
@@ -98,6 +100,8 @@ const AUTHORISED_RETAILERS = new Set([
   "footshop.eu", "asphaltgold.com", "bstn.com", "overkillshop.com",
   "allikestore.com", "titolo.ch", "kickz.com", "courir.com",
   "snipes.com", "sivasdescalzo.com", "nakedcph.com",
+  // Department / luxury
+  "harrods.com", "brownsfashion.com",
 ]);
 
 const FREE_RETURNS_RETAILERS = new Set([
@@ -105,7 +109,9 @@ const FREE_RETURNS_RETAILERS = new Set([
   "footlocker.co.uk", "asos.com", "schuh.co.uk", "size.co.uk",
   "endclothing.com", "selfridges.com", "harveynichols.com",
   "mrporter.com", "flannels.com", "footasylum.com", "office.co.uk",
-  "zalando.co.uk", "whatsyoursize.co.uk",
+  "zalando.co.uk", "whatsyoursize.co.uk", "harrods.com",
+  "matchesfashion.com", "farfetch.com", "ssense.com", "brownsfashion.com",
+  "next.co.uk",
 ]);
 
 
@@ -146,10 +152,14 @@ const TRUST_RATINGS: Record<string, number> = {
   // Luxury
   "harveynichols.com": 2.0, "mrporter.com": 3.6,
   "matchesfashion.com": 3.8, "farfetch.com": 4.0, "ssense.com": 3.2,
-  "brownsfashion.com": 3.5,
+  "brownsfashion.com": 3.5, "harrods.com": 2.2,
   // European
   "asphaltgold.com": 4.1, "bstn.com": 3.8, "footshop.eu": 3.7,
   "overkillshop.com": 3.6, "snipes.com": 3.5, "courir.com": 3.2,
+  "sivasdescalzo.com": 3.8, "nakedcph.com": 3.9, "titolo.ch": 3.7,
+  "kickz.com": 3.4, "allikestore.com": 3.6,
+  // Additional UK
+  "whatsyoursize.co.uk": 4.1, "samedaytrainers.co.uk": 4.9,
 };
 
 // ─── Delivery times per retailer ─────────────────────────────
@@ -191,9 +201,15 @@ const DELIVERY_TIMES: Record<string, string> = {
   "stockx.com": "7-14 days",
   "goat.com": "7-14 days",
   "farfetch.com": "3-7 days",
-  "sneakersnstuff.com": "5-10 days",
-  "solebox.com": "5-10 days",
-  "matchesfashion.com": "2-4 days",
+  "sneakersnstuff.com": "5-10 days", "solebox.com": "5-10 days",
+  "matchesfashion.com": "2-4 days", "harrods.com": "2-4 days",
+  "brownsfashion.com": "3-5 days", "ssense.com": "5-10 days",
+  // European
+  "asphaltgold.com": "5-10 days", "bstn.com": "5-10 days",
+  "footshop.eu": "5-10 days", "overkillshop.com": "5-10 days",
+  "snipes.com": "5-10 days", "courir.com": "5-10 days",
+  "sivasdescalzo.com": "5-10 days", "nakedcph.com": "5-10 days",
+  "whatsyoursize.co.uk": "2-4 days",
 };
 
 function getDeliveryTime(domain: string, isUk: boolean): string {
@@ -488,8 +504,8 @@ serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (retailers.length > 30) {
-      retailers = retailers.slice(0, 30);
+    if (retailers.length > 40) {
+      retailers = retailers.slice(0, 40);
     }
     // Validate retailer format (must look like domain names)
     for (let i = 0; i < retailers.length; i++) {
@@ -739,16 +755,32 @@ serve(async (req) => {
       "jdsports.co.uk", "size.co.uk", "schuh.co.uk", "footlocker.co.uk",
       "offspring.co.uk", "footasylum.com", "endclothing.com", "asos.com",
       "zalando.co.uk", "flannels.com", "tessuti.co.uk", "office.co.uk",
+      "sportsdirect.com", "very.co.uk", "next.co.uk",
+      "scottsmenswear.com", "mainlinemenswear.co.uk",
+    ];
+    const BRAND_DIRECT_DOMAINS = [
+      "nike.com", "adidas.co.uk", "newbalance.co.uk", "asics.co.uk",
+      "puma.com", "reebok.co.uk", "converse.com", "vans.co.uk",
+      "timberland.co.uk", "hoka.com", "on-running.com", "saucony.com",
+      "drmartens.com", "crocs.com",
+    ];
+    const LUXURY_DOMAINS = [
+      "selfridges.com", "harveynichols.com", "mrporter.com",
+      "matchesfashion.com", "farfetch.com", "ssense.com",
+      "brownsfashion.com", "harrods.com",
     ];
     const BOUTIQUE_DOMAINS = [
       "sneakersnstuff.com", "solebox.com", "footpatrol.com", "hanon-shop.com",
       "asphaltgold.com", "bstn.com", "overkillshop.com", "allikestore.com",
       "snipes.com", "courir.com", "footshop.eu", "urbanindustry.co.uk",
+      "aphrodite1994.com", "eightyeightstore.com", "nakedcph.com",
+      "sivasdescalzo.com", "titolo.ch", "kickz.com",
     ];
     // Resale platforms carry virtually every sneaker — safety net for limited/exclusive releases
     const RESALE_DOMAINS = [
       "stockx.com", "goat.com", "klekt.com", "laced.com", "laced.co.uk",
-      "thesolesupplier.co.uk", "crepsuk.com",
+      "thesolesupplier.co.uk", "crepsuk.com", "whatsyoursize.co.uk",
+      "samedaytrainers.co.uk",
     ];
 
     // Strip colour words to get model-only name — UK retailers often omit the official colourway
@@ -758,11 +790,13 @@ serve(async (req) => {
     const modelOnly = searchName.replace(COLOUR_STRIP_RE, "").replace(/\s{2,}/g, " ").trim();
 
     const resaleQuery = encodeURIComponent(modelOnly && modelOnly !== searchName ? modelOnly : searchName);
-    const [broadResultSets, ukAnchorResults, ukAnchorFallback, boutiqueResults, resaleResults, feedResults, stockxLinks, klektLinks] = await Promise.all([
+    const [broadResultSets, ukAnchorResults, ukAnchorFallback, brandDirectResults, luxuryResults, boutiqueResults, resaleResults, feedResults, stockxLinks, klektLinks] = await Promise.all([
       Promise.all(broadQueries.map(q => doSearchUrls(q, 12))),
       doSearchUrls(`${searchName} buy`, 20, UK_HIGHSTREET_DOMAINS),
       modelOnly && modelOnly !== searchName ? doSearchUrls(`${modelOnly} buy`, 12, UK_HIGHSTREET_DOMAINS) : Promise.resolve({ data: [] }),
-      doSearchUrls(`${searchName} buy`, 12, BOUTIQUE_DOMAINS),
+      doSearchUrls(`${searchName} buy`, 14, BRAND_DIRECT_DOMAINS),
+      doSearchUrls(`${searchName} buy`, 10, LUXURY_DOMAINS),
+      doSearchUrls(`${searchName} buy`, 14, BOUTIQUE_DOMAINS),
       doSearchUrls(searchName, 15, RESALE_DOMAINS),
       queryAffiliateFeed(),
       // Direct scrapes bypass Firecrawl index gaps — always find product pages on resale platforms
@@ -780,7 +814,7 @@ serve(async (req) => {
     const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
     // includeDomains + direct scrapes first (highest precision), then broad fallback
-    for (const result of [...[ukAnchorResults, ukAnchorFallback, boutiqueResults, resaleResults], ...broadResultSets]) {
+    for (const result of [...[ukAnchorResults, ukAnchorFallback, brandDirectResults, luxuryResults, boutiqueResults, resaleResults], ...broadResultSets]) {
       for (const item of (result.data || [])) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
@@ -860,7 +894,7 @@ serve(async (req) => {
 
     // ── Step 2: smart scraping — skip pages whose snippet already has a clear price ──
     // This avoids wasting time scraping pages that already returned price data in their snippet.
-    const TOP_N_SCRAPE = 15;
+    const TOP_N_SCRAPE = 20;
     const SNIPPET_PRICE_RE = /£\s?\d{2,4}(?:\.\d{2})?/;
     const toProcess = enrichedCandidates.slice(0, TOP_N_SCRAPE);
     const needsScraping = toProcess.filter(c => !SNIPPET_PRICE_RE.test((c.description || "") + " " + (c.markdown || "")));
