@@ -150,10 +150,14 @@ const TRUST_RATINGS: Record<string, number> = {
   // Luxury
   "harveynichols.com": 2.0, "mrporter.com": 3.6,
   "matchesfashion.com": 3.8, "farfetch.com": 4.0, "ssense.com": 3.2,
-  "brownsfashion.com": 3.5,
+  "brownsfashion.com": 3.5, "harrods.com": 2.2,
   // European
   "asphaltgold.com": 4.1, "bstn.com": 3.8, "footshop.eu": 3.7,
   "overkillshop.com": 3.6, "snipes.com": 3.5, "courir.com": 3.2,
+  "sivasdescalzo.com": 3.8, "nakedcph.com": 3.9, "titolo.ch": 3.7,
+  "kickz.com": 3.4, "allikestore.com": 3.6,
+  // Additional UK
+  "whatsyoursize.co.uk": 4.1, "samedaytrainers.co.uk": 4.9,
 };
 
 // ─── Delivery times per retailer ─────────────────────────────
