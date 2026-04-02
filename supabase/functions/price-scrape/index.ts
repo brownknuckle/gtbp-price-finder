@@ -739,16 +739,32 @@ serve(async (req) => {
       "jdsports.co.uk", "size.co.uk", "schuh.co.uk", "footlocker.co.uk",
       "offspring.co.uk", "footasylum.com", "endclothing.com", "asos.com",
       "zalando.co.uk", "flannels.com", "tessuti.co.uk", "office.co.uk",
+      "sportsdirect.com", "very.co.uk", "next.co.uk",
+      "scottsmenswear.com", "mainlinemenswear.co.uk",
+    ];
+    const BRAND_DIRECT_DOMAINS = [
+      "nike.com", "adidas.co.uk", "newbalance.co.uk", "asics.co.uk",
+      "puma.com", "reebok.co.uk", "converse.com", "vans.co.uk",
+      "timberland.co.uk", "hoka.com", "on-running.com", "saucony.com",
+      "drmartens.com", "crocs.com",
+    ];
+    const LUXURY_DOMAINS = [
+      "selfridges.com", "harveynichols.com", "mrporter.com",
+      "matchesfashion.com", "farfetch.com", "ssense.com",
+      "brownsfashion.com", "harrods.com",
     ];
     const BOUTIQUE_DOMAINS = [
       "sneakersnstuff.com", "solebox.com", "footpatrol.com", "hanon-shop.com",
       "asphaltgold.com", "bstn.com", "overkillshop.com", "allikestore.com",
       "snipes.com", "courir.com", "footshop.eu", "urbanindustry.co.uk",
+      "aphrodite1994.com", "eightyeightstore.com", "nakedcph.com",
+      "sivasdescalzo.com", "titolo.ch", "kickz.com",
     ];
     // Resale platforms carry virtually every sneaker — safety net for limited/exclusive releases
     const RESALE_DOMAINS = [
       "stockx.com", "goat.com", "klekt.com", "laced.com", "laced.co.uk",
-      "thesolesupplier.co.uk", "crepsuk.com",
+      "thesolesupplier.co.uk", "crepsuk.com", "whatsyoursize.co.uk",
+      "samedaytrainers.co.uk",
     ];
 
     // Strip colour words to get model-only name — UK retailers often omit the official colourway
