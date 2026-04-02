@@ -151,27 +151,27 @@ const Releases = () => {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.03, duration: 0.3 }}
-                  className="group flex items-center gap-4 rounded-xl border border-border bg-card p-3 transition-shadow hover:shadow-md cursor-pointer"
+                  className="group flex items-center gap-4 rounded-xl border border-border bg-card p-3 sm:p-4 transition-shadow hover:shadow-md cursor-pointer"
                   onClick={() => navigate(`/product/${toProductSlug(release.searchQuery || release.name)}`, {
                     state: { sizing: { gender: "men", sizeType: "shoes", sizeRegion: "UK", size: "9" } }
                   })}
                 >
                   {/* Thumbnail */}
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-secondary">
+                  <div className="flex h-24 w-24 sm:h-28 sm:w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-secondary">
                     {release.image_url ? (
                       <img
                         src={release.image_url}
                         alt={release.name}
-                        className="h-full w-full object-contain p-1.5"
+                        className="h-full w-full object-contain p-2"
                         onError={(e) => {
                           const el = e.currentTarget as HTMLImageElement;
                           el.style.display = "none";
-                          el.parentElement!.innerHTML = `<span class="text-3xl select-none">${release.emoji}</span>`;
+                          el.parentElement!.innerHTML = `<span class="text-4xl select-none">${release.emoji}</span>`;
                         }}
                         loading="lazy"
                       />
                     ) : (
-                      <span className="text-3xl select-none">{release.emoji}</span>
+                      <span className="text-4xl select-none">{release.emoji}</span>
                     )}
                   </div>
 
