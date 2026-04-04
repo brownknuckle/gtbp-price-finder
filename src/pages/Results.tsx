@@ -39,6 +39,7 @@ const Results = () => {
   const [maxPrice, setMaxPrice] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
   const [newSearch, setNewSearch] = useState("");
+  const [isNewSearching, setIsNewSearching] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>("price");
   const fetchedRef = useRef(false);
   const prevQueryRef = useRef(query);
@@ -288,9 +289,20 @@ const Results = () => {
         {/* Quick search bar */}
         <form
           className="mb-5 flex gap-2"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            if (newSearch.trim()) navigate(`/product/${toProductSlug(newSearch.trim())}`);
+            const q = newSearch.trim();
+            if (!q || isNewSearching) return;
+            setIsNewSearching(true);
+            try {
+              const prod = await searchProduct(q);
+              navigate(`/product/${toProductSlug(prod.product_name || q)}`, { state: { product: prod } });
+            } catch {
+              navigate(`/product/${toProductSlug(q)}`);
+            } finally {
+              setIsNewSearching(false);
+              setNewSearch("");
+            }
           }}
         >
           <div className="relative flex-1">
@@ -299,10 +311,13 @@ const Results = () => {
               value={newSearch}
               onChange={(e) => setNewSearch(e.target.value)}
               placeholder="Search again…"
-              className="h-10 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              disabled={isNewSearching}
+              className="h-10 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
             />
           </div>
-          <Button type="submit" size="sm" className="h-10 px-4">Search</Button>
+          <Button type="submit" size="sm" className="h-10 px-4" disabled={isNewSearching}>
+            {isNewSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
+          </Button>
         </form>
 
         {/* Header */}
