@@ -1182,8 +1182,10 @@ serve(async (req) => {
       const sourceName = (item.source || "").toLowerCase().trim();
       let domain = !isGoogleRedirect && rawDomain ? rawDomain : (SHOPPING_SOURCE_MAP[sourceName] || "");
       if (!domain) { log(`Shopping: no domain for source "${item.source}"`); continue; }
-      // Use a search URL when link is a Google redirect (better than homepage)
-      const url = !isGoogleRedirect && rawUrl ? rawUrl
+      // Prefer a real product URL from web search results, fall back to search URL
+      const webSearchUrl = enrichedCandidates.find(c => extractDomain(c.url) === domain && isLikelyProductPage(c.url))?.url;
+      const url = (!isGoogleRedirect && rawUrl) ? rawUrl
+        : webSearchUrl ? webSearchUrl
         : (RETAILER_SEARCH_URLS[domain]?.(searchName) ?? `https://www.${domain}`);
       if (shoppingCoveredDomains.has(domain)) continue;
       if (BLOCKED_DOMAINS.has(domain)) continue;
