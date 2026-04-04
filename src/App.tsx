@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,30 +9,33 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CookieBanner from "@/components/CookieBanner";
+// Core routes — loaded eagerly (user hits these most)
 import Index from "./pages/Index";
 import Results from "./pages/Results";
-import Watchlist from "./pages/Watchlist";
-import Privacy from "./pages/Privacy";
-import Terms from "./pages/Terms";
-import About from "./pages/About";
-import Partner from "./pages/Partner";
-import Releases from "./pages/Releases";
-import Brand from "./pages/Brand";
-import Clothing from "./pages/Clothing";
-import Guides from "./pages/Guides";
-import NikeAirForce1Guide from "./pages/guides/NikeAirForce1Guide";
-import AdidasSambaGuide from "./pages/guides/AdidasSambaGuide";
-import NewBalance550Guide from "./pages/guides/NewBalance550Guide";
-import AirJordan1Guide from "./pages/guides/AirJordan1Guide";
-import AdidasGazelleGuide from "./pages/guides/AdidasGazelleGuide";
-import AsicsGelKayano14Guide from "./pages/guides/AsicsGelKayano14Guide";
-import NotFound from "./pages/NotFound";
+// Secondary routes — lazy loaded
+const Watchlist = lazy(() => import("./pages/Watchlist"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const Terms = lazy(() => import("./pages/Terms"));
+const About = lazy(() => import("./pages/About"));
+const Partner = lazy(() => import("./pages/Partner"));
+const Releases = lazy(() => import("./pages/Releases"));
+const Brand = lazy(() => import("./pages/Brand"));
+const Clothing = lazy(() => import("./pages/Clothing"));
+const Guides = lazy(() => import("./pages/Guides"));
+const NikeAirForce1Guide = lazy(() => import("./pages/guides/NikeAirForce1Guide"));
+const AdidasSambaGuide = lazy(() => import("./pages/guides/AdidasSambaGuide"));
+const NewBalance550Guide = lazy(() => import("./pages/guides/NewBalance550Guide"));
+const AirJordan1Guide = lazy(() => import("./pages/guides/AirJordan1Guide"));
+const AdidasGazelleGuide = lazy(() => import("./pages/guides/AdidasGazelleGuide"));
+const AsicsGelKayano14Guide = lazy(() => import("./pages/guides/AsicsGelKayano14Guide"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
 const AnimatedRoutes = () => {
   const location = useLocation();
   return (
+    <Suspense fallback={null}>
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Index />} />
@@ -55,6 +59,7 @@ const AnimatedRoutes = () => {
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>
+    </Suspense>
   );
 };
 
