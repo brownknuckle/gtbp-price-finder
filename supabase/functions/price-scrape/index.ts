@@ -327,7 +327,7 @@ async function extractPricesWithAI(
   const rrpHint = estimatedRrp ? ` The estimated retail price is £${estimatedRrp}.` : "";
   const sizeHint = productName.match(/\b(UK|US|EU)\s*\d+\.?\d*/i)?.[0];
   const sizeInstruction = sizeHint
-    ? ` The customer wants size ${sizeHint} — only mark in_stock: true if that specific size is available. If this page is for a different size, set is_correct_product: false.`
+    ? ` The customer wants size ${sizeHint}. Size ONLY affects in_stock: mark in_stock true if ${sizeHint} is explicitly available, false if it's explicitly sold out for that size, null if size info is not mentioned. Size does NOT affect is_correct_product — a general product page with no size detail is still is_correct_product: true.`
     : "";
   const genderRaw2 = productName.match(/\b(men'?s?|women'?s?)\b/i)?.[0]?.toLowerCase() ?? "";
   const wantsMens2 = !!genderRaw2 && genderRaw2.startsWith("men") && !genderRaw2.startsWith("women");
@@ -529,6 +529,8 @@ serve(async (req) => {
       .replace(/\([^)]{1,20}\)/g, "")
       // Remove surrounding single quotes from colourway names: 'All Night' → All Night
       .replace(/'([^']+)'/g, "$1")
+      // Strip lone apostrophes (e.g. '07 → 07) that break search queries
+      .replace(/'/g, "")
       .replace(/\s{2,}/g, " ").trim();
 
     // ── Cache check ──
@@ -642,157 +644,107 @@ serve(async (req) => {
       } catch { return []; }
     };
 
-    // ── Firecrawl search ──
-    const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
-    if (!FIRECRAWL_API_KEY) throw new Error("FIRECRAWL_API_KEY not configured");
+    // ── Search (Serper) + Scraping (Jina AI) ──
+    const SERPER_API_KEY = Deno.env.get("SERPER_API_KEY") || "";
 
     const LOVABLE_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
-    // Step 1: snippet search — finds URLs cheaply (1 credit/result)
-    // includeDomains filters results to specific domains (Firecrawl native param — more reliable than site: in query)
-    const doSearchUrls = async (query: string, limit: number, includeDomains?: string[]) => {
+    // Step 1: URL discovery via Serper — Google-backed, 1 credit per search (vs ~20 credits per Firecrawl search)
+    const doSerperSearch = async (query: string, num = 10): Promise<Array<{ url: string; title: string; description: string; markdown: string }>> => {
+      if (!SERPER_API_KEY) return [];
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
+      const timeout = setTimeout(() => controller.abort(), 8000);
       try {
-        const r = await fetch("https://api.firecrawl.dev/v1/search", {
+        const r = await fetch("https://google.serper.dev/search", {
           method: "POST",
-          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
           signal: controller.signal,
-          body: JSON.stringify({
-            query, limit, lang: "en", country: "gb",
-            ...(includeDomains?.length ? { includeDomains } : {}),
-          }),
+          body: JSON.stringify({ q: query, gl: "gb", hl: "en", num }),
         });
-        return await r.json();
-      } catch { return { data: [] }; }
-      finally { clearTimeout(timeout); }
-    };
-
-    // JS-heavy retailers that need extra wait time for price to render
-    const JS_HEAVY_RETAILERS = new Set([
-      "jdsports.co.uk", "size.co.uk", "footlocker.co.uk", "schuh.co.uk",
-      "offspring.co.uk", "footasylum.com", "sportsdirect.com",
-    ]);
-
-    // Direct resale platform search — scrapes search result pages to extract product URLs.
-    // Bypasses Firecrawl's search index, so works even for niche/new/limited products.
-    const scrapeResaleSearch = async (searchUrl: string, urlPattern: RegExp): Promise<Array<{ url: string; title: string; markdown: string; description: string }>> => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-      try {
-        const r = await fetch("https://api.firecrawl.dev/v1/scrape", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({ url: searchUrl, formats: ["markdown"], onlyMainContent: true, waitFor: 1500 }),
-        });
-        if (!r.ok) return [];
         const data = await r.json();
-        const md: string = data?.data?.markdown || "";
-        const links: Array<{ url: string; title: string; markdown: string; description: string }> = [];
-        for (const m of md.matchAll(urlPattern)) {
-          if (!links.some(l => l.url === m[0])) links.push({ url: m[0], title: "", markdown: "", description: "" });
-          if (links.length >= 3) break;
-        }
-        return links;
+        return (data.organic || []).map((item: any) => ({
+          url: item.link || "",
+          title: item.title || "",
+          description: item.snippet || "",
+          markdown: "",
+        }));
       } catch { return []; }
       finally { clearTimeout(timeout); }
     };
 
-    // Step 2: scrape a product page for real content (1 credit/page)
+    // Step 2: scrape a product page using Jina AI reader (free, no credits)
     const scrapeProductPage = async (url: string): Promise<string> => {
-      const domain = extractDomain(url);
-      const jsHeavy = JS_HEAVY_RETAILERS.has(domain);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), jsHeavy ? 15000 : 9000);
+      const timeout = setTimeout(() => controller.abort(), 12000);
       try {
-        const r = await fetch("https://api.firecrawl.dev/v1/scrape", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+        const r = await fetch(`https://r.jina.ai/${url}`, {
+          method: "GET",
+          headers: {
+            "Accept": "text/markdown",
+            "X-Return-Format": "markdown",
+            "X-Timeout": "10",
+          },
           signal: controller.signal,
-          body: JSON.stringify({
-            url, formats: ["markdown"], onlyMainContent: true,
-            ...(jsHeavy ? { waitFor: 3000 } : {}),
-          }),
         });
         if (!r.ok) return "";
-        const data = await r.json();
-        return data?.data?.markdown?.slice(0, 5000) || "";
+        const text = await r.text();
+        return text.slice(0, 5000) || "";
       } catch { return ""; }
       finally { clearTimeout(timeout); }
     };
 
     log(`Searching for: "${searchName}"`);
 
-    // ── Search strategy ──────────────────────────────────────────────────────
-    // Broad queries for general discovery + two includeDomains queries targeting
-    // UK high street and boutique retailers directly (replaces broken site: queries).
-    const broadQueries = [
-      `${searchName} buy UK price`,
-      `${searchName} stockx goat klekt laced buy price`,
-      `${searchName} selfridges farfetch ssense mrporter buy`,
-    ];
+    // ── Serper Shopping — Google's pre-extracted prices (bypasses scraping entirely) ──
+    const doSerperShopping = async (query: string): Promise<any[]> => {
+      if (!SERPER_API_KEY) return [];
+      try {
+        const r = await fetch("https://google.serper.dev/shopping", {
+          method: "POST",
+          headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({ q: query, gl: "gb", hl: "en", num: 20 }),
+          signal: AbortSignal.timeout(6000),
+        });
+        const data = await r.json();
+        return data.shopping || [];
+      } catch { return []; }
+    };
 
-    // includeDomains ensures results come only from these domains — far more reliable than site: in query string
-    const UK_HIGHSTREET_DOMAINS = [
-      "jdsports.co.uk", "size.co.uk", "schuh.co.uk", "footlocker.co.uk",
-      "offspring.co.uk", "footasylum.com", "endclothing.com", "asos.com",
-      "zalando.co.uk", "flannels.com", "tessuti.co.uk", "office.co.uk",
-    ];
-    const BOUTIQUE_DOMAINS = [
-      "sneakersnstuff.com", "solebox.com", "footpatrol.com", "hanon-shop.com",
-      "asphaltgold.com", "bstn.com", "overkillshop.com", "allikestore.com",
-      "snipes.com", "courir.com", "footshop.eu", "urbanindustry.co.uk",
-    ];
-    // Resale platforms carry virtually every sneaker — safety net for limited/exclusive releases
-    const RESALE_DOMAINS = [
-      "stockx.com", "goat.com", "klekt.com", "laced.com", "laced.co.uk",
-      "thesolesupplier.co.uk", "crepsuk.com",
-    ];
-
-    // Strip colour words to get model-only name — UK retailers often omit the official colourway
-    // e.g. "Nike Air Max DN All Night" → "Nike Air Max DN"
-    //      "Adidas Samba OG Cloud White Core Black" → "Adidas Samba OG"
-    const COLOUR_STRIP_RE = /\b(cloud\s+white|core\s+black|triple\s+white|triple\s+black|all\s+night|pure\s+platinum|volt|phantom|clear\s+granite|sail|natural|off\s+white|cream\s+white|ghost|light\s+bone|particle\s+grey|dark\s+grey|smoke\s+grey|medium\s+grey|light\s+grey|[a-z]+\s+grey|[a-z]+\s+gray|[a-z]+\s+blue|[a-z]+\s+red|[a-z]+\s+green|[a-z]+\s+black|[a-z]+\s+white|white|black|red|blue|green|yellow|orange|purple|pink|brown|grey|gray|beige|cream|navy|khaki|tan|silver|gold|olive|burgundy|coral|sage|slate|indigo|teal|mint|sand|stone|chalk)\b/gi;
-    const modelOnly = searchName.replace(COLOUR_STRIP_RE, "").replace(/\s{2,}/g, " ").trim();
-
-    const resaleQuery = encodeURIComponent(modelOnly && modelOnly !== searchName ? modelOnly : searchName);
-    const [broadResultSets, ukAnchorResults, ukAnchorFallback, boutiqueResults, resaleResults, feedResults, stockxLinks, klektLinks] = await Promise.all([
-      Promise.all(broadQueries.map(q => doSearchUrls(q, 12))),
-      doSearchUrls(`${searchName} buy`, 20, UK_HIGHSTREET_DOMAINS),
-      modelOnly && modelOnly !== searchName ? doSearchUrls(`${modelOnly} buy`, 12, UK_HIGHSTREET_DOMAINS) : Promise.resolve({ data: [] }),
-      doSearchUrls(`${searchName} buy`, 12, BOUTIQUE_DOMAINS),
-      doSearchUrls(searchName, 15, RESALE_DOMAINS),
+    // ── URL discovery — 6 parallel Serper searches (~7 credits total including shopping) ──
+    const [
+      shoppingResults,
+      broadResults1,
+      broadResults2,
+      ukResults1,
+      ukResults2,
+      boutiqueResults,
+      resaleResults,
+      feedResults,
+    ] = await Promise.all([
+      doSerperShopping(searchName), // Google Shopping — primary price source
+      doSerperSearch(`${searchName} buy UK price`, 20),
+      doSerperSearch(`${searchName} buy UK`, 20),
+      // UK high street — two groups so site: operators stay reliable
+      doSerperSearch(`${searchName} site:jdsports.co.uk OR site:size.co.uk OR site:schuh.co.uk OR site:footlocker.co.uk OR site:offspring.co.uk OR site:office.co.uk`, 10),
+      doSerperSearch(`${searchName} site:footasylum.com OR site:endclothing.com OR site:asos.com OR site:zalando.co.uk OR site:flannels.com OR site:nike.com OR site:adidas.co.uk OR site:newbalance.co.uk`, 10),
+      // Boutiques
+      doSerperSearch(`${searchName} site:sneakersnstuff.com OR site:solebox.com OR site:footpatrol.com OR site:hanon-shop.com OR site:asphaltgold.com OR site:bstn.com OR site:overkillshop.com`, 10),
+      // Resale
+      doSerperSearch(`${searchName} site:stockx.com OR site:goat.com OR site:klekt.com OR site:laced.com OR site:laced.co.uk OR site:thesolesupplier.co.uk`, 10),
       queryAffiliateFeed(),
-      // Direct scrapes bypass Firecrawl index gaps — always find product pages on resale platforms
-      scrapeResaleSearch(
-        `https://stockx.com/search?s=${resaleQuery}`,
-        /https?:\/\/stockx\.com\/(?!search|how-it|buy|sell|news|about|sneakers$|streetwear$)[a-z0-9][a-z0-9-]{8,}/gi
-      ),
-      scrapeResaleSearch(
-        `https://klekt.com/search?q=${resaleQuery}`,
-        /https?:\/\/(?:www\.)?klekt\.com\/[a-z0-9-]{8,}/gi
-      ),
     ]);
 
     const seenUrls = new Set<string>();
     const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
-    // includeDomains + direct scrapes first (highest precision), then broad fallback
-    for (const result of [...[ukAnchorResults, ukAnchorFallback, boutiqueResults, resaleResults], ...broadResultSets]) {
-      for (const item of (result.data || [])) {
+    // Site-targeted results first (highest precision), broad last
+    for (const results of [ukResults1, ukResults2, boutiqueResults, resaleResults, broadResults1, broadResults2]) {
+      for (const item of results) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
-          rawCandidates.push({ url: item.url, title: item.title || "", markdown: item.markdown || "", description: item.description || "" });
+          rawCandidates.push(item);
         }
-      }
-    }
-    // Inject direct resale scrape results
-    for (const item of [...stockxLinks, ...klektLinks]) {
-      if (!seenUrls.has(item.url)) {
-        seenUrls.add(item.url);
-        rawCandidates.push(item);
       }
     }
 
@@ -1080,6 +1032,65 @@ serve(async (req) => {
       aiCoveredDomains.add(domain);
     }
     log(`After regex fallback for authorised retailers: ${extracted.length} total`);
+
+    // ── Merge Google Shopping results — covers retailers that block scraping (JD Sports, Nike, etc.) ──
+    log(`Shopping raw (first 3): ${JSON.stringify(shoppingResults.slice(0, 3))}`);
+    log(`Shopping total: ${shoppingResults.length}`);
+    const shoppingCoveredDomains = new Set(extracted.map(e => extractDomain(e.url)));
+    for (const item of shoppingResults) {
+      const url = item.link || item.productLink || "";
+      if (!url) { log(`Shopping: skipping item with no link: ${JSON.stringify(item).slice(0, 100)}`); continue; }
+      const domain = extractDomain(url);
+      if (!domain) continue;
+      if (shoppingCoveredDomains.has(domain)) continue;
+      if (BLOCKED_DOMAINS.has(domain)) continue;
+      if (isComparisonSite(url)) continue;
+      if (NON_RETAIL_DOMAINS.some(p => p.test(domain))) continue;
+      // Parse price — Shopping returns strings like "£90.00", "$120", "€95"
+      const priceRaw = (item.price || "").trim();
+      let itemPrice = 0;
+      let priceConf: "high" | "low" = "high";
+      if (priceRaw.startsWith("£")) {
+        itemPrice = parseFloat(priceRaw.replace(/[£,]/g, ""));
+      } else if (priceRaw.startsWith("$")) {
+        itemPrice = parseFloat(priceRaw.replace(/[$,]/g, "")) * 0.79;
+        priceConf = "low";
+      } else if (priceRaw.startsWith("€")) {
+        itemPrice = parseFloat(priceRaw.replace(/[€,]/g, "")) * 0.85;
+        priceConf = "low";
+      } else {
+        itemPrice = parseFloat(priceRaw.replace(/[^0-9.]/g, ""));
+      }
+      if (!itemPrice || isNaN(itemPrice)) { log(`Shopping: no price for ${domain}: "${priceRaw}"`); continue; }
+      if (itemPrice < priceFloor || itemPrice > priceCeiling) { log(`Shopping: price ${itemPrice} out of range [${priceFloor}, ${priceCeiling}] for ${domain}`); continue; }
+      if (isKidsProduct(url, item.title || "")) continue;
+      const uk = isUkDomain(domain);
+      const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
+      const duties = calculateDuties(itemPrice, uk);
+      extracted.push({
+        retailer: item.source || retailerNameFromDomain(domain),
+        country: uk ? "UK" : "International",
+        flag: uk ? "🇬🇧" : "🌍",
+        itemPrice,
+        shipping,
+        duties,
+        totalYouPay: Number((itemPrice + shipping + duties).toFixed(2)),
+        originalPrice: null,
+        delivery: getDeliveryTime(domain, uk),
+        trustRating: getTrustRating(domain),
+        currency: "GBP",
+        url: cleanUrl(url),
+        inStock: null,
+        checkedAt: new Date().toISOString(),
+        couponCode: null,
+        priceConfidence: priceConf,
+        retailerTier: AUTHORISED_RETAILERS.has(domain) ? "authorised"
+          : TRUST_RATINGS[domain] ? "trusted" : "unverified",
+        freeReturns: FREE_RETURNS_RETAILERS.has(domain),
+      });
+      shoppingCoveredDomains.add(domain);
+    }
+    log(`After shopping merge: ${extracted.length} total`);
 
     // Merge affiliate feed results — feed takes precedence over scraped (higher confidence)
     for (const feedEntry of feedResults) {

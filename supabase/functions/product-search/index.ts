@@ -91,6 +91,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("GEMINI_API_KEY not configured");
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY") || "";
+    const SERPER_API_KEY = Deno.env.get("SERPER_API_KEY") || "";
 
     // Build messages array - include image if provided
     const userContent: any[] = [];
@@ -193,39 +194,45 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
         tool_choice: { type: "function", function: { name: "identify_product" } },
       });
 
-    // Image search — runs in parallel with AI, fetches og:image from a retailer page
+    // Image search — Serper Images (Google Image Search) gives real product photography reliably
     const fetchProductImage = async (query: string): Promise<string> => {
-      if (!FIRECRAWL_API_KEY) return "";
-      const trySearch = async (body: object): Promise<string> => {
+      const cleanQuery = query.replace(/'/g, "").replace(/[\[(][^\])]{1,20}[\])]/g, "").replace(/\s{2,}/g, " ").trim();
+
+      // 1. Serper Images API — actual Google Image Search results, far more reliable than og:image scraping
+      if (SERPER_API_KEY) {
         try {
-          const r = await fetch("https://api.firecrawl.dev/v1/search", {
+          const r = await fetch("https://google.serper.dev/images", {
             method: "POST",
-            headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(8000),
+            headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({ q: cleanQuery, gl: "gb", hl: "en", num: 10 }),
+            signal: AbortSignal.timeout(5000),
           });
           const data = await r.json();
-          for (const item of (data.data || [])) {
-            const ogImage = item.metadata?.ogImage || item.metadata?.og_image || "";
-            if (ogImage && looksLikeImage(ogImage)) return upgradeCdnUrl(ogImage);
-            for (const mdMatch of (item.markdown || "").matchAll(/https?:\/\/[^\s"')]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')\]>]*)?/gi)) {
-              if (looksLikeImage(mdMatch[0])) return upgradeCdnUrl(mdMatch[0]);
-            }
+          log(`Image search for "${cleanQuery}": ${(data.images || []).length} results`);
+          for (const img of (data.images || [])) {
+            const url = img.imageUrl || "";
+            log(`  imageUrl: ${url.slice(0, 120)} → ${looksLikeImage(url) ? "PASS" : "FAIL"}`);
+            if (url && looksLikeImage(url)) return upgradeCdnUrl(url);
           }
-        } catch { /* silent */ }
-        return "";
-      };
-      // 1. Target StockX/GOAT first — always have clean white-background product images
-      const img1 = await trySearch({
-        query: `${query}`, limit: 5, lang: "en", country: "gb",
-        includeDomains: ["stockx.com", "goat.com", "images.stockx.com"],
-      });
-      if (img1) return img1;
-      // 2. Fall back to UK retailers (often have og:image in search snippets)
-      return trySearch({
-        query: `${query} buy`, limit: 8, lang: "en", country: "gb",
-        includeDomains: ["nike.com", "adidas.co.uk", "newbalance.co.uk", "asics.com", "size.co.uk", "jdsports.co.uk"],
-      });
+        } catch (e) { log(`Image search error: ${e}`); }
+      }
+
+      // 2. Firecrawl fallback — og:image from StockX/GOAT snippets
+      if (!FIRECRAWL_API_KEY) return "";
+      try {
+        const r = await fetch("https://api.firecrawl.dev/v1/search", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ query: cleanQuery, limit: 5, lang: "en", country: "gb", includeDomains: ["stockx.com", "goat.com"] }),
+          signal: AbortSignal.timeout(8000),
+        });
+        const data = await r.json();
+        for (const item of (data.data || [])) {
+          const ogImage = item.metadata?.ogImage || item.metadata?.og_image || "";
+          if (ogImage && looksLikeImage(ogImage)) return upgradeCdnUrl(ogImage);
+        }
+      } catch { /* silent */ }
+      return "";
     };
 
     // Retry with exponential backoff for Gemini 429s
@@ -279,19 +286,18 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
       throw new Error("AI returned malformed product data — please try again.");
     }
 
-    // Accept Gemini's image URL if it looks like a real HTTPS image — browser onError handles broken URLs
+    // Accept Gemini's image URL if it looks like a real HTTPS image
     const KNOWN_IMAGE_CDNS = /static\.nike\.com|assets\.adidas|img\.adidas|nb\.scene7|scene7\.com|images\.newbalance|asics\.com|images\.asos|media\.jdsports|images\.footlocker|media\.schuh|images\.schuh|images\.stockx|image\.goat|images\.zalando|offspring\.co\.uk|size\.co\.uk|endclothing\.com|selfridges\.com|cdn-images\.farfetch|images\.farfetch|res\.cloudinary\.com|\.imgix\.net|images\.ssense|images\.mrporter|images\.matchesfashion|puma\.com|reebok\.com|converse\.com|vans\.com|hoka\.com|on\.com|newbalance\.com/i;
     const looksLikeImage = (url: string) =>
-      /^https:\/\/.{15,}\.(?:jpg|jpeg|png|webp)(?:[?#][^\s]*)?$/i.test(url) || KNOWN_IMAGE_CDNS.test(url);
+      /^https:\/\/.{10,}\.(?:jpg|jpeg|png|webp|gif)(?:[?#][^\s]*)?$/i.test(url)
+      || KNOWN_IMAGE_CDNS.test(url)
+      || /^https:\/\/[^\s]{20,}\/(?:image|img|photo|media|product|cdn|assets?|static|images?)\/[^\s]{10,}/i.test(url);
     const aiImageUrl = (product.image_url && looksLikeImage(product.image_url))
       ? upgradeCdnUrl(product.image_url) : "";
 
-    // Run image search in parallel and use whichever gives a result first
-    const [, fetchedImageUrl] = await Promise.all([
-      Promise.resolve(), // placeholder to keep index
-      fetchProductImage(product.product_name),
-    ]);
-    product.image_url = aiImageUrl || fetchedImageUrl || "";
+    // Run Firecrawl image search in parallel — prefer Firecrawl (real og:image) over AI URL (often hallucinated)
+    const fetchedImageUrl = await fetchProductImage(product.product_name);
+    product.image_url = fetchedImageUrl || aiImageUrl || "";
     log("Final image_url:", product.image_url || "(none)");
 
     return new Response(JSON.stringify({ success: true, product }), {
