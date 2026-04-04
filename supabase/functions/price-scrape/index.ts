@@ -30,8 +30,101 @@ const UK_COM_RETAILERS = new Set([
   "fatbuddhastore.com", "shucentre.co.uk",
   "nike.com", "adidas.com", "newbalance.com", "puma.com", "reebok.com",
   "converse.com", "vans.com", "timberland.com", "ugg.com", "crocs.com",
-  "stockx.com", "goat.com", "sneakersnstuff.com", "solebox.com",
+  // Note: stockx.com, goat.com, sneakersnstuff.com, solebox.com are international — NOT in this set
 ]);
+
+// Canonical display names for known retailer domains
+const RETAILER_DISPLAY_NAMES: Record<string, string> = {
+  "jdsports.co.uk": "JD Sports", "jdsports.com": "JD Sports",
+  "size.co.uk": "Size?",
+  "footlocker.co.uk": "Foot Locker", "footlocker.com": "Foot Locker",
+  "schuh.co.uk": "Schuh",
+  "offspring.co.uk": "Offspring",
+  "office.co.uk": "Office",
+  "footasylum.com": "Footasylum",
+  "endclothing.com": "END.",
+  "asos.com": "ASOS",
+  "zalando.co.uk": "Zalando",
+  "flannels.com": "Flannels",
+  "tessuti.co.uk": "Tessuti",
+  "sportsdirect.com": "Sports Direct",
+  "very.co.uk": "Very",
+  "next.co.uk": "Next",
+  "selfridges.com": "Selfridges",
+  "harveynichols.com": "Harvey Nichols",
+  "mrporter.com": "MR PORTER",
+  "farfetch.com": "Farfetch",
+  "ssense.com": "SSENSE",
+  "urbanoutfitters.com": "Urban Outfitters",
+  "matchesfashion.com": "Matches",
+  "brownsfashion.com": "Browns",
+  "harrods.com": "Harrods",
+  "nike.com": "Nike",
+  "adidas.co.uk": "Adidas", "adidas.com": "Adidas",
+  "newbalance.co.uk": "New Balance", "newbalance.com": "New Balance",
+  "asics.co.uk": "ASICS", "asics.com": "ASICS",
+  "puma.com": "Puma",
+  "reebok.co.uk": "Reebok", "reebok.com": "Reebok",
+  "converse.com": "Converse",
+  "vans.co.uk": "Vans", "vans.com": "Vans",
+  "timberland.co.uk": "Timberland",
+  "hoka.com": "HOKA",
+  "on-running.com": "On Running",
+  "saucony.com": "Saucony",
+  "drmartens.com": "Dr. Martens",
+  "stockx.com": "StockX",
+  "goat.com": "GOAT",
+  "klekt.com": "Klekt",
+  "laced.com": "Laced", "laced.co.uk": "Laced",
+  "thesolesupplier.co.uk": "The Sole Supplier",
+  "crepsuk.com": "Creps UK",
+  "sneakersnstuff.com": "Sneakersnstuff",
+  "solebox.com": "Solebox",
+  "footpatrol.com": "Foot Patrol",
+  "hanon-shop.com": "Hanon",
+  "bstn.com": "BSTN",
+  "asphaltgold.com": "Asphalt Gold",
+  "overkillshop.com": "Overkill",
+  "snipes.com": "Snipes",
+  "footshop.eu": "Footshop",
+  "mainlinemenswear.co.uk": "Mainline Menswear",
+  "scottsmenswear.com": "Scotts Menswear",
+  "whatsyoursize.co.uk": "What's Your Size",
+  "samedaytrainers.co.uk": "Same Day Trainers",
+  "urbanindustry.co.uk": "Urban Industry",
+  "aphrodite1994.com": "Aphrodite",
+};
+
+function getRetailerName(domain: string, fallbackSource?: string): string {
+  return RETAILER_DISPLAY_NAMES[domain] ?? fallbackSource ?? retailerNameFromDomain(domain);
+}
+
+// Search URL builders — used when Shopping only gives a homepage URL
+const RETAILER_SEARCH_URLS: Record<string, (q: string) => string> = {
+  "jdsports.co.uk": q => `https://www.jdsports.co.uk/search/?q=${encodeURIComponent(q)}`,
+  "size.co.uk": q => `https://www.size.co.uk/search/?q=${encodeURIComponent(q)}`,
+  "footlocker.co.uk": q => `https://www.footlocker.co.uk/search?query=${encodeURIComponent(q)}`,
+  "schuh.co.uk": q => `https://www.schuh.co.uk/search/${encodeURIComponent(q)}/`,
+  "offspring.co.uk": q => `https://www.offspring.co.uk/search?q=${encodeURIComponent(q)}`,
+  "office.co.uk": q => `https://www.office.co.uk/view/search/all/query/${encodeURIComponent(q)}`,
+  "footasylum.com": q => `https://www.footasylum.com/search/?q=${encodeURIComponent(q)}`,
+  "endclothing.com": q => `https://www.endclothing.com/gb/search?q=${encodeURIComponent(q)}`,
+  "asos.com": q => `https://www.asos.com/search/?q=${encodeURIComponent(q)}`,
+  "zalando.co.uk": q => `https://www.zalando.co.uk/catalog/?q=${encodeURIComponent(q)}`,
+  "flannels.com": q => `https://www.flannels.com/search?q=${encodeURIComponent(q)}`,
+  "sportsdirect.com": q => `https://www.sportsdirect.com/search?term=${encodeURIComponent(q)}`,
+  "nike.com": q => `https://www.nike.com/gb/search?q=${encodeURIComponent(q)}`,
+  "adidas.co.uk": q => `https://www.adidas.co.uk/search?q=${encodeURIComponent(q)}`,
+  "newbalance.co.uk": q => `https://www.newbalance.co.uk/search?q=${encodeURIComponent(q)}`,
+  "stockx.com": q => `https://stockx.com/search?s=${encodeURIComponent(q)}`,
+  "goat.com": q => `https://www.goat.com/search?query=${encodeURIComponent(q)}`,
+  "klekt.com": q => `https://www.klekt.com/search?q=${encodeURIComponent(q)}`,
+  "laced.com": q => `https://www.laced.com/search?query=${encodeURIComponent(q)}`,
+  "sneakersnstuff.com": q => `https://www.sneakersnstuff.com/en/search?q=${encodeURIComponent(q)}`,
+  "solebox.com": q => `https://www.solebox.com/en/search?q=${encodeURIComponent(q)}`,
+  "bstn.com": q => `https://www.bstn.com/en/search?q=${encodeURIComponent(q)}`,
+  "asphaltgold.com": q => `https://www.asphaltgold.com/en/search?q=${encodeURIComponent(q)}`,
+};
 
 const NON_PRODUCT_PATH_PATTERNS = [
   /\/collection\//i, /\/collections\//i, /\/category\//i, /\/categories\//i,
@@ -619,7 +712,7 @@ serve(async (req) => {
           const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
           const duties = calculateDuties(itemPrice, uk);
           feedResults.push({
-            retailer: retailerNameFromDomain(domain),
+            retailer: getRetailerName(domain),
             country: uk ? "UK" : "International",
             flag: uk ? "🇬🇧" : "🌍",
             itemPrice,
@@ -898,7 +991,7 @@ serve(async (req) => {
         const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
         const duties = calculateDuties(itemPrice, uk);
         regexExtracted.push({
-          retailer: retailerNameFromDomain(domain),
+          retailer: getRetailerName(domain),
           country: uk ? "UK" : "International",
           flag: uk ? "🇬🇧" : "🌍",
           itemPrice,
@@ -951,7 +1044,7 @@ serve(async (req) => {
       const totalYouPay = Number((itemPrice + shipping + duties).toFixed(2));
 
       extracted.push({
-        retailer: retailerNameFromDomain(domain),
+        retailer: getRetailerName(domain),
         country: uk ? "UK" : "International",
         flag: uk ? "🇬🇧" : "🌍",
         itemPrice,
@@ -999,7 +1092,7 @@ serve(async (req) => {
       const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
       const duties = calculateDuties(itemPrice, uk);
       extracted.push({
-        retailer: retailerNameFromDomain(domain),
+        retailer: getRetailerName(domain),
         country: uk ? "UK" : "International",
         flag: uk ? "🇬🇧" : "🌍",
         itemPrice,
@@ -1089,8 +1182,9 @@ serve(async (req) => {
       const sourceName = (item.source || "").toLowerCase().trim();
       let domain = !isGoogleRedirect && rawDomain ? rawDomain : (SHOPPING_SOURCE_MAP[sourceName] || "");
       if (!domain) { log(`Shopping: no domain for source "${item.source}"`); continue; }
-      // Use a retailer homepage URL when link is a Google redirect
-      const url = !isGoogleRedirect && rawUrl ? rawUrl : `https://www.${domain}`;
+      // Use a search URL when link is a Google redirect (better than homepage)
+      const url = !isGoogleRedirect && rawUrl ? rawUrl
+        : (RETAILER_SEARCH_URLS[domain]?.(searchName) ?? `https://www.${domain}`);
       if (shoppingCoveredDomains.has(domain)) continue;
       if (BLOCKED_DOMAINS.has(domain)) continue;
       // Parse price — Shopping returns strings like "£90.00", "$120", "€95"
@@ -1115,7 +1209,7 @@ serve(async (req) => {
       const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
       const duties = calculateDuties(itemPrice, uk);
       extracted.push({
-        retailer: item.source || retailerNameFromDomain(domain),
+        retailer: getRetailerName(domain),
         country: uk ? "UK" : "International",
         flag: uk ? "🇬🇧" : "🌍",
         itemPrice,
