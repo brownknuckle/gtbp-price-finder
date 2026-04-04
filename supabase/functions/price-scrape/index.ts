@@ -844,8 +844,16 @@ serve(async (req) => {
 
     log(`AI validated ${aiResults.length} results`);
 
+    // ── Build final results from AI output ──
+    const priceCeiling = estimated_retail_price ? estimated_retail_price * 1.6 : MAX_REALISTIC_PRICE;
+    const priceFloor = estimated_retail_price
+      ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.5))
+      : MIN_REALISTIC_PRICE;
+
+    const extracted: any[] = [];
+
     // ── Regex fallback if AI returned nothing ──
-    // This ensures users always get some results even if the AI call fails
+    // Push into extracted so Shopping merge still runs afterwards
     if (aiResults.length === 0 && candidates.length > 0) {
       log("AI returned 0 results, falling back to regex extraction");
       const priceFloor = estimated_retail_price
@@ -924,28 +932,9 @@ serve(async (req) => {
         .sort((a, b) => a.totalYouPay - b.totalYouPay)
         .map((r, i) => ({ ...r, rank: i + 1 }));
 
-      if (fallbackResults.length > 0) {
-        log(`Regex fallback found ${fallbackResults.length} results`);
-        sb.from("price_cache").upsert(
-          { product_key: cacheKey, results: fallbackResults, product_info: { product_name, retailers: normalizedRetailers } },
-          { onConflict: "product_key" }
-        ).then(({ error }) => { if (error) console.error("Cache write error:", error); });
-        const { low: thirtyDayLow, history: priceHistory } = await getThirtyDayLow(cacheKey);
-        return new Response(JSON.stringify({ success: true, results: fallbackResults, thirtyDayLow, priceHistory }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      } else {
-        log(`Regex fallback found 0 results`);
-      }
+      log(`Regex fallback found ${fallbackResults.length} results — continuing to Shopping merge`);
+      for (const r of fallbackResults) extracted.push(r);
     }
-
-    // ── Build final results from AI output ──
-    const priceCeiling = estimated_retail_price ? estimated_retail_price * 1.6 : MAX_REALISTIC_PRICE;
-    const priceFloor = estimated_retail_price
-      ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.5))
-      : MIN_REALISTIC_PRICE;
-
-    const extracted: any[] = [];
     for (const aiResult of aiResults) {
       const idx = (aiResult.index ?? 0) - 1;
       if (idx < 0 || idx >= scrapedCandidates.length) continue;
