@@ -265,7 +265,7 @@ const Results = () => {
 
   const filtered = results.filter((r) => {
     if (domesticOnly && !domesticCountries.some((c) => r.country?.toLowerCase() === c.toLowerCase()) && r.flag !== "🇬🇧") return false;
-    if (inStockOnly && r.inStock !== true) return false;
+    if (inStockOnly && r.inStock === false) return false;
     if (freeReturnsOnly && !r.freeReturns) return false;
     if (maxPriceNum != null && r.totalYouPay > maxPriceNum) return false;
     return true;
@@ -623,7 +623,6 @@ const Results = () => {
               transition={{ delay: i * 0.08, duration: 0.35, ease: "easeOut" }}
               whileHover={{ scale: 1.01, y: -2 }}
               className={`w-full rounded-xl border p-4 text-left transition-shadow hover:shadow-md ${i === 0 ? "border-primary/30 bg-primary/5 shadow-sm" : ""}`}
-              style={{ opacity: i === 0 ? 1 : 1 - i * 0.06 }}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">

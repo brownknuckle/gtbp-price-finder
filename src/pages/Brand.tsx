@@ -43,7 +43,7 @@ const BRANDS: Record<string, BrandData> = {
     name: "Adidas",
     emoji: "🔱",
     description: "Compare prices on Adidas Samba, Gazelle, Stan Smith and more across UK retailers.",
-    longDescription: "Adidas is one of the most iconic sportswear brands in the world and a dominant force in UK streetwear. The Adidas Samba, Gazelle, and Stan Smith are perennial bestsellers, while Yeezy and collaboration drops remain some of the most anticipated releases of the year. GTBP compares Adidas prices across adidas.co.uk, ASOS, JD Sports, End Clothing, SNS and 25+ more retailers.",
+    longDescription: "Adidas is one of the most iconic sportswear brands in the world and a dominant force in UK streetwear. The Adidas Samba, Gazelle, and Stan Smith are perennial bestsellers, while Yeezy and collaboration drops remain some of the most anticipated releases of the year. GTBP compares Adidas prices across adidas.co.uk, ASOS, JD Sports, End Clothing, Sneakersnstuff and 25+ more retailers.",
     popularProducts: [
       "Adidas Samba OG White Black",
       "Adidas Gazelle Indoor",
@@ -66,7 +66,7 @@ const BRANDS: Record<string, BrandData> = {
     name: "New Balance",
     emoji: "N",
     description: "Compare prices on New Balance 550, 1906R, 2002R and more across UK retailers.",
-    longDescription: "New Balance has cemented itself as one of the most popular brands in UK streetwear. The 550, 1906R, and 2002R are among the most searched sneakers on GTBP. With a growing presence in fashion collaborations and a loyal UK following, New Balance prices vary significantly across retailers. GTBP compares prices across newbalance.co.uk, JD Sports, Size?, End Clothing, SNS and 25+ more.",
+    longDescription: "New Balance has cemented itself as one of the most popular brands in UK streetwear. The 550, 1906R, and 2002R are among the most searched sneakers on GTBP. With a growing presence in fashion collaborations and a loyal UK following, New Balance prices vary significantly across retailers. GTBP compares prices across newbalance.co.uk, JD Sports, Size?, End Clothing, Sneakersnstuff and 25+ more.",
     popularProducts: [
       "New Balance 550 White Grey",
       "New Balance 1906R Protection Pack",
