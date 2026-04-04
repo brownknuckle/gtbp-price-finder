@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import CookieBanner from "@/components/CookieBanner";
 import Index from "./pages/Index";
 import Results from "./pages/Results";
@@ -66,6 +67,7 @@ const App = () => (
         <BrowserRouter>
           <Navbar />
           <AnimatedRoutes />
+          <Footer />
           <CookieBanner />
         </BrowserRouter>
       </TooltipProvider>

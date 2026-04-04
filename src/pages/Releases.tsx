@@ -31,6 +31,7 @@ const Releases = () => {
   const navigate = useNavigate();
   const [releases, setReleases] = useState<ReleaseItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [filter, setFilter] = useState<"all" | "shoes" | "clothing" | "accessories">("all");
   const [brandFilter, setBrandFilter] = useState("all");
 
@@ -47,7 +48,7 @@ const Releases = () => {
   useEffect(() => {
     fetchReleases()
       .then(setReleases)
-      .catch(() => setReleases([]))
+      .catch(() => setFetchError(true))
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -215,7 +216,17 @@ const Releases = () => {
               );
             })}
 
-            {sorted.length === 0 && !isLoading && (
+            {fetchError && (
+              <div className="py-16 text-center">
+                <p className="text-2xl mb-2">⚠️</p>
+                <p className="text-sm font-semibold text-foreground">Couldn't load releases right now</p>
+                <p className="mt-1 text-xs text-muted-foreground">Check back shortly — the drop calendar updates daily.</p>
+                <button onClick={() => { setFetchError(false); setIsLoading(true); fetchReleases().then(setReleases).catch(() => setFetchError(true)).finally(() => setIsLoading(false)); }} className="mt-3 text-xs text-primary underline">
+                  Try again
+                </button>
+              </div>
+            )}
+            {!fetchError && sorted.length === 0 && !isLoading && (
               <div className="py-16 text-center">
                 <p className="text-2xl mb-2">📅</p>
                 <p className="text-sm font-semibold text-foreground">No releases match your filters</p>

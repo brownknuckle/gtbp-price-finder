@@ -93,6 +93,31 @@ const RETAILER_DISPLAY_NAMES: Record<string, string> = {
   "samedaytrainers.co.uk": "Same Day Trainers",
   "urbanindustry.co.uk": "Urban Industry",
   "aphrodite1994.com": "Aphrodite",
+  // Clothing brands
+  "carhartt-wip.com": "Carhartt WIP",
+  "stoneisland.com": "Stone Island",
+  "cpcompany.com": "C.P. Company",
+  "ralphlauren.co.uk": "Ralph Lauren", "ralphlauren.com": "Ralph Lauren",
+  "lacoste.com": "Lacoste",
+  "levis.com": "Levi's", "levi.com": "Levi's",
+  "fredperry.com": "Fred Perry",
+  "tommyhilfiger.com": "Tommy Hilfiger",
+  "patagonia.com": "Patagonia",
+  "thenorthface.com": "The North Face",
+  "columbia.com": "Columbia",
+  "champion.com": "Champion",
+  "ellesse.com": "Ellesse",
+  "fila.com": "Fila",
+  // Clothing retail UK
+  "hm.com": "H&M",
+  "zara.com": "Zara",
+  "riverisland.com": "River Island",
+  "marksandspencer.com": "M&S",
+  "uniqlo.com": "Uniqlo",
+  "aboutyou.co.uk": "About You",
+  // Non-sneaker shoes
+  "clarks.co.uk": "Clarks", "clarks.com": "Clarks",
+  "kurtgeiger.com": "Kurt Geiger",
 };
 
 function getRetailerName(domain: string, fallbackSource?: string): string {
@@ -124,6 +149,60 @@ const RETAILER_SEARCH_URLS: Record<string, (q: string) => string> = {
   "solebox.com": q => `https://www.solebox.com/en/search?q=${encodeURIComponent(q)}`,
   "bstn.com": q => `https://www.bstn.com/en/search?q=${encodeURIComponent(q)}`,
   "asphaltgold.com": q => `https://www.asphaltgold.com/en/search?q=${encodeURIComponent(q)}`,
+  // Additional retailers — prevent homepage fallback
+  "tessuti.co.uk": q => `https://www.tessuti.co.uk/search?q=${encodeURIComponent(q)}`,
+  "selfridges.com": q => `https://www.selfridges.com/GB/en/cat/?q=${encodeURIComponent(q)}`,
+  "harveynichols.com": q => `https://www.harveynichols.com/search?q=${encodeURIComponent(q)}`,
+  "mrporter.com": q => `https://www.mrporter.com/en-gb/search?q=${encodeURIComponent(q)}`,
+  "farfetch.com": q => `https://www.farfetch.com/uk/shopping/search?q=${encodeURIComponent(q)}`,
+  "ssense.com": q => `https://www.ssense.com/en-gb/search?q=${encodeURIComponent(q)}`,
+  "urbanoutfitters.com": q => `https://www.urbanoutfitters.com/search?q=${encodeURIComponent(q)}`,
+  "puma.com": q => `https://uk.puma.com/uk/en/search?q=${encodeURIComponent(q)}`,
+  "reebok.co.uk": q => `https://www.reebok.co.uk/search?q=${encodeURIComponent(q)}`,
+  "converse.com": q => `https://www.converse.com/gb/en/c/search?searchTerm=${encodeURIComponent(q)}`,
+  "vans.co.uk": q => `https://www.vans.co.uk/search?q=${encodeURIComponent(q)}`,
+  "timberland.co.uk": q => `https://www.timberland.co.uk/search?q=${encodeURIComponent(q)}`,
+  "hoka.com": q => `https://www.hoka.com/en-gb/search?q=${encodeURIComponent(q)}`,
+  "on-running.com": q => `https://www.on-running.com/en-gb/search?q=${encodeURIComponent(q)}`,
+  "saucony.com": q => `https://www.saucony.com/en/search?q=${encodeURIComponent(q)}`,
+  "drmartens.com": q => `https://www.drmartens.com/uk/en/search?q=${encodeURIComponent(q)}`,
+  "thesolesupplier.co.uk": q => `https://thesolesupplier.co.uk/search/?q=${encodeURIComponent(q)}`,
+  "crepsuk.com": q => `https://www.crepsuk.com/search?type=product&q=${encodeURIComponent(q)}`,
+  "footpatrol.com": q => `https://www.footpatrol.com/search/?q=${encodeURIComponent(q)}`,
+  "hanon-shop.com": q => `https://www.hanon-shop.com/search?q=${encodeURIComponent(q)}`,
+  "overkillshop.com": q => `https://www.overkillshop.com/en/search?q=${encodeURIComponent(q)}`,
+  "snipes.com": q => `https://www.snipes.com/search?q=${encodeURIComponent(q)}`,
+  "footshop.eu": q => `https://www.footshop.eu/en/search?q=${encodeURIComponent(q)}`,
+  "mainlinemenswear.co.uk": q => `https://www.mainlinemenswear.co.uk/search?q=${encodeURIComponent(q)}`,
+  "scottsmenswear.com": q => `https://www.scottsmenswear.com/search?q=${encodeURIComponent(q)}`,
+  "whatsyoursize.co.uk": q => `https://www.whatsyoursize.co.uk/search?q=${encodeURIComponent(q)}`,
+  "decathlon.co.uk": q => `https://www.decathlon.co.uk/search?Ntt=${encodeURIComponent(q)}`,
+  "laced.co.uk": q => `https://www.laced.com/search?query=${encodeURIComponent(q)}`,
+  "adidas.com": q => `https://www.adidas.co.uk/search?q=${encodeURIComponent(q)}`,
+  "newbalance.com": q => `https://www.newbalance.co.uk/search?q=${encodeURIComponent(q)}`,
+  // Clothing brands
+  "carhartt-wip.com": q => `https://www.carhartt-wip.com/en/search?query=${encodeURIComponent(q)}`,
+  "stoneisland.com": q => `https://www.stoneisland.com/gb/search?q=${encodeURIComponent(q)}`,
+  "cpcompany.com": q => `https://www.cpcompany.com/en-gb/search?q=${encodeURIComponent(q)}`,
+  "ralphlauren.co.uk": q => `https://www.ralphlauren.co.uk/en/search?q=${encodeURIComponent(q)}`,
+  "lacoste.com": q => `https://www.lacoste.com/gb/search/?Ntt=${encodeURIComponent(q)}`,
+  "levis.com": q => `https://www.levi.com/GB/en_GB/search?q=${encodeURIComponent(q)}`,
+  "fredperry.com": q => `https://www.fredperry.com/search?q=${encodeURIComponent(q)}`,
+  "tommyhilfiger.com": q => `https://www.tommy.com/en_gb/search?q=${encodeURIComponent(q)}`,
+  "thenorthface.com": q => `https://www.thenorthface.com/en-gb/search?q=${encodeURIComponent(q)}`,
+  "patagonia.com": q => `https://www.patagonia.com/search/?q=${encodeURIComponent(q)}`,
+  "fila.com": q => `https://www.fila.co.uk/search?q=${encodeURIComponent(q)}`,
+  "ellesse.com": q => `https://www.ellesse.co.uk/search?q=${encodeURIComponent(q)}`,
+  // Clothing retail
+  "hm.com": q => `https://www2.hm.com/en_gb/search-results.html?q=${encodeURIComponent(q)}`,
+  "zara.com": q => `https://www.zara.com/uk/en/search?searchTerm=${encodeURIComponent(q)}`,
+  "riverisland.com": q => `https://www.riverisland.com/search?q=${encodeURIComponent(q)}`,
+  "marksandspencer.com": q => `https://www.marksandspencer.com/s/${encodeURIComponent(q)}`,
+  "uniqlo.com": q => `https://www.uniqlo.com/uk/en/seo/search?q=${encodeURIComponent(q)}`,
+  "aboutyou.co.uk": q => `https://www.aboutyou.co.uk/search?term=${encodeURIComponent(q)}`,
+  // Non-sneaker shoes
+  "clarks.co.uk": q => `https://www.clarks.co.uk/search?q=${encodeURIComponent(q)}`,
+  "kurtgeiger.com": q => `https://www.kurtgeiger.com/search?q=${encodeURIComponent(q)}`,
 };
 
 const NON_PRODUCT_PATH_PATTERNS = [
@@ -191,6 +270,16 @@ const AUTHORISED_RETAILERS = new Set([
   "footshop.eu", "asphaltgold.com", "bstn.com", "overkillshop.com",
   "allikestore.com", "titolo.ch", "kickz.com", "courir.com",
   "snipes.com", "sivasdescalzo.com", "nakedcph.com",
+  // Clothing brands
+  "carhartt-wip.com", "stoneisland.com", "cpcompany.com",
+  "ralphlauren.co.uk", "ralphlauren.com", "lacoste.com",
+  "levis.com", "levi.com", "fredperry.com", "tommyhilfiger.com",
+  "patagonia.com", "thenorthface.com", "columbia.com", "champion.com",
+  "ellesse.com", "fila.com",
+  // Clothing retail
+  "hm.com", "zara.com", "riverisland.com", "marksandspencer.com", "uniqlo.com", "aboutyou.co.uk",
+  // Non-sneaker shoes
+  "clarks.co.uk", "clarks.com", "kurtgeiger.com",
 ]);
 
 const FREE_RETURNS_RETAILERS = new Set([
@@ -792,16 +881,31 @@ serve(async (req) => {
     // ── Serper Shopping — Google's pre-extracted prices (bypasses scraping entirely) ──
     const doSerperShopping = async (query: string): Promise<any[]> => {
       if (!SERPER_API_KEY) return [];
-      try {
-        const r = await fetch("https://google.serper.dev/shopping", {
-          method: "POST",
-          headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({ q: query, gl: "gb", hl: "en", num: 20 }),
-          signal: AbortSignal.timeout(6000),
-        });
-        const data = await r.json();
-        return data.shopping || [];
-      } catch { return []; }
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const r = await fetch("https://google.serper.dev/shopping", {
+            method: "POST",
+            headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({ q: query, gl: "gb", hl: "en", num: 20 }),
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!r.ok) {
+            console.error(`Shopping API HTTP ${r.status} on attempt ${attempt}`);
+            continue;
+          }
+          const data = await r.json();
+          const results = data.shopping || [];
+          if (results.length === 0 && attempt < 2) {
+            log(`Shopping returned 0 results on attempt ${attempt}, retrying...`);
+            continue;
+          }
+          return results;
+        } catch (e: any) {
+          const isTimeout = e?.name === "TimeoutError" || e?.message?.includes("timeout");
+          console.error(`Shopping API ${isTimeout ? "timed out" : "failed"} on attempt ${attempt}:`, e?.message);
+        }
+      }
+      return [];
     };
 
     // ── URL discovery — 6 parallel Serper searches (~7 credits total including shopping) ──
@@ -1170,23 +1274,66 @@ serve(async (req) => {
       "footshop": "footshop.eu",
       "mainline menswear": "mainlinemenswear.co.uk",
       "scotts menswear": "scottsmenswear.com",
-      "whats your size": "whatsyoursize.co.uk",
+      "whats your size": "whatsyoursize.co.uk", "what's your size": "whatsyoursize.co.uk",
+      "what's your size uk": "whatsyoursize.co.uk",
+      "footlocker.co.uk": "footlocker.co.uk",
+      "asphaltgold": "asphaltgold.com", "asphalt gold de": "asphaltgold.com",
+      "crepsuk": "crepsuk.com", "creps uk": "crepsuk.com",
+      "footshop": "footshop.eu", "footshop.uk": "footshop.eu",
+      "decathlon": "decathlon.co.uk", "decathlon uk": "decathlon.co.uk",
+      // Clothing brands
+      "carhartt wip": "carhartt-wip.com", "carhartt": "carhartt-wip.com",
+      "stone island": "stoneisland.com",
+      "cp company": "cpcompany.com", "c.p. company": "cpcompany.com",
+      "ralph lauren": "ralphlauren.co.uk",
+      "lacoste": "lacoste.com",
+      "levi's": "levis.com", "levis": "levis.com", "levi strauss": "levis.com",
+      "fred perry": "fredperry.com",
+      "tommy hilfiger": "tommyhilfiger.com",
+      "the north face": "thenorthface.com", "north face": "thenorthface.com",
+      "patagonia": "patagonia.com",
+      "champion": "champion.com",
+      "fila": "fila.com",
+      "ellesse": "ellesse.com",
+      // Clothing retail
+      "h&m": "hm.com", "hm": "hm.com",
+      "zara": "zara.com",
+      "river island": "riverisland.com",
+      "marks & spencer": "marksandspencer.com", "m&s": "marksandspencer.com",
+      "uniqlo": "uniqlo.com",
+      "about you": "aboutyou.co.uk",
+      // Non-sneaker shoes
+      "clarks": "clarks.co.uk",
+      "kurt geiger": "kurtgeiger.com",
     };
     log(`Shopping total: ${shoppingResults.length}`);
     const shoppingCoveredDomains = new Set(extracted.map(e => extractDomain(e.url)));
+    // Normalise retailer domain variants so .co.uk and .com match each other
+    const normaliseDomain = (d: string) =>
+      d.replace(/\.co\.uk$/, ".com").replace(/^(uk|gb|us|eu)\./i, "");
+
     for (const item of shoppingResults) {
-      // Resolve effective domain — prefer direct link, fall back to source name mapping
-      const rawUrl = item.link || item.productLink || "";
+      // productLink = direct retailer product URL; link = Google redirect — always prefer productLink
+      const productUrl = item.productLink || "";
+      const googleUrl = item.link || "";
+      const rawUrl = productUrl || googleUrl;
       const rawDomain = rawUrl ? extractDomain(rawUrl) : "";
-      const isGoogleRedirect = rawDomain === "google.com";
+      const isGoogleRedirect = !productUrl && rawDomain === "google.com";
       const sourceName = (item.source || "").toLowerCase().trim();
       let domain = !isGoogleRedirect && rawDomain ? rawDomain : (SHOPPING_SOURCE_MAP[sourceName] || "");
       if (!domain) { log(`Shopping: no domain for source "${item.source}"`); continue; }
-      // Prefer a real product URL from web search results, fall back to search URL
-      const webSearchUrl = enrichedCandidates.find(c => extractDomain(c.url) === domain && isLikelyProductPage(c.url))?.url;
-      const url = (!isGoogleRedirect && rawUrl) ? rawUrl
+      // Use direct product URL if it passes product-page validation
+      const isDirectProductUrl = !!productUrl && isLikelyProductPage(productUrl);
+      // Find a product URL from web search, tolerating .co.uk / .com variants
+      const webSearchUrl = enrichedCandidates.find(c =>
+        (extractDomain(c.url) === domain || normaliseDomain(extractDomain(c.url)) === normaliseDomain(domain))
+        && isLikelyProductPage(c.url)
+      )?.url;
+      const url = isDirectProductUrl ? productUrl
         : webSearchUrl ? webSearchUrl
-        : (RETAILER_SEARCH_URLS[domain]?.(searchName) ?? `https://www.${domain}`);
+        : RETAILER_SEARCH_URLS[domain]?.(searchName)
+        ?? `https://www.${domain}`;
+      log(`Shopping URL for ${domain}: ${isDirectProductUrl ? "productLink" : webSearchUrl ? "webSearch" : RETAILER_SEARCH_URLS[domain] ? "searchUrl" : "homepage!"} → ${url.slice(0, 80)}`);
       if (shoppingCoveredDomains.has(domain)) continue;
       if (BLOCKED_DOMAINS.has(domain)) continue;
       // Parse price — Shopping returns strings like "£90.00", "$120", "€95"
@@ -1234,6 +1381,42 @@ serve(async (req) => {
       shoppingCoveredDomains.add(domain);
     }
     log(`After shopping merge: ${extracted.length} total`);
+
+    // ── URL resolution — Shopping items that fell back to a search/homepage URL ──
+    // For JS-heavy retailers (JD Sports, Foot Locker, Footasylum etc.) the Shopping API
+    // doesn't provide a direct product URL. Do a targeted site: search to find one.
+    const needsProductUrl = extracted.filter(e => !isLikelyProductPage(e.url));
+    if (needsProductUrl.length > 0 && SERPER_API_KEY) {
+      log(`Resolving product URLs for ${needsProductUrl.length} entries: ${needsProductUrl.map(e => extractDomain(e.url)).join(", ")}`);
+      const resolved = await Promise.all(
+        needsProductUrl.map(async (entry) => {
+          const domain = extractDomain(entry.url);
+          try {
+            const results = await doSerperSearch(`${searchName} site:${domain}`, 5);
+            const productPage = results.find(r => {
+              if (!r.url || !isLikelyProductPage(r.url)) return false;
+              if (isKidsProduct(r.url, r.title + " " + r.description)) return false;
+              const u = r.url.toLowerCase();
+              // Reject opposite-gender URLs
+              if (wantsMens && /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|-w-|[-_]wmns/.test(u)) return false;
+              if (wantsWomens && /\/mens?[-_/]|[-_]mens?[-_/]|\/men\//.test(u)) return false;
+              // Prefer /en-gb/ over /en-us/ for MR PORTER and similar
+              if (/\/en-us\//.test(u) && !u.includes(".co.uk")) return false;
+              return true;
+            });
+            return { entry, productUrl: productPage?.url ?? null };
+          } catch {
+            return { entry, productUrl: null };
+          }
+        })
+      );
+      for (const { entry, productUrl } of resolved) {
+        if (productUrl) {
+          log(`Resolved ${extractDomain(entry.url)}: ${productUrl.slice(0, 80)}`);
+          entry.url = cleanUrl(productUrl);
+        }
+      }
+    }
 
     // Merge affiliate feed results — feed takes precedence over scraped (higher confidence)
     for (const feedEntry of feedResults) {

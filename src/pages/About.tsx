@@ -188,8 +188,8 @@ const About = () => {
               "Nike", "Adidas", "JD Sports", "Size?", "Foot Locker", "Schuh",
               "ASOS", "END Clothing", "Offspring", "Selfridges", "Harvey Nichols",
               "New Balance", "Flannels", "Zalando", "StockX", "GOAT", "Farfetch",
-              "Sports Direct", "Foot Asylum", "Tessuti", "Office", "Very",
-              "Footpatrol", "SNS", "Solebox", "and more…",
+              "Sports Direct", "Footasylum", "Tessuti", "Office", "Schuh",
+              "Foot Patrol", "Sneakersnstuff", "Solebox", "Klekt", "Laced", "and more…",
             ].map((r) => (
               <span
                 key={r}

@@ -156,11 +156,22 @@ The "confidence" field should be a number between 0 and 1 indicating how confide
 
 The user is based in the UK. You MUST return 25-30 retailers. Always prioritise UK retailers. Return plain domain names only (e.g. nike.com, not nike.com/gb).
 Include a wide mix of:
-- Brand official UK stores: nike.com, adidas.co.uk, newbalance.co.uk, asics.co.uk, puma.com, reebok.co.uk, converse.com, vans.co.uk, timberland.co.uk, drmartens.com, saucony.com, hoka.com, on-running.com
-- UK high street: jdsports.co.uk, size.co.uk, footlocker.co.uk, schuh.co.uk, offspring.co.uk, flannels.com, selfridges.com, harveynichols.com, harrods.com, tessuti.co.uk, scottsmenswear.com, mainlinemenswear.co.uk, footpatrol.com, hanon-shop.com, sneakersnstuff.com
-- UK online: endclothing.com, asos.com, zalando.co.uk, urbanoutfitters.com, matchesfashion.com, brownsfashion.com, stuartslondon.com, aphrodite1994.com, hipstore.com, woodhouseclothing.com, eightyeightstore.com, routeone.co.uk, urbanindustry.co.uk
-- European: asphaltgold.com, solebox.com, bstn.com, overkillshop.com, allikestore.com, titolo.ch, suppa.de, sivasdescalzo.com, nakedcph.com, rezet.dk, kickz.com, courir.com, snipes.com, footshop.eu, basketzone.net
-- Global resellers: stockx.com, goat.com, farfetch.com, ssense.com, mrporter.com, klekt.com, laced.co.uk, ebay.co.uk, depop.com, grailed.com
+Choose retailers appropriate to the product category:
+
+FOR SHOES/TRAINERS/SNEAKERS include:
+- Brand official: nike.com, adidas.co.uk, newbalance.co.uk, asics.co.uk, puma.com, reebok.co.uk, converse.com, vans.co.uk, timberland.co.uk, drmartens.com, saucony.com, hoka.com, on-running.com, clarks.co.uk
+- UK footwear retail: jdsports.co.uk, size.co.uk, footlocker.co.uk, schuh.co.uk, offspring.co.uk, office.co.uk, footasylum.com, flannels.com, tessuti.co.uk, footpatrol.com, hanon-shop.com, sneakersnstuff.com, mainlinemenswear.co.uk, scottsmenswear.com
+- UK online: endclothing.com, asos.com, zalando.co.uk, selfridges.com, harveynichols.com, urbanoutfitters.com, matchesfashion.com, brownsfashion.com
+- European boutiques: asphaltgold.com, solebox.com, bstn.com, overkillshop.com, snipes.com, footshop.eu, allikestore.com, sivasdescalzo.com, nakedcph.com, courir.com
+- Resale/global: stockx.com, goat.com, klekt.com, laced.co.uk, farfetch.com, ssense.com, mrporter.com
+
+FOR CLOTHING (hoodies, t-shirts, jackets, jeans, shorts, sweatpants, etc.) include:
+- Brand official: nike.com, adidas.co.uk, newbalance.co.uk, puma.com, reebok.co.uk, vans.co.uk, converse.com, carhartt-wip.com, stoneisland.com, cpcompany.com, ralphlauren.co.uk, lacoste.com, levis.com, levi.com, fredperry.com, tommyhilfiger.com, patagonia.com, thenorthface.com, columbia.com, champion.com, ellesse.com, fila.com
+- UK high street: asos.com, next.co.uk, hm.com, zara.com, riverisland.com, marksandspencer.com, uniqlo.com, primark.com, urbanoutfitters.com, topman.com
+- UK premium/streetwear: endclothing.com, jdsports.co.uk, flannels.com, selfridges.com, harveynichols.com, tessuti.co.uk, mainlinemenswear.co.uk, scottsmenswear.com, aphrodite1994.com, urbanindustry.co.uk
+- UK online: zalando.co.uk, asos.com, brownsfashion.com, matchesfashion.com, farfetch.com, ssense.com, mrporter.com
+- European: asphaltgold.com, bstn.com, overkillshop.com, snipes.com, aboutyou.co.uk
+
 For suggestions, provide predictive autocomplete suggestions related to the query.`,
           },
           { role: "user", content: userContent },

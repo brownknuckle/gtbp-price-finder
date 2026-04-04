@@ -31,12 +31,12 @@ const Privacy = () => (
           <h2 className="mb-2 text-base font-bold">3. Third-Party Services</h2>
           <p className="mb-2">To deliver results, GTBP uses the following third-party services:</p>
           <ul className="ml-4 list-disc space-y-1 text-muted-foreground">
-            <li><span className="font-semibold text-foreground">Firecrawl</span> — fetches publicly available product pages from retailer websites to extract prices.</li>
+            <li><span className="font-semibold text-foreground">Jina AI</span> — fetches publicly available product pages from retailer websites to extract prices.</li>
+            <li><span className="font-semibold text-foreground">Serper</span> — performs Google-backed searches to discover retailer listings and product images.</li>
             <li><span className="font-semibold text-foreground">Google Gemini AI</span> — analyses page content to identify and validate prices.</li>
-            <li><span className="font-semibold text-foreground">Supabase</span> — stores anonymous price cache data.</li>
+            <li><span className="font-semibold text-foreground">Supabase</span> — stores anonymous price cache data and watchlist data for signed-in users.</li>
             <li><span className="font-semibold text-foreground">Vercel</span> — our hosting platform. Their privacy policy governs platform-level data (e.g. server logs).</li>
             <li><span className="font-semibold text-foreground">Google Analytics</span> — used to understand site usage (only if you consent via the cookie banner).</li>
-            <li><span className="font-semibold text-foreground">Resend</span> — sends price drop notification emails to users who have saved products to their watchlist.</li>
           </ul>
           <p className="mt-2 text-muted-foreground">
             We do not share any personal data with these services because we do not collect personal data.
