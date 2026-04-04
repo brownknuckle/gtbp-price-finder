@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Loader2, Calendar, ArrowRight, SlidersHorizontal } from "lucide-react";
@@ -69,7 +69,7 @@ const Releases = () => {
 
   return (
     <PageTransition>
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <div className="mx-auto max-w-4xl px-4 py-10">
 
         {/* Header */}
         <motion.div
@@ -142,7 +142,7 @@ const Releases = () => {
 
         {/* Release cards */}
         {!isLoading && (
-          <div className="space-y-3">
+          <div className="flex flex-col gap-3">
             {sorted.map((release, i) => {
               const { label: dateLabel, urgency } = formatDate(release.releaseDate);
               return (
@@ -150,44 +150,64 @@ const Releases = () => {
                   key={`${release.name}-${i}`}
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04, duration: 0.3 }}
-                  className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md"
+                  transition={{ delay: i * 0.03, duration: 0.3 }}
+                  className="group flex items-center gap-4 rounded-xl border border-border bg-card p-3 sm:p-4 transition-shadow hover:shadow-md cursor-pointer"
+                  onClick={() => navigate(`/product/${toProductSlug(release.searchQuery || release.name)}`, {
+                    state: { sizing: { gender: "men", sizeType: "shoes", sizeRegion: "UK", size: "9" } }
+                  })}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-secondary text-2xl">
-                      {release.emoji}
+                  {/* Thumbnail */}
+                  <div className="flex h-24 w-24 sm:h-28 sm:w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-secondary">
+                    {release.image_url ? (
+                      <img
+                        src={release.image_url}
+                        alt={release.name}
+                        className="h-full w-full object-contain p-2"
+                        onError={(e) => {
+                          const el = e.currentTarget as HTMLImageElement;
+                          el.style.display = "none";
+                          el.parentElement!.innerHTML = `<div class="flex flex-col items-center justify-center gap-1 text-muted-foreground"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><span class="text-[9px] font-medium">No image</span></div>`;
+                        }}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center gap-1 text-muted-foreground">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                        <span className="text-[9px] font-medium text-muted-foreground">No image</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex flex-1 flex-col gap-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-bold text-foreground leading-tight truncate">{release.name}</span>
+                      {urgency === "today" && (
+                        <Badge className="bg-green-500 text-[10px] text-white">Out Today</Badge>
+                      )}
+                      {urgency === "soon" && (
+                        <Badge variant="secondary" className="text-[10px]">This Week</Badge>
+                      )}
                     </div>
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold text-foreground">{release.name}</span>
-                        {urgency === "today" && (
-                          <Badge className="bg-green-500 text-[10px] text-white">Out Today</Badge>
-                        )}
-                        {urgency === "soon" && (
-                          <Badge variant="secondary" className="text-[10px]">This Week</Badge>
-                        )}
-                      </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">{release.brand}</span>
-                        <span className="capitalize">{release.category}</span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {dateLabel}
-                        </span>
-                        {release.retailPrice > 0 && (
-                          <span className="font-medium">RRP £{release.retailPrice}</span>
-                        )}
-                      </div>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">{release.brand}</span>
+                      <span className="capitalize">{release.category}</span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {dateLabel}
+                      </span>
+                      {release.retailPrice > 0 && (
+                        <span className="font-medium">RRP £{release.retailPrice}</span>
+                      )}
                     </div>
                   </div>
 
+                  {/* Action */}
                   <Button
                     size="sm"
                     variant={urgency === "today" ? "default" : "outline"}
-                    className="shrink-0 gap-1 text-xs"
-                    onClick={() => navigate(`/product/${toProductSlug(release.searchQuery || release.name)}`, {
-                      state: { sizing: { gender: "men", sizeType: "shoes", sizeRegion: "UK", size: "9" } }
-                    })}
+                    className="shrink-0 gap-1 text-xs hidden sm:flex"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     Compare <ArrowRight className="h-3 w-3" />
                   </Button>

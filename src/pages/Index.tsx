@@ -575,12 +575,12 @@ const Index = () => {
               </div>
             </motion.div>
 
-            {/* Trending chips */}
+            {/* Trending products */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.55, duration: 0.4 }}
-              className="space-y-2"
+              className="space-y-3"
             >
               <p className="text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                 🔥 Trending Now
@@ -589,24 +589,22 @@ const Index = () => {
                 {(trendingItems.length > 0
                   ? trendingItems
                   : fallbackTrending.map((name) => ({ name, category: "shoes" as const, emoji: "👟" }))
-                ).map((item, i) => (
+                ).slice(0, 8).map((item, i) => (
                   <motion.button
                     key={item.name}
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.97 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 + i * 0.07 }}
+                    transition={{ delay: 0.6 + i * 0.06 }}
                     disabled={isSearching}
                     onClick={() => {
                       setQuery(item.name);
                       handleSearch(item.name);
                     }}
-                    className="group flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground shadow-xs transition-all hover:border-primary hover:bg-primary hover:text-primary-foreground hover:shadow-sm disabled:opacity-50 sm:px-4 sm:text-sm"
+                    className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-xs transition-all hover:border-primary hover:shadow-md disabled:opacity-50 sm:text-sm"
                   >
-                    <span>{item.emoji}</span>
-                    {item.name}
-                    <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                    {item.emoji} {item.name}
                   </motion.button>
                 ))}
               </div>

@@ -39,8 +39,69 @@ function checkRateLimit(req: Request): Response | null {
   return null;
 }
 
+// ─── Image helpers ──────────────────────────────────────────
+const KNOWN_IMAGE_CDNS = /static\.nike\.com|assets\.adidas|nb\.scene7|images\.stockx|image\.goat|images\.asos|media\.jdsports|images\.footlocker|images\.zalando|endclothing\.com|selfridges\.com|cdn-images\.farfetch|puma\.com|hoka\.com|newbalance\.com|asics\.com|converse\.com|vans\.com|images\.ssense|images\.mrporter/i;
+
+function looksLikeImage(url: string): boolean {
+  return /^https:\/\/.{15,}\.(?:jpg|jpeg|png|webp)(?:[?#][^\s]*)?$/i.test(url) || KNOWN_IMAGE_CDNS.test(url);
+}
+
+function upgradeCdnUrl(url: string): string {
+  url = url.replace(/t_PDP_\d+_v\d+/i, "t_PDP_864_v1");
+  url = url.replace(/w_\d{2,3},h_\d{2,3}/i, "w_600,h_600");
+  url = url.replace(/s-l\d{2,3}\./i, "s-l960.");
+  return url;
+}
+
+async function fetchImageForProduct(name: string, apiKey: string): Promise<string> {
+  const trySearch = async (body: object): Promise<string> => {
+    try {
+      const r = await fetch("https://api.firecrawl.dev/v1/search", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(5000),
+      });
+      const data = await r.json();
+      for (const item of (data.data || [])) {
+        const ogImage = item.metadata?.ogImage || item.metadata?.og_image || "";
+        if (ogImage && looksLikeImage(ogImage)) return upgradeCdnUrl(ogImage);
+        for (const mdMatch of (item.markdown || "").matchAll(/https?:\/\/[^\s"')]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')\]>]*)?/gi)) {
+          if (looksLikeImage(mdMatch[0])) return upgradeCdnUrl(mdMatch[0]);
+        }
+      }
+    } catch { /* timeout or error — silent */ }
+    return "";
+  };
+
+  // Try StockX/GOAT first (clean white-bg product shots)
+  const img = await trySearch({
+    query: name, limit: 3, lang: "en", country: "gb",
+    includeDomains: ["stockx.com", "goat.com"],
+  });
+  if (img) return img;
+
+  // Fallback: UK retailers
+  return trySearch({
+    query: `${name} buy`, limit: 3, lang: "en", country: "gb",
+    includeDomains: ["nike.com", "adidas.co.uk", "newbalance.co.uk", "size.co.uk", "jdsports.co.uk", "endclothing.com"],
+  });
+}
+
+async function fillMissingImages(items: any[], apiKey: string): Promise<void> {
+  const needsImage = items.filter(i => !i.image_url || !looksLikeImage(i.image_url));
+  if (needsImage.length === 0) return;
+
+  log(`Fetching images for ${needsImage.length} items via Firecrawl…`);
+  await Promise.all(
+    needsImage.map(async (item) => {
+      const url = await fetchImageForProduct(item.name, apiKey);
+      if (url) item.image_url = url;
+    })
+  );
+}
+
 serve(async (req) => {
-  // corsHeaders is already a module-level const
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const rateLimitResponse = checkRateLimit(req);
@@ -89,7 +150,8 @@ serve(async (req) => {
             Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ query, limit: 5, lang: "en", country: "gb" }),
+          body: JSON.stringify({ query, limit: 3, lang: "en", country: "gb" }),
+          signal: AbortSignal.timeout(6000),
         }).then((r) => r.json()).catch(() => ({ data: [] }))
       )
     );
@@ -99,7 +161,6 @@ serve(async (req) => {
       .filter(Boolean)
       .join("\n---\n");
 
-    // Use Gemini to extract trending items (OpenAI-compatible endpoint, same as price-scrape)
     const aiResponse = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       {
@@ -109,15 +170,16 @@ serve(async (req) => {
           Authorization: `Bearer ${GEMINI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gemini-2.5-flash",
+          model: "gemini-2.5-flash-lite",
           temperature: 0.4,
           response_format: { type: "json_object" },
           messages: [
             {
               role: "system",
               content: `You are a UK fashion & sneaker trend analyst. Return ONLY valid JSON with this exact shape:
-{"items":[{"name":"Nike Air Max Dn","category":"shoes","emoji":"👟"}]}
-Rules: mix shoes + clothing/accessories, specific product names (brand + model + colourway), category must be "shoes"|"clothing"|"accessories", single emoji, exactly 8 items.`,
+{"items":[{"name":"Nike Air Max Dn","category":"shoes","emoji":"👟","image_url":"https://..."}]}
+Rules: mix shoes + clothing/accessories, specific product names (brand + model + colourway), category must be "shoes"|"clothing"|"accessories", single emoji, exactly 8 items.
+For image_url: provide a REAL, publicly accessible product image URL from a known retailer CDN (e.g. static.nike.com, assets.adidas.com, nb.scene7.com, images.stockx.com, image.goat.com). The URL must be a direct link to a .jpg/.png/.webp image. Do NOT fabricate URLs — only use URLs you are confident exist.`,
             },
             {
               role: "user",
@@ -140,6 +202,9 @@ Rules: mix shoes + clothing/accessories, specific product names (brand + model +
     if (!jsonMatch) throw new Error("No trending result from Gemini");
 
     const { items } = JSON.parse(jsonMatch[0]);
+
+    // Fill missing images via Firecrawl (parallel, with timeout)
+    await fillMissingImages(items, FIRECRAWL_API_KEY);
 
     // Cache results
     await sb.from("price_cache").upsert(
