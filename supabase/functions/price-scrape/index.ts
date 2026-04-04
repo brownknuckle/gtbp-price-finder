@@ -1034,18 +1034,76 @@ serve(async (req) => {
     log(`After regex fallback for authorised retailers: ${extracted.length} total`);
 
     // ── Merge Google Shopping results — covers retailers that block scraping (JD Sports, Nike, etc.) ──
-    log(`Shopping raw (first 3): ${JSON.stringify(shoppingResults.slice(0, 3))}`);
+    // Serper Shopping often returns Google redirect links (google.com/search?ibp=oshop...) rather than
+    // direct retailer URLs. Map the source name to a known domain so we still get the price data.
+    const SHOPPING_SOURCE_MAP: Record<string, string> = {
+      "jd sports": "jdsports.co.uk", "jdsports": "jdsports.co.uk",
+      "size?": "size.co.uk", "size": "size.co.uk",
+      "foot locker": "footlocker.co.uk", "footlocker": "footlocker.co.uk",
+      "schuh": "schuh.co.uk",
+      "offspring": "offspring.co.uk",
+      "office": "office.co.uk",
+      "foot asylum": "footasylum.com", "footasylum": "footasylum.com",
+      "end clothing": "endclothing.com", "end.": "endclothing.com", "endclothing": "endclothing.com",
+      "asos": "asos.com",
+      "zalando": "zalando.co.uk",
+      "flannels": "flannels.com",
+      "tessuti": "tessuti.co.uk",
+      "sports direct": "sportsdirect.com", "sportsdirect": "sportsdirect.com",
+      "very": "very.co.uk",
+      "next": "next.co.uk",
+      "selfridges": "selfridges.com",
+      "harvey nichols": "harveynichols.com",
+      "mr porter": "mrporter.com", "mrporter": "mrporter.com",
+      "farfetch": "farfetch.com",
+      "ssense": "ssense.com",
+      "urban outfitters": "urbanoutfitters.com",
+      "nike": "nike.com", "nike official": "nike.com",
+      "adidas": "adidas.co.uk",
+      "new balance": "newbalance.co.uk", "newbalance": "newbalance.co.uk",
+      "asics": "asics.co.uk",
+      "puma": "puma.com",
+      "reebok": "reebok.co.uk",
+      "converse": "converse.com",
+      "vans": "vans.co.uk",
+      "timberland": "timberland.co.uk",
+      "hoka": "hoka.com",
+      "on running": "on-running.com", "on": "on-running.com",
+      "saucony": "saucony.com",
+      "dr. martens": "drmartens.com", "dr martens": "drmartens.com",
+      "stockx": "stockx.com",
+      "goat": "goat.com",
+      "klekt": "klekt.com",
+      "laced": "laced.com",
+      "the sole supplier": "thesolesupplier.co.uk",
+      "creps uk": "crepsuk.com",
+      "sneakersnstuff": "sneakersnstuff.com", "sns": "sneakersnstuff.com",
+      "solebox": "solebox.com",
+      "foot patrol": "footpatrol.com", "footpatrol": "footpatrol.com",
+      "hanon": "hanon-shop.com",
+      "bstn": "bstn.com",
+      "asphalt gold": "asphaltgold.com",
+      "overkill": "overkillshop.com",
+      "snipes": "snipes.com",
+      "footshop": "footshop.eu",
+      "mainline menswear": "mainlinemenswear.co.uk",
+      "scotts menswear": "scottsmenswear.com",
+      "whats your size": "whatsyoursize.co.uk",
+    };
     log(`Shopping total: ${shoppingResults.length}`);
     const shoppingCoveredDomains = new Set(extracted.map(e => extractDomain(e.url)));
     for (const item of shoppingResults) {
-      const url = item.link || item.productLink || "";
-      if (!url) { log(`Shopping: skipping item with no link: ${JSON.stringify(item).slice(0, 100)}`); continue; }
-      const domain = extractDomain(url);
-      if (!domain) continue;
+      // Resolve effective domain — prefer direct link, fall back to source name mapping
+      const rawUrl = item.link || item.productLink || "";
+      const rawDomain = rawUrl ? extractDomain(rawUrl) : "";
+      const isGoogleRedirect = rawDomain === "google.com";
+      const sourceName = (item.source || "").toLowerCase().trim();
+      let domain = !isGoogleRedirect && rawDomain ? rawDomain : (SHOPPING_SOURCE_MAP[sourceName] || "");
+      if (!domain) { log(`Shopping: no domain for source "${item.source}"`); continue; }
+      // Use a retailer homepage URL when link is a Google redirect
+      const url = !isGoogleRedirect && rawUrl ? rawUrl : `https://www.${domain}`;
       if (shoppingCoveredDomains.has(domain)) continue;
       if (BLOCKED_DOMAINS.has(domain)) continue;
-      if (isComparisonSite(url)) continue;
-      if (NON_RETAIL_DOMAINS.some(p => p.test(domain))) continue;
       // Parse price — Shopping returns strings like "£90.00", "$120", "€95"
       const priceRaw = (item.price || "").trim();
       let itemPrice = 0;
