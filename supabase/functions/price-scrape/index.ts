@@ -28,6 +28,7 @@ const UK_COM_RETAILERS = new Set([
   "laced.com", "klekt.com", "thesolesupplier.co.uk",
   "crepsuk.com", "launches.co.uk", "samedaytrainers.co.uk",
   "fatbuddhastore.com", "shucentre.co.uk",
+  "kershkicks.com", "stadiumgoods.com",
   "nike.com", "adidas.com", "newbalance.com", "puma.com", "reebok.com",
   "converse.com", "vans.com", "timberland.com", "ugg.com", "crocs.com",
   // Note: stockx.com, goat.com, sneakersnstuff.com, solebox.com are international — NOT in this set
@@ -275,6 +276,7 @@ const AUTHORISED_RETAILERS = new Set([
   "sneakersnstuff.com", "solebox.com", "footpatrol.com", "hanon-shop.com",
   "klekt.com", "laced.com", "laced.co.uk", "thesolesupplier.co.uk",
   "crepsuk.com", "samedaytrainers.co.uk", "whatsyoursize.co.uk",
+  "kershkicks.com", "stadiumgoods.com",
   "aphrodite1994.com", "urbanindustry.co.uk", "eightyeightstore.com",
   // Resale / global
   "stockx.com", "goat.com", "farfetch.com", "ssense.com",
@@ -335,6 +337,7 @@ const TRUST_RATINGS: Record<string, number> = {
   "sneakersnstuff.com": 3.2, "solebox.com": 3.4, "whatsyoursize.co.uk": 4.1,
   "footpatrol.com": 4.0, "hanon-shop.com": 3.8,
   "crepsuk.com": 4.0, "samedaytrainers.co.uk": 4.9,
+  "kershkicks.com": 4.2, "stadiumgoods.com": 3.5,
   "urbanindustry.co.uk": 4.1, "aphrodite1994.com": 3.9,
   // Luxury
   "harveynichols.com": 2.0, "mrporter.com": 3.6, "selfridges.com": 2.0,
