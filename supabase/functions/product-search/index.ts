@@ -206,8 +206,14 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
       });
 
     // Image search — Serper Images (Google Image Search) gives real product photography reliably
-    const fetchProductImage = async (query: string): Promise<string> => {
+    const fetchProductImage = async (query: string, category?: string): Promise<string> => {
       const cleanQuery = query.replace(/'/g, "").replace(/[\[(][^\])]{1,20}[\])]/g, "").replace(/\s{2,}/g, " ").trim();
+
+      // For shoes, "lateral" is the standard sneaker photography term for side-profile studio shots
+      const imageQuery = category === "shoes" ? `${cleanQuery} lateral` : cleanQuery;
+
+      // Official brand CDNs always use clean white-background side-profile product photography
+      const PREFERRED_CDNS = /static\.nike\.com|assets\.adidas|img\.adidas|nb\.scene7|scene7\.com|images\.newbalance|asics\.com\/on\/demandware/i;
 
       // 1. Serper Images API — actual Google Image Search results, far more reliable than og:image scraping
       if (SERPER_API_KEY) {
@@ -215,12 +221,26 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
           const r = await fetch("https://google.serper.dev/images", {
             method: "POST",
             headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
-            body: JSON.stringify({ q: cleanQuery, gl: "gb", hl: "en", num: 10 }),
+            body: JSON.stringify({ q: imageQuery, gl: "gb", hl: "en", num: 10 }),
             signal: AbortSignal.timeout(5000),
           });
           const data = await r.json();
-          log(`Image search for "${cleanQuery}": ${(data.images || []).length} results`);
-          for (const img of (data.images || [])) {
+          const images: any[] = data.images || [];
+          log(`Image search for "${imageQuery}": ${images.length} results`);
+
+          // First pass: prefer official brand CDN images (clean studio side shots)
+          if (category === "shoes") {
+            for (const img of images) {
+              const url = img.imageUrl || "";
+              if (url && looksLikeImage(url) && PREFERRED_CDNS.test(url)) {
+                log(`  CDN preferred: ${url.slice(0, 120)}`);
+                return upgradeCdnUrl(url);
+              }
+            }
+          }
+
+          // Second pass: any valid image
+          for (const img of images) {
             const url = img.imageUrl || "";
             log(`  imageUrl: ${url.slice(0, 120)} → ${looksLikeImage(url) ? "PASS" : "FAIL"}`);
             if (url && looksLikeImage(url)) return upgradeCdnUrl(url);
@@ -306,8 +326,7 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
     const aiImageUrl = (product.image_url && looksLikeImage(product.image_url))
       ? upgradeCdnUrl(product.image_url) : "";
 
-    // Run Firecrawl image search in parallel — prefer Firecrawl (real og:image) over AI URL (often hallucinated)
-    const fetchedImageUrl = await fetchProductImage(product.product_name);
+    const fetchedImageUrl = await fetchProductImage(product.product_name, product.category);
     product.image_url = fetchedImageUrl || aiImageUrl || "";
     log("Final image_url:", product.image_url || "(none)");
 
