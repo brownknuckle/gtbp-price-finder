@@ -78,6 +78,8 @@ const RETAILER_DISPLAY_NAMES: Record<string, string> = {
   "laced.com": "Laced", "laced.co.uk": "Laced",
   "thesolesupplier.co.uk": "The Sole Supplier",
   "crepsuk.com": "Creps UK",
+  "stadiumgoods.com": "Stadium Goods",
+  "kershkicks.com": "KershKicks",
   "sneakersnstuff.com": "Sneakersnstuff",
   "solebox.com": "Solebox",
   "footpatrol.com": "Foot Patrol",
@@ -217,6 +219,8 @@ const NON_PRODUCT_PATH_PATTERNS = [
   /\/colour\//i, /\/color\//i, /\/gender\//i,
   /\/p\/trainers/i, /\/p\/shoes/i, /\/p\/clothing/i,
   /\/shoes\/\?/i, /\/trainers\/\?/i, /\/footwear\/\?/i,
+  // Editorial / non-commerce paths
+  /\/news\//i, /\/blog\//i, /\/editorial\//i, /\/article\//i, /\/stories\//i, /\/guide\//i,
   // Category paths: /footwear/model-name or /clothing/model-name (single slug, no product code segment after)
   /\/footwear\/[a-z0-9-]+$/i, /\/clothing\/[a-z0-9-]+$/i, /\/accessories\/[a-z0-9-]+$/i,
 ];
@@ -243,6 +247,13 @@ const BLOCKED_DOMAINS = new Set([
   "cphsurplus.com", "trainersplus.co.uk", "sneakerfiles.com",
   "nicekicks.com", "sneakernews.com", "highsnobiety.com",
   "complex.com", "hypebeast.com",
+]);
+
+// Resale platforms where above-RRP prices are normal and should not be filtered by priceCeiling
+const RESALE_PLATFORMS = new Set([
+  "stockx.com", "goat.com", "laced.com", "laced.co.uk",
+  "klekt.com", "stadiumgoods.com", "crepsuk.com",
+  "thesolesupplier.co.uk",
 ]);
 
 const AUTHORISED_RETAILERS = new Set([
@@ -1262,6 +1273,8 @@ serve(async (req) => {
       "klekt": "klekt.com",
       "laced": "laced.com",
       "the sole supplier": "thesolesupplier.co.uk",
+      "stadium goods": "stadiumgoods.com",
+      "kershkicks": "kershkicks.com",
       "creps uk": "crepsuk.com",
       "sneakersnstuff": "sneakersnstuff.com", "sns": "sneakersnstuff.com",
       "solebox": "solebox.com",
@@ -1352,7 +1365,9 @@ serve(async (req) => {
         itemPrice = parseFloat(priceRaw.replace(/[^0-9.]/g, ""));
       }
       if (!itemPrice || isNaN(itemPrice)) { log(`Shopping: no price for ${domain}: "${priceRaw}"`); continue; }
-      if (itemPrice < priceFloor || itemPrice > priceCeiling) { log(`Shopping: price ${itemPrice} out of range [${priceFloor}, ${priceCeiling}] for ${domain}`); continue; }
+      // Resale platforms legitimately price above RRP — skip ceiling for them
+      if (!RESALE_PLATFORMS.has(domain) && (itemPrice < priceFloor || itemPrice > priceCeiling)) { log(`Shopping: price ${itemPrice} out of range [${priceFloor}, ${priceCeiling}] for ${domain}`); continue; }
+      if (RESALE_PLATFORMS.has(domain) && itemPrice < priceFloor) { log(`Shopping: price ${itemPrice} below floor for ${domain}`); continue; }
       if (isKidsProduct(url, item.title || "")) continue;
       const uk = isUkDomain(domain);
       const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
