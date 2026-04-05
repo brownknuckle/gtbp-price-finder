@@ -220,7 +220,7 @@ const NON_PRODUCT_PATH_PATTERNS = [
   /\/p\/trainers/i, /\/p\/shoes/i, /\/p\/clothing/i,
   /\/shoes\/\?/i, /\/trainers\/\?/i, /\/footwear\/\?/i,
   // Editorial / non-commerce paths
-  /\/news\//i, /\/blog\//i, /\/editorial\//i, /\/article\//i, /\/stories\//i, /\/guide\//i,
+  /\/news\//i, /\/blog\//i, /\/editorial\//i,
   // Category paths: /footwear/model-name or /clothing/model-name (single slug, no product code segment after)
   /\/footwear\/[a-z0-9-]+$/i, /\/clothing\/[a-z0-9-]+$/i, /\/accessories\/[a-z0-9-]+$/i,
 ];
@@ -1338,10 +1338,14 @@ serve(async (req) => {
       // Use direct product URL if it passes product-page validation
       const isDirectProductUrl = !!productUrl && isLikelyProductPage(productUrl);
       // Find a product URL from web search, tolerating .co.uk / .com variants
-      const webSearchUrl = enrichedCandidates.find(c =>
-        (extractDomain(c.url) === domain || normaliseDomain(extractDomain(c.url)) === normaliseDomain(domain))
-        && isLikelyProductPage(c.url)
-      )?.url;
+      // Reject non-UK locale paths (nike.com/sg, /en-us/ etc.)
+      const NON_UK_LOCALE = /\/en-us\/|\/en-au\/|\/en-ca\/|\/sg\/|\/us\/|\/au\/|\/ca\/|\/fr\/|\/de\/|\/it\/|\/es\/|\/nl\/|\/jp\/|\/kr\//;
+      const webSearchUrl = enrichedCandidates.find(c => {
+        const u = c.url.toLowerCase();
+        if (NON_UK_LOCALE.test(u) && !u.includes(".co.uk")) return false;
+        return (extractDomain(c.url) === domain || normaliseDomain(extractDomain(c.url)) === normaliseDomain(domain))
+          && isLikelyProductPage(c.url);
+      })?.url;
       const url = isDirectProductUrl ? productUrl
         : webSearchUrl ? webSearchUrl
         : RETAILER_SEARCH_URLS[domain]?.(searchName)
@@ -1415,8 +1419,8 @@ serve(async (req) => {
               // Reject opposite-gender URLs
               if (wantsMens && /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|-w-|[-_]wmns/.test(u)) return false;
               if (wantsWomens && /\/mens?[-_/]|[-_]mens?[-_/]|\/men\//.test(u)) return false;
-              // Prefer /en-gb/ over /en-us/ for MR PORTER and similar
-              if (/\/en-us\//.test(u) && !u.includes(".co.uk")) return false;
+              // Reject non-UK locale paths (nike.com/sg, /en-us/, /en-au/, etc.)
+              if (/\/en-us\/|\/en-au\/|\/en-ca\/|\/sg\/|\/us\/|\/au\/|\/ca\/|\/fr\/|\/de\/|\/it\/|\/es\/|\/nl\/|\/jp\/|\/kr\//.test(u) && !u.includes(".co.uk")) return false;
               return true;
             });
             return { entry, productUrl: productPage?.url ?? null };
@@ -1456,10 +1460,11 @@ serve(async (req) => {
       .filter(r => r.retailer && r.retailer.length > 2) // drop bogus names like "Uk", "Us"
       .sort((a, b) => a.totalYouPay - b.totalYouPay);
 
-    // ── Price outlier filter: hide results > 80% above cheapest (only when 4+ results) ──
+    // ── Price outlier filter: hide results > 3x cheapest (only when 5+ results) ──
+    // Use 3x (not 1.8x) because resale platforms legitimately price 2-3x above retail
     const cheapest = sorted[0]?.totalYouPay ?? 0;
-    const cutoff = cheapest * 1.8;
-    const finalResults = (sorted.length >= 4 ? sorted.filter(r => r.totalYouPay <= cutoff) : sorted)
+    const cutoff = cheapest * 3;
+    const finalResults = (sorted.length >= 5 ? sorted.filter(r => r.totalYouPay <= cutoff) : sorted)
       .map((r, i) => ({ ...r, rank: i + 1 }));
 
     log(`Final: ${finalResults.length} unique retailers (cutoff £${cutoff.toFixed(0)})`);
