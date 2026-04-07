@@ -1338,11 +1338,12 @@ serve(async (req) => {
       const sourceName = (item.source || "").toLowerCase().trim();
       let domain = !isGoogleRedirect && rawDomain ? rawDomain : (SHOPPING_SOURCE_MAP[sourceName] || "");
       if (!domain) { log(`Shopping: no domain for source "${item.source}"`); continue; }
-      // Use direct product URL if it passes product-page validation
-      const isDirectProductUrl = !!productUrl && isLikelyProductPage(productUrl);
-      // Find a product URL from web search, tolerating .co.uk / .com variants
       // Reject non-UK locale paths (nike.com/sg, /en-us/ etc.)
       const NON_UK_LOCALE = /\/en-us\/|\/en-au\/|\/en-ca\/|\/sg\/|\/us\/|\/au\/|\/ca\/|\/fr\/|\/de\/|\/it\/|\/es\/|\/nl\/|\/jp\/|\/kr\//;
+      // Use direct product URL only if it passes product-page validation AND is UK locale
+      const isNonUkLocale = NON_UK_LOCALE.test(productUrl.toLowerCase()) && !productUrl.toLowerCase().includes(".co.uk");
+      const isDirectProductUrl = !!productUrl && isLikelyProductPage(productUrl) && !isNonUkLocale;
+      // Find a product URL from web search, tolerating .co.uk / .com variants
       const webSearchUrl = enrichedCandidates.find(c => {
         const u = c.url.toLowerCase();
         if (NON_UK_LOCALE.test(u) && !u.includes(".co.uk")) return false;
@@ -1407,14 +1408,22 @@ serve(async (req) => {
     // ── URL resolution — Shopping items that fell back to a search/homepage URL ──
     // For JS-heavy retailers (JD Sports, Foot Locker, Footasylum etc.) the Shopping API
     // doesn't provide a direct product URL. Do a targeted site: search to find one.
+    // For certain domains, constrain site: search to a specific subdirectory to avoid
+    // landing on category/news pages instead of product pages.
+    const SITE_SEARCH_PATHS: Record<string, string> = {
+      "thesolesupplier.co.uk": "thesolesupplier.co.uk/trainers/",
+      "nike.com": "nike.com/gb/",
+      "adidas.com": "adidas.co.uk/",
+    };
     const needsProductUrl = extracted.filter(e => !isLikelyProductPage(e.url));
     if (needsProductUrl.length > 0 && SERPER_API_KEY) {
       log(`Resolving product URLs for ${needsProductUrl.length} entries: ${needsProductUrl.map(e => extractDomain(e.url)).join(", ")}`);
       const resolved = await Promise.all(
         needsProductUrl.map(async (entry) => {
           const domain = extractDomain(entry.url);
+          const siteTarget = SITE_SEARCH_PATHS[domain] ?? domain;
           try {
-            const results = await doSerperSearch(`${searchName} site:${domain}`, 5);
+            const results = await doSerperSearch(`${searchName} site:${siteTarget}`, 5);
             const productPage = results.find(r => {
               if (!r.url || !isLikelyProductPage(r.url)) return false;
               if (isKidsProduct(r.url, r.title + " " + r.description)) return false;
