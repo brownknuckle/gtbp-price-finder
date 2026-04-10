@@ -29,6 +29,7 @@ const UK_COM_RETAILERS = new Set([
   "crepsuk.com", "launches.co.uk", "samedaytrainers.co.uk",
   "fatbuddhastore.com", "shucentre.co.uk",
   "kershkicks.com", "stadiumgoods.com",
+  "stoneisland.com", "cpcompany.com", "carhartt-wip.com",
   "nike.com", "adidas.com", "newbalance.com", "puma.com", "reebok.com",
   "converse.com", "vans.com", "timberland.com", "ugg.com", "crocs.com",
   // Note: stockx.com, goat.com, sneakersnstuff.com, solebox.com are international — NOT in this set
@@ -171,6 +172,8 @@ const RETAILER_SEARCH_URLS: Record<string, (q: string) => string> = {
   "drmartens.com": q => `https://www.drmartens.com/uk/en/search?q=${encodeURIComponent(q)}`,
   "thesolesupplier.co.uk": q => `https://thesolesupplier.co.uk/search/?q=${encodeURIComponent(q)}`,
   "crepsuk.com": q => `https://www.crepsuk.com/search?type=product&q=${encodeURIComponent(q)}`,
+  "kershkicks.com": q => `https://www.kershkicks.com/search?type=product&q=${encodeURIComponent(q)}`,
+  "stadiumgoods.com": q => `https://www.stadiumgoods.com/search?q=${encodeURIComponent(q)}`,
   "footpatrol.com": q => `https://www.footpatrol.com/search/?q=${encodeURIComponent(q)}`,
   "hanon-shop.com": q => `https://www.hanon-shop.com/search?q=${encodeURIComponent(q)}`,
   "overkillshop.com": q => `https://www.overkillshop.com/en/search?q=${encodeURIComponent(q)}`,
@@ -532,7 +535,7 @@ async function extractPricesWithAI(
     ? " The customer wants MEN'S — reject women's, kids', grade school, and junior versions."
     : wantsWomens2
     ? " The customer wants WOMEN'S — reject men's, kids', grade school, and junior versions."
-    : " Reject kids', grade school, junior, and toddler versions.";
+    : " Reject women's, kids', grade school, junior, and toddler versions. If the page is explicitly labelled as women's or girls', set is_correct_product: false.";
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
@@ -922,7 +925,7 @@ serve(async (req) => {
       return [];
     };
 
-    // ── URL discovery — 6 parallel Serper searches (~7 credits total including shopping) ──
+    // ── URL discovery — parallel Serper searches ──
     const [
       shoppingResults,
       broadResults1,
@@ -931,18 +934,21 @@ serve(async (req) => {
       ukResults2,
       boutiqueResults,
       resaleResults,
+      clothingResults,
       feedResults,
     ] = await Promise.all([
       doSerperShopping(searchName), // Google Shopping — primary price source
       doSerperSearch(`${searchName} buy UK price`, 20),
       doSerperSearch(`${searchName} buy UK`, 20),
-      // UK high street — two groups so site: operators stay reliable
+      // UK high street sneaker retailers
       doSerperSearch(`${searchName} site:jdsports.co.uk OR site:size.co.uk OR site:schuh.co.uk OR site:footlocker.co.uk OR site:offspring.co.uk OR site:office.co.uk`, 10),
       doSerperSearch(`${searchName} site:footasylum.com OR site:endclothing.com OR site:asos.com OR site:zalando.co.uk OR site:flannels.com OR site:nike.com OR site:adidas.co.uk OR site:newbalance.co.uk`, 10),
-      // Boutiques
+      // Sneaker boutiques
       doSerperSearch(`${searchName} site:sneakersnstuff.com OR site:solebox.com OR site:footpatrol.com OR site:hanon-shop.com OR site:asphaltgold.com OR site:bstn.com OR site:overkillshop.com`, 10),
       // Resale
       doSerperSearch(`${searchName} site:stockx.com OR site:goat.com OR site:klekt.com OR site:laced.com OR site:laced.co.uk OR site:thesolesupplier.co.uk`, 10),
+      // Clothing retailers — brand direct + department stores
+      doSerperSearch(`${searchName} site:thenorthface.com OR site:patagonia.com OR site:carhartt-wip.com OR site:stoneisland.com OR site:cpcompany.com OR site:next.co.uk OR site:very.co.uk OR site:selfridges.com OR site:mrporter.com OR site:harveynichols.com`, 10),
       queryAffiliateFeed(),
     ]);
 
@@ -950,7 +956,7 @@ serve(async (req) => {
     const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
     // Site-targeted results first (highest precision), broad last
-    for (const results of [ukResults1, ukResults2, boutiqueResults, resaleResults, broadResults1, broadResults2]) {
+    for (const results of [ukResults1, ukResults2, boutiqueResults, resaleResults, clothingResults, broadResults1, broadResults2]) {
       for (const item of results) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
@@ -986,10 +992,19 @@ serve(async (req) => {
       if (isSecondhand(s.url, s.title + " " + s.description)) return false;
       // Reject non-GB storefronts (e.g. asos.com/us/, nike.com/us/)
       if (/\/(us|au|ca|de|fr|it|es|nl)\//.test(s.url) && !s.url.includes(".co.uk")) return false;
-      // Gender filtering — reject opposite-gender URLs
+      // Gender filtering — reject opposite-gender URLs/titles
       const urlLower = s.url.toLowerCase();
-      if (wantsMens && /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|-w-|[-_]wmns/.test(urlLower)) return false;
+      const titleLower = (s.title || "").toLowerCase();
+      const WOMENS_URL_RE = /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|[-_]wmns[-_/]|[-_]wmns$|\/wmns\/|-w-\d/;
+      const WOMENS_TITLE_RE = /\b(women'?s?|womens?|girls?)\b/;
+      if (wantsMens && WOMENS_URL_RE.test(urlLower)) return false;
+      if (wantsMens && WOMENS_TITLE_RE.test(titleLower)) return false;
       if (wantsWomens && /\/mens?[-_/]|[-_]mens?[-_/]|\/men\//.test(urlLower)) return false;
+      // When gender is unspecified, still reject clearly women's-specific pages
+      if (!wantsMens && !wantsWomens) {
+        if (WOMENS_URL_RE.test(urlLower)) return false;
+        if (WOMENS_TITLE_RE.test(titleLower)) return false;
+      }
       return true;
     });
 
@@ -1056,7 +1071,7 @@ serve(async (req) => {
     log(`AI validated ${aiResults.length} results`);
 
     // ── Build final results from AI output ──
-    const priceCeiling = estimated_retail_price ? estimated_retail_price * 1.6 : MAX_REALISTIC_PRICE;
+    const priceCeiling = estimated_retail_price ? estimated_retail_price * 2.5 : MAX_REALISTIC_PRICE;
     const priceFloor = estimated_retail_price
       ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.5))
       : MIN_REALISTIC_PRICE;
@@ -1377,6 +1392,13 @@ serve(async (req) => {
       if (!RESALE_PLATFORMS.has(domain) && (itemPrice < priceFloor || itemPrice > priceCeiling)) { log(`Shopping: price ${itemPrice} out of range [${priceFloor}, ${priceCeiling}] for ${domain}`); continue; }
       if (RESALE_PLATFORMS.has(domain) && itemPrice < priceFloor) { log(`Shopping: price ${itemPrice} below floor for ${domain}`); continue; }
       if (isKidsProduct(url, item.title || "")) continue;
+      // Reject women's Shopping results unless user explicitly wants women's
+      const shoppingTitleLower = (item.title || "").toLowerCase();
+      const shoppingUrlLower = url.toLowerCase();
+      const WOMENS_URL_RE2 = /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|[-_]wmns[-_/]|[-_]wmns$|\/wmns\/|-w-\d/;
+      const WOMENS_TITLE_RE2 = /\b(women'?s?|womens?|girls?)\b/;
+      if (wantsMens && (WOMENS_TITLE_RE2.test(shoppingTitleLower) || WOMENS_URL_RE2.test(shoppingUrlLower))) continue;
+      if (!wantsMens && !wantsWomens && (WOMENS_TITLE_RE2.test(shoppingTitleLower) || WOMENS_URL_RE2.test(shoppingUrlLower))) continue;
       const uk = isUkDomain(domain);
       const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
       const duties = calculateDuties(itemPrice, uk);
@@ -1428,8 +1450,10 @@ serve(async (req) => {
               if (!r.url || !isLikelyProductPage(r.url)) return false;
               if (isKidsProduct(r.url, r.title + " " + r.description)) return false;
               const u = r.url.toLowerCase();
-              // Reject opposite-gender URLs
-              if (wantsMens && /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|-w-|[-_]wmns/.test(u)) return false;
+              // Reject opposite-gender URLs (and women's pages when gender is unspecified)
+              const WOMENS_URL_RE3 = /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|[-_]wmns[-_/]|[-_]wmns$|\/wmns\/|-w-\d/;
+              if (wantsMens && WOMENS_URL_RE3.test(u)) return false;
+              if (!wantsMens && !wantsWomens && WOMENS_URL_RE3.test(u)) return false;
               if (wantsWomens && /\/mens?[-_/]|[-_]mens?[-_/]|\/men\//.test(u)) return false;
               // Reject non-UK locale paths (nike.com/sg, /en-us/, /en-au/, etc.)
               if (/\/en-us\/|\/en-au\/|\/en-ca\/|\/sg\/|\/us\/|\/au\/|\/ca\/|\/fr\/|\/de\/|\/it\/|\/es\/|\/nl\/|\/jp\/|\/kr\//.test(u) && !u.includes(".co.uk")) return false;

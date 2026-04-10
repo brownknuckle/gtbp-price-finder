@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { Search, ArrowRight, Loader2, ShieldCheck, Zap, Globe, Camera, X, CheckCircle, AlertTriangle, Edit3 } from "lucide-react";
+import { Search, ArrowRight, Loader2, ShieldCheck, Zap, Globe, Camera, X, CheckCircle, AlertTriangle, Edit3, Bell, Heart, Clock, Tag } from "lucide-react";
 import { toProductSlug } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -25,14 +25,99 @@ const fallbackTrending = [
   "Adidas Samba OG White Black",
 ];
 
+// Expanded local catalogue for autocomplete — no API call needed
+const LOCAL_PRODUCT_CATALOGUE = [
+  // Nike sneakers
+  "Nike Air Force 1 Low Triple White", "Nike Air Force 1 Low Black", "Nike Air Force 1 Low White Grey",
+  "Nike Dunk Low Retro White Black Panda", "Nike Dunk Low Retro Black White", "Nike Dunk Low University Red",
+  "Nike Air Max 95 Triple Black", "Nike Air Max 95 White", "Nike Air Max 95 Grey",
+  "Nike Air Max 97 Silver Bullet", "Nike Air Max 97 Triple Black", "Nike Air Max 97 White",
+  "Nike Air Max 1 White Grey", "Nike Air Max 1 Black", "Nike Air Max 1 Lucky Green",
+  "Nike Air Max 90 White", "Nike Air Max 90 Black",
+  "Nike Killshot 2 White", "Nike Cortez White",
+  "Nike Air Max Plus Triple Black", "Nike Air Max Plus White",
+  "Nike Pegasus 41", "Nike React Infinity Run",
+  // Jordan
+  "Air Jordan 1 Retro High OG", "Air Jordan 1 Low", "Air Jordan 1 Mid Chicago Black Toe",
+  "Air Jordan 4 Retro", "Air Jordan 4 Retro Military Black", "Air Jordan 3 Retro",
+  "Air Jordan 6 Retro", "Air Jordan 11 Retro",
+  // Adidas sneakers
+  "Adidas Samba OG White Black Gum", "Adidas Samba OG Black", "Adidas Samba OG White Blue",
+  "Adidas Gazelle Indoor Green Gum", "Adidas Gazelle Indoor Black", "Adidas Gazelle Black",
+  "Adidas Campus 00s Cloud White", "Adidas Campus 00s Black", "Adidas Campus 00s Green",
+  "Adidas Stan Smith White Green", "Adidas Stan Smith White",
+  "Adidas Handball Spezial Blue", "Adidas Handball Spezial Black",
+  "Adidas Forum Low White Blue", "Adidas Forum Low Black",
+  "Adidas Ultraboost 1.0 White",
+  "Adidas NMD R1 Triple Black", "Adidas NMD R1 White",
+  "Adidas Superstar White Black",
+  // New Balance
+  "New Balance 550 White Green", "New Balance 550 White Grey", "New Balance 550 White Navy",
+  "New Balance 990v6 Grey", "New Balance 990v6 Black",
+  "New Balance 991 Grey", "New Balance 992 Grey",
+  "New Balance 574 Grey", "New Balance 574 Green",
+  "New Balance 327 White", "New Balance 530 White",
+  "New Balance 1080 White", "New Balance 2002R White",
+  // ASICS
+  "ASICS Gel-1130 White Silver", "ASICS Gel-1130 Black", "ASICS Gel-1130 Cream",
+  "ASICS Gel-Kayano 14 White", "ASICS Gel-Kayano 14 Black",
+  "ASICS Gel-Nimbus 9 White", "ASICS Gel-Lyte III White",
+  "ASICS GT-2160 White", "ASICS GT-2160 Black",
+  // Salomon
+  "Salomon XT-6 Black", "Salomon XT-6 White", "Salomon ACS Pro Black",
+  // On Running
+  "On Cloudmonster Black", "On Cloudrunner 2 Black",
+  // Converse & Vans
+  "Converse Chuck Taylor All Star White", "Converse Chuck Taylor All Star Black",
+  "Converse Chuck 70 White", "Converse Run Star Hike White",
+  "Vans Old Skool Black White", "Vans Old Skool White", "Vans Sk8-Hi Black",
+  "Vans Authentic Black", "Vans Authentic White",
+  // Other brands
+  "Timberland 6-Inch Premium Boot Wheat",
+  "Dr. Martens 1460 Pascal Black", "Dr. Martens 1461 Black",
+  "Reebok Classic Leather White", "Reebok Club C 85 White",
+  // Nike clothing
+  "Nike Tech Fleece Joggers Black", "Nike Tech Fleece Hoodie Black",
+  "Nike Tech Fleece Full-Zip Hoodie", "Nike Tech Fleece Joggers Grey",
+  "Nike Essential Fleece Joggers", "Nike Club Fleece Hoodie",
+  // Jordan clothing
+  "Jordan Essentials Fleece Joggers", "Jordan Flight Fleece Hoodie",
+  // North Face
+  "The North Face Nuptse 700 Jacket Black", "The North Face Nuptse 700 Jacket White",
+  "The North Face 700 Down Gilet Black", "The North Face Denali Fleece Jacket",
+  // Carhartt WIP
+  "Carhartt WIP Michigan Coat Black", "Carhartt WIP Michigan Coat Brown",
+  "Carhartt WIP OG Santa Fe Jacket", "Carhartt WIP Hooded Chase Sweat",
+  // Stone Island
+  "Stone Island Patch Crewneck Navy", "Stone Island Patch Crewneck Black",
+  "Stone Island Ghost Piece Hoodie", "Stone Island Membrana Jacket",
+  // CP Company
+  "CP Company Goggle Jacket Black", "CP Company Metropolis Fleece Jacket",
+  // Ralph Lauren
+  "Ralph Lauren Polo Shirt White", "Ralph Lauren Polo Shirt Black", "Ralph Lauren Polo Shirt Navy",
+  // Fred Perry
+  "Fred Perry M12 Polo Shirt White", "Fred Perry M12 Polo Shirt Black",
+  // Lacoste
+  "Lacoste L1212 Polo Shirt White", "Lacoste L1212 Polo Shirt Navy",
+  // Levi's
+  "Levi's 501 Original Jeans", "Levi's 511 Slim Jeans", "Levi's 550 Relaxed Jeans",
+  // Other clothing
+  "Represent Owners Club Hoodie", "Represent Owners Club T-Shirt",
+  "Essentials Fear of God Hoodie", "Essentials Fear of God Joggers",
+];
+
 const FAQ_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
     { "@type": "Question", "name": "Is GTBP free to use?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, completely free. We don't charge you anything — just search and buy directly from the retailer." } },
     { "@type": "Question", "name": "How do you find the prices?", "acceptedAnswer": { "@type": "Answer", "text": "We use AI to search across 30+ UK and international retailers in real-time, extracting actual product page prices — not estimates." } },
-    { "@type": "Question", "name": "Are shipping costs included?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. We estimate shipping and import duties for non-UK retailers so the 'Total You Pay' is the real landed cost." } },
+    { "@type": "Question", "name": "Are shipping costs included?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. We show shipping and import duties for non-UK retailers so the Total You Pay is the real landed cost — not just the item price." } },
+    { "@type": "Question", "name": "Do you cover resale platforms like StockX and GOAT?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. We include StockX, GOAT, Klekt, Laced, and Stadium Goods alongside retail prices so you can compare everything in one place. Resale shipping and applicable duties are included in the total." } },
+    { "@type": "Question", "name": "How accurate are the prices?", "acceptedAnswer": { "@type": "Answer", "text": "Prices are sourced directly from retailer product pages in real-time. Most results show high confidence — where we're less certain, we show a 'low confidence' indicator so you always know what to trust." } },
+    { "@type": "Question", "name": "Which retailers do you search?", "acceptedAnswer": { "@type": "Answer", "text": "We cover Nike, JD Sports, Size?, Foot Locker, Schuh, END., Offspring, Footasylum, ASOS, Zalando, Selfridges, MR PORTER, StockX, GOAT, Klekt, Laced, The Sole Supplier, KershKicks, and 15+ more." } },
     { "@type": "Question", "name": "Do you sell products?", "acceptedAnswer": { "@type": "Answer", "text": "No. GTBP is a price comparison tool. When you click Buy Now, you go directly to the retailer's website." } },
+    { "@type": "Question", "name": "Can I search for clothing as well as sneakers?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — we cover sneakers, trainers, clothing and accessories. Works for Stone Island, Carhartt WIP, North Face, Ralph Lauren, Nike Tech Fleece, and more." } },
   ],
 };
 
@@ -73,6 +158,19 @@ const Index = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Recent searches from localStorage
+  const getRecentSearches = (): string[] => {
+    try { return JSON.parse(localStorage.getItem("gtbp_recent_searches") || "[]"); } catch { return []; }
+  };
+  const saveRecentSearch = (q: string) => {
+    if (!q.trim()) return;
+    try {
+      const existing = getRecentSearches().filter(s => s !== q);
+      localStorage.setItem("gtbp_recent_searches", JSON.stringify([q, ...existing].slice(0, 5)));
+    } catch { /* quota */ }
+  };
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => getRecentSearches());
+
   // Fetch trending items on mount
   useEffect(() => {
     fetchTrending()
@@ -88,17 +186,21 @@ const Index = () => {
     setSize(sizeType === "shoes" ? "9" : "M");
   }, [sizeType]);
 
-  // Predictive suggestions from trending items — no API call needed
+  // Predictive suggestions from local catalogue + trending items — no API call needed
   useEffect(() => {
-    if (query.length < 3 || isSearching) {
+    if (isSearching) { setSuggestions([]); setShowSuggestions(false); return; }
+    if (query.length < 2) {
+      // Show recent searches when input is focused but empty
       setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
     const q = query.toLowerCase();
-    const matched = trendingItems
-      .map(i => i.name)
-      .filter(name => name.toLowerCase().includes(q));
+    const trendingNames = trendingItems.map(i => i.name);
+    const allProducts = Array.from(new Set([...trendingNames, ...LOCAL_PRODUCT_CATALOGUE]));
+    const matched = allProducts
+      .filter(name => name.toLowerCase().includes(q))
+      .slice(0, 8);
     setSuggestions(matched);
     setShowSuggestions(matched.length > 0);
   }, [query, isSearching, trendingItems]);
@@ -185,6 +287,7 @@ const Index = () => {
 
     try {
       analytics.search(q || "image-search");
+      if (q) { saveRecentSearch(q); setRecentSearches(getRecentSearches()); }
       const product = await searchProduct(q || "Identify this product", imageBase64 || undefined);
 
       // If image search, show confirmation step instead of navigating immediately
@@ -406,7 +509,10 @@ const Index = () => {
                     ref={inputRef}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                    onFocus={() => {
+                      if (suggestions.length > 0) setShowSuggestions(true);
+                      else if (query.length < 2 && recentSearches.length > 0) setShowSuggestions(true);
+                    }}
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 300)}
                     placeholder="e.g. Nike Air Force 1 Triple White UK 9, or paste a URL…"
                     className="h-12 rounded-md border-border bg-card pl-4 pr-12 text-sm shadow-xs transition-shadow focus-visible:shadow-md sm:h-13 sm:text-base"
@@ -425,27 +531,47 @@ const Index = () => {
 
                   {/* Predictive suggestions dropdown */}
                   <AnimatePresence>
-                    {showSuggestions && suggestions.length > 0 && (
+                    {showSuggestions && (suggestions.length > 0 || (query.length < 2 && recentSearches.length > 0)) && (
                       <motion.div
                         initial={{ opacity: 0, y: -4 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -4 }}
                         className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-md border bg-card shadow-lg"
                       >
-                        {suggestions.map((s, i) => (
-                          <button
-                            key={i}
-                            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-secondary"
-                            onMouseDown={() => {
-                              setQuery(s);
-                              setShowSuggestions(false);
-                              handleSearch(s);
-                            }}
-                          >
-                            <Search className="h-3.5 w-3.5 text-muted-foreground" />
-                            {s}
-                          </button>
-                        ))}
+                        {query.length < 2 && recentSearches.length > 0 && (
+                          <>
+                            <div className="px-4 pt-2 pb-1">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Recent searches</span>
+                            </div>
+                            {recentSearches.map((s, i) => (
+                              <button
+                                key={`recent-${i}`}
+                                className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-foreground transition-colors hover:bg-secondary"
+                                onMouseDown={() => { setQuery(s); setShowSuggestions(false); handleSearch(s); }}
+                              >
+                                <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                                {s}
+                              </button>
+                            ))}
+                          </>
+                        )}
+                        {suggestions.length > 0 && (
+                          <>
+                            {query.length < 2 && recentSearches.length > 0 && (
+                              <div className="mx-4 my-1 border-t" />
+                            )}
+                            {suggestions.map((s, i) => (
+                              <button
+                                key={i}
+                                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-secondary"
+                                onMouseDown={() => { setQuery(s); setShowSuggestions(false); handleSearch(s); }}
+                              >
+                                <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                                {s}
+                              </button>
+                            ))}
+                          </>
+                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -671,6 +797,46 @@ const Index = () => {
           </div>
         </section>
 
+        {/* Member benefits */}
+        <section className="border-t px-4 py-16">
+          <div className="mx-auto max-w-3xl">
+            <h2 className="mb-2 text-center text-2xl font-bold text-foreground">Free Account — More Power</h2>
+            <p className="mb-10 text-center text-sm text-muted-foreground">Sign up free in seconds. No card required.</p>
+            <div className="grid gap-6 sm:grid-cols-2">
+              {[
+                { icon: Bell, title: "Price Drop Alerts", desc: "Save any product to your Watchlist and get notified the moment the price drops. Never miss a deal." },
+                { icon: Heart, title: "Personal Watchlist", desc: "Track your favourite sneakers and clothing in one place. Drag to reorder, check prices any time." },
+                { icon: Clock, title: "Search History", desc: "Your recent searches are saved so you can revisit any product comparison without searching again." },
+                { icon: Tag, title: "Exclusive Deals", desc: "Members get early access to coupon codes and retailer promotions we find during our price checks." },
+              ].map((benefit) => (
+                <motion.div
+                  key={benefit.title}
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  className="flex gap-4 rounded-xl border bg-card p-5"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                    <benefit.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="mb-1 text-sm font-bold text-foreground">{benefit.title}</h3>
+                    <p className="text-xs leading-relaxed text-muted-foreground">{benefit.desc}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+            <div className="mt-8 text-center">
+              <Link
+                to="/watchlist"
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              >
+                Create Free Account <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
+
         {/* FAQ */}
         <section className="border-t bg-secondary/30 px-4 py-16">
           <div className="mx-auto max-w-2xl">
@@ -689,11 +855,27 @@ const Index = () => {
                 },
                 {
                   q: "Are shipping costs included?",
-                  a: "Yes. We estimate shipping and import duties for non-UK retailers so the 'Total You Pay' is the real landed cost.",
+                  a: "Yes. We show shipping and import duties for non-UK retailers so the 'Total You Pay' is the real landed cost — not just the item price.",
+                },
+                {
+                  q: "Do you cover resale platforms like StockX and GOAT?",
+                  a: "Yes. We include StockX, GOAT, Klekt, Laced, and Stadium Goods alongside retail prices so you can compare everything in one place. Resale shipping and applicable duties are included in the total.",
+                },
+                {
+                  q: "How accurate are the prices?",
+                  a: "Prices are sourced directly from retailer product pages in real-time. Most results show high confidence — where we're less certain, we show a 'low confidence' indicator so you always know what to trust.",
+                },
+                {
+                  q: "Which retailers do you search?",
+                  a: "We cover Nike, JD Sports, Size?, Foot Locker, Schuh, END., Offspring, Footasylum, ASOS, Zalando, Selfridges, MR PORTER, StockX, GOAT, Klekt, Laced, The Sole Supplier, KershKicks, and 15+ more.",
                 },
                 {
                   q: "Do you sell products?",
                   a: "No. GTBP is a price comparison tool. When you click 'Buy Now', you go directly to the retailer's website.",
+                },
+                {
+                  q: "Can I search for clothing as well as sneakers?",
+                  a: "Yes — we cover sneakers, trainers, clothing and accessories. Search by brand, product name, or colourway. Works for Stone Island, Carhartt WIP, North Face, Ralph Lauren, Nike Tech Fleece, and more.",
                 },
               ].map((faq) => (
                 <div key={faq.q}>

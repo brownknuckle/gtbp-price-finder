@@ -345,6 +345,18 @@ const Results = () => {
               {product?.brand} · {product?.category}
               {stateSizing && ` · ${stateSizing.gender}'s ${stateSizing.sizeType === "shoes" ? `${stateSizing.sizeRegion} ${stateSizing.size}` : `size ${stateSizing.size}`}`}
             </p>
+            {!isLoading && sorted.length > 0 && product?.estimated_retail_price && (() => {
+              const best = sorted[0].totalYouPay;
+              const rrp = product.estimated_retail_price;
+              const saving = rrp - best;
+              const pct = Math.round((saving / rrp) * 100);
+              if (pct < 3) return null; // only show if meaningful saving
+              return (
+                <p className="mt-1 text-sm font-semibold text-green-600">
+                  💰 Save £{saving.toFixed(2)} ({pct}% below RRP)
+                </p>
+              );
+            })()}
           </div>
           {product && !isLoading && (
             <div className="flex items-center gap-2 shrink-0">
