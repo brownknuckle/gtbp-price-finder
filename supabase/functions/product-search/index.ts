@@ -215,6 +215,17 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
       // Official brand CDNs always use clean white-background side-profile product photography
       const PREFERRED_CDNS = /static\.nike\.com|assets\.adidas|img\.adidas|nb\.scene7|scene7\.com|images\.newbalance|asics\.com\/on\/demandware/i;
 
+      // Extract colourway keywords so we can filter out wrong-colourway CDN images.
+      // e.g. "Triple White" → ["triple","white"]; "White Black Panda" → ["white","black","panda"]
+      const COLOUR_RE = /\b(white|black|grey|gray|red|blue|green|yellow|brown|beige|cream|navy|pink|purple|triple|panda|gum|silver|gold|volt|orange|khaki|olive|sage|infrared|obsidian|bred|chicago|royal|cement|platinum|sand|tan|off.white|cloud)\b/gi;
+      const colourKeywords = Array.from(new Set((cleanQuery.match(COLOUR_RE) || []).map(s => s.toLowerCase())));
+      // Returns true if the image title or URL contains at least one of the colourway's colour words
+      const matchesColourway = (title: string, url: string): boolean => {
+        if (!colourKeywords.length) return true;
+        const haystack = (title + " " + url).toLowerCase();
+        return colourKeywords.some(c => haystack.includes(c));
+      };
+
       // 1. Serper Images API — actual Google Image Search results, far more reliable than og:image scraping
       if (SERPER_API_KEY) {
         try {
@@ -226,20 +237,39 @@ For suggestions, provide predictive autocomplete suggestions related to the quer
           });
           const data = await r.json();
           const images: any[] = data.images || [];
-          log(`Image search for "${imageQuery}": ${images.length} results`);
+          log(`Image search for "${imageQuery}": ${images.length} results, colourway keywords: [${colourKeywords.join(",")}]`);
 
-          // First pass: prefer official brand CDN images (clean studio side shots)
           if (category === "shoes") {
+            // Pass 1: CDN image that matches the colourway (best quality + right shoe)
+            for (const img of images) {
+              const url = img.imageUrl || "";
+              const title = (img.title || "").toLowerCase();
+              if (url && looksLikeImage(url) && PREFERRED_CDNS.test(url) && matchesColourway(title, url)) {
+                log(`  CDN+colourway match: ${url.slice(0, 120)}`);
+                return upgradeCdnUrl(url);
+              }
+            }
+            // Pass 2: CDN image regardless of colourway (still good quality, just less precise)
             for (const img of images) {
               const url = img.imageUrl || "";
               if (url && looksLikeImage(url) && PREFERRED_CDNS.test(url)) {
-                log(`  CDN preferred: ${url.slice(0, 120)}`);
+                log(`  CDN preferred (colourway not matched): ${url.slice(0, 120)}`);
                 return upgradeCdnUrl(url);
               }
             }
           }
 
-          // Second pass: any valid image
+          // Pass 3: Any image that matches the colourway
+          for (const img of images) {
+            const url = img.imageUrl || "";
+            const title = (img.title || "").toLowerCase();
+            if (url && looksLikeImage(url) && matchesColourway(title, url)) {
+              log(`  colourway match: ${url.slice(0, 120)}`);
+              return upgradeCdnUrl(url);
+            }
+          }
+
+          // Pass 4: Any valid image
           for (const img of images) {
             const url = img.imageUrl || "";
             log(`  imageUrl: ${url.slice(0, 120)} → ${looksLikeImage(url) ? "PASS" : "FAIL"}`);

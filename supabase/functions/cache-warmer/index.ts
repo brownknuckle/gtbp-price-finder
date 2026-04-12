@@ -6,36 +6,19 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
-// Top products to keep warm — ordered by expected search volume
+// Top products to keep warm — limited to 10 per run to stay within Supabase's 150s function timeout.
+// The cron runs every 4 hours; products already cached return in <1s so subsequent runs finish fast.
 const WARM_PRODUCTS = [
-  // ── Iconic sneakers ──────────────────────────────────────────
-  { product_name: "Nike Air Force 1 Low Triple White", estimated_retail_price: 109.95, retailers: ["nike.com","jdsports.co.uk","footlocker.co.uk","size.co.uk","footasylum.com","schuh.co.uk","offspring.co.uk","asos.com","end.clothing","stockx.com","goat.com"] },
-  { product_name: "Adidas Samba OG White Black Gum", estimated_retail_price: 100, retailers: ["adidas.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","offspring.co.uk","zalando.co.uk","endclothing.com","stockx.com","goat.com","klekt.com","laced.com"] },
-  { product_name: "New Balance 550 White Green", estimated_retail_price: 110, retailers: ["newbalance.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","zalando.co.uk","endclothing.com","stockx.com","goat.com","klekt.com","offspring.co.uk"] },
-  { product_name: "Adidas Gazelle Indoor Green Gum", estimated_retail_price: 100, retailers: ["adidas.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","zalando.co.uk","endclothing.com","stockx.com","goat.com","offspring.co.uk"] },
-  { product_name: "Nike Air Max 95 Triple Black", estimated_retail_price: 169.95, retailers: ["nike.com","jdsports.co.uk","size.co.uk","footlocker.co.uk","schuh.co.uk","endclothing.com","stockx.com","goat.com","klekt.com"] },
-  { product_name: "Nike Dunk Low Retro White Black Panda", estimated_retail_price: 109.95, retailers: ["nike.com","jdsports.co.uk","size.co.uk","footlocker.co.uk","schuh.co.uk","offspring.co.uk","stockx.com","goat.com","klekt.com","laced.com"] },
-  { product_name: "Air Jordan 1 Retro High OG", estimated_retail_price: 169.95, retailers: ["nike.com","jdsports.co.uk","size.co.uk","footlocker.co.uk","thesolesupplier.co.uk","endclothing.com","stockx.com","goat.com","klekt.com","kershkicks.com"] },
-  { product_name: "New Balance 990v6 Grey", estimated_retail_price: 230, retailers: ["newbalance.co.uk","size.co.uk","endclothing.com","offspring.co.uk","schuh.co.uk","zalando.co.uk","stockx.com","goat.com"] },
-  { product_name: "Adidas Campus 00s Cloud White", estimated_retail_price: 95, retailers: ["adidas.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","zalando.co.uk","asos.com","offspring.co.uk","stockx.com"] },
-  { product_name: "ASICS Gel-1130 White Silver", estimated_retail_price: 110, retailers: ["asics.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","zalando.co.uk","asos.com","footlocker.co.uk","stockx.com"] },
-  { product_name: "Salomon XT-6 Black", estimated_retail_price: 180, retailers: ["size.co.uk","endclothing.com","offspring.co.uk","schuh.co.uk","zalando.co.uk","stockx.com","goat.com"] },
-  { product_name: "New Balance 574 Grey", estimated_retail_price: 80, retailers: ["newbalance.co.uk","jdsports.co.uk","schuh.co.uk","zalando.co.uk","asos.com","next.co.uk"] },
-  { product_name: "Converse Chuck Taylor All Star White", estimated_retail_price: 90, retailers: ["converse.com","jdsports.co.uk","size.co.uk","schuh.co.uk","asos.com","zalando.co.uk","footlocker.co.uk"] },
-  { product_name: "Vans Old Skool Black White", estimated_retail_price: 80, retailers: ["vans.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","asos.com","zalando.co.uk","offspring.co.uk"] },
-  { product_name: "Nike Air Max 1 White Grey", estimated_retail_price: 130, retailers: ["nike.com","jdsports.co.uk","size.co.uk","footlocker.co.uk","schuh.co.uk","stockx.com","goat.com"] },
-  // ── Popular clothing ─────────────────────────────────────────
-  { product_name: "Nike Tech Fleece Joggers Black", estimated_retail_price: 89.99, retailers: ["nike.com","jdsports.co.uk","footlocker.co.uk","footasylum.com","asos.com","size.co.uk","next.co.uk"] },
-  { product_name: "North Face Nuptse 700 Jacket Black", estimated_retail_price: 280, retailers: ["thenorthface.com","jdsports.co.uk","asos.com","endclothing.com","selfridges.com","zalando.co.uk","size.co.uk"] },
-  { product_name: "Carhartt WIP Michigan Coat Black", estimated_retail_price: 200, retailers: ["carhartt-wip.com","endclothing.com","asos.com","urbanoutfitters.com","selfridges.com","mrporter.com","zalando.co.uk"] },
-  { product_name: "Ralph Lauren Polo Shirt White", estimated_retail_price: 90, retailers: ["ralphlauren.co.uk","selfridges.com","asos.com","next.co.uk","zalando.co.uk","flannels.com"] },
-  { product_name: "Stone Island Patch Crewneck Navy", estimated_retail_price: 290, retailers: ["stoneisland.com","endclothing.com","selfridges.com","farfetch.com","flannels.com","mrporter.com"] },
-  // ── Additional high-traffic ──────────────────────────────────
-  { product_name: "Nike Air Max 97 Silver Bullet", estimated_retail_price: 169.95, retailers: ["nike.com","jdsports.co.uk","size.co.uk","footlocker.co.uk","schuh.co.uk","stockx.com","goat.com","klekt.com"] },
-  { product_name: "Air Jordan 4 Retro Black Cat", estimated_retail_price: 189.95, retailers: ["nike.com","jdsports.co.uk","size.co.uk","footlocker.co.uk","thesolesupplier.co.uk","stockx.com","goat.com","klekt.com","laced.com"] },
-  { product_name: "Adidas Handball Spezial Blue Gum", estimated_retail_price: 100, retailers: ["adidas.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","offspring.co.uk","zalando.co.uk","endclothing.com","stockx.com"] },
-  { product_name: "ASICS Gel-Kayano 14 White Silver", estimated_retail_price: 120, retailers: ["asics.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","zalando.co.uk","offspring.co.uk","stockx.com","goat.com"] },
-  { product_name: "Nike Killshot 2 White Gum", estimated_retail_price: 79.95, retailers: ["nike.com","jdsports.co.uk","size.co.uk","schuh.co.uk","offspring.co.uk","asos.com"] },
+  { product_name: "Nike Air Force 1 Low Triple White", estimated_retail_price: 109.95, retailers: ["nike.com","jdsports.co.uk","footlocker.co.uk","size.co.uk","schuh.co.uk","offspring.co.uk","asos.com","stockx.com","goat.com"] },
+  { product_name: "Adidas Samba OG White Black Gum", estimated_retail_price: 100, retailers: ["adidas.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","zalando.co.uk","endclothing.com","stockx.com","goat.com","klekt.com"] },
+  { product_name: "Nike Dunk Low Retro White Black Panda", estimated_retail_price: 109.95, retailers: ["nike.com","jdsports.co.uk","size.co.uk","footlocker.co.uk","schuh.co.uk","stockx.com","goat.com","klekt.com"] },
+  { product_name: "Air Jordan 1 Retro High OG", estimated_retail_price: 169.95, retailers: ["nike.com","jdsports.co.uk","size.co.uk","footlocker.co.uk","endclothing.com","stockx.com","goat.com","klekt.com"] },
+  { product_name: "New Balance 550 White Green", estimated_retail_price: 110, retailers: ["newbalance.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","zalando.co.uk","stockx.com","goat.com"] },
+  { product_name: "Adidas Gazelle Indoor Green Gum", estimated_retail_price: 100, retailers: ["adidas.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","zalando.co.uk","stockx.com","goat.com"] },
+  { product_name: "Adidas Campus 00s Cloud White", estimated_retail_price: 95, retailers: ["adidas.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","zalando.co.uk","asos.com","stockx.com"] },
+  { product_name: "ASICS Gel-1130 White Silver", estimated_retail_price: 110, retailers: ["asics.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","zalando.co.uk","stockx.com"] },
+  { product_name: "Nike Tech Fleece Joggers Black", estimated_retail_price: 89.99, retailers: ["nike.com","jdsports.co.uk","footlocker.co.uk","footasylum.com","asos.com","next.co.uk"] },
+  { product_name: "Adidas Handball Spezial Blue Gum", estimated_retail_price: 100, retailers: ["adidas.co.uk","jdsports.co.uk","size.co.uk","schuh.co.uk","zalando.co.uk","endclothing.com","stockx.com"] },
 ];
 
 async function scrapeProduct(product: typeof WARM_PRODUCTS[0]): Promise<{ name: string; ok: boolean; cached?: boolean; results?: number }> {

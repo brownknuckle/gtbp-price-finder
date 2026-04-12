@@ -101,6 +101,16 @@
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/guides/nike-p-6000</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/guides/adidas-handball-spezial</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
 
   <!-- Nike product pages -->
   <url>
@@ -367,6 +377,93 @@
     <loc>https://getthebestprice.co.uk/product/represent-owners-club-hoodie</loc>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
+  </url>
+
+  <!-- Programmatic SEO: best-price pages -->
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/nike-air-force-1-low-triple-white</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/nike-dunk-low-retro-white-black-panda</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/nike-air-max-95-triple-black</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/nike-p-6000-white-black-metallic-silver</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/air-jordan-1-retro-high-og</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/air-jordan-4-retro</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/adidas-samba-og-white-black-gum</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/adidas-handball-spezial-blue-gum</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/adidas-gazelle-indoor-green-gum</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/adidas-campus-00s-cloud-white</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/new-balance-550-white-green</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/new-balance-990v6-grey</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/asics-gel-kayano-14-white</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/asics-gel-1130-white-silver</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/nike-tech-fleece-joggers-black</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://getthebestprice.co.uk/best-price/the-north-face-nuptse-700-jacket-black</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
   </url>
 
 </urlset>

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { scrapePrices, searchProduct, type PriceResult, type ProductInfo, type PriceHistoryPoint } from "@/lib/api";
 import { analytics } from "@/lib/analytics";
 import { toAffiliateUrl } from "@/lib/affiliate";
@@ -407,41 +407,143 @@ const Results = () => {
               );
             })()}
 
-            {/* 30-day low indicator */}
-            {thirtyDayLow != null && sorted.length > 0 && (() => {
+            {/* 30-day price history — stats + chart */}
+            {(thirtyDayLow != null || priceHistory.length > 0) && sorted.length > 0 && (() => {
               const bestNow = sorted[0].totalYouPay;
-              const isAtLow = bestNow <= thirtyDayLow * 1.03;
+              const isAtLow = thirtyDayLow != null && bestNow <= thirtyDayLow * 1.03;
+              const firstPrice = priceHistory.length >= 2 ? priceHistory[0].price : null;
+              const priceChange = firstPrice != null ? bestNow - firstPrice : null;
+              const priceChangePercent = firstPrice != null && firstPrice > 0 ? ((bestNow - firstPrice) / firstPrice) * 100 : null;
+              const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+              const prices = priceHistory.map(p => p.price);
+              const minPrice = prices.length ? Math.min(...prices) : 0;
+              const maxPrice = prices.length ? Math.max(...prices) : 0;
+              const chartMin = prices.length ? Math.floor(minPrice * 0.94) : 0;
+              const chartMax = prices.length ? Math.ceil(maxPrice * 1.06) : 0;
+              const priceRange = maxPrice - minPrice;
+              // Colour: green if price is falling or at low, amber if rising
+              const trendColor = isAtLow || (priceChange != null && priceChange <= 0) ? "#16a34a" : "#d97706";
+              const trendColorFaint = isAtLow || (priceChange != null && priceChange <= 0) ? "#16a34a" : "#d97706";
+
               return (
-                <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${isAtLow ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
-                  {isAtLow ? "📉 At 30-day low price" : `📊 30-day low was £${thirtyDayLow.toFixed(2)}`}
+                <div className="rounded-xl border bg-card p-4">
+                  {/* Header */}
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-xs font-semibold text-foreground">30-Day Price History</p>
+                    {priceHistory.length >= 2 && (
+                      <p className="text-[10px] text-muted-foreground">
+                        {fmtDate(priceHistory[0].date)} – {fmtDate(priceHistory[priceHistory.length - 1].date)}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Stats row */}
+                  <div className="mb-3 grid grid-cols-3 gap-2">
+                    <div className="rounded-lg bg-secondary/50 px-3 py-2.5 text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">Current best</p>
+                      <p className="text-sm font-bold text-foreground">£{bestNow.toFixed(2)}</p>
+                    </div>
+                    <div className={`rounded-lg px-3 py-2.5 text-center ${isAtLow ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800" : "bg-secondary/50"}`}>
+                      <p className="text-[10px] text-muted-foreground mb-1">30-day low</p>
+                      <p className={`text-sm font-bold ${isAtLow ? "text-green-600 dark:text-green-400" : "text-foreground"}`}>
+                        {thirtyDayLow != null ? `£${thirtyDayLow.toFixed(2)}` : "—"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-secondary/50 px-3 py-2.5 text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">vs 30 days ago</p>
+                      {priceChange == null ? (
+                        <p className="text-sm font-bold text-muted-foreground">—</p>
+                      ) : priceChange === 0 ? (
+                        <p className="text-sm font-bold text-foreground">No change</p>
+                      ) : (
+                        <div>
+                          <p className={`text-sm font-bold leading-none ${priceChange < 0 ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+                            {priceChange < 0 ? "↓" : "↑"} £{Math.abs(priceChange).toFixed(2)}
+                          </p>
+                          {priceChangePercent != null && (
+                            <p className={`text-[10px] mt-0.5 ${priceChange < 0 ? "text-green-600/70 dark:text-green-400/70" : "text-red-500/70"}`}>
+                              ({Math.abs(priceChangePercent).toFixed(1)}%)
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Verdict badge */}
+                  <div className={`mb-3 flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium ${isAtLow ? "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/40 dark:text-green-400" : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"}`}>
+                    {isAtLow
+                      ? "📉 Currently at the 30-day low — great time to buy"
+                      : thirtyDayLow != null
+                        ? `📊 Price has been as low as £${thirtyDayLow.toFixed(2)} in the last 30 days`
+                        : "📊 Tracking prices — check back soon for trend data"}
+                  </div>
+
+                  {/* Chart */}
+                  {priceHistory.length >= 2 ? (
+                    <ResponsiveContainer width="100%" height={160}>
+                      <AreaChart data={priceHistory} margin={{ top: 10, right: 12, left: -8, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={trendColorFaint} stopOpacity={0.25} />
+                            <stop offset="100%" stopColor={trendColorFaint} stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                          tickLine={false}
+                          axisLine={false}
+                          interval="preserveStartEnd"
+                          tickFormatter={fmtDate}
+                        />
+                        <YAxis
+                          domain={[chartMin, chartMax]}
+                          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(v: number) => `£${v}`}
+                          width={38}
+                          tickCount={priceRange > 10 ? 4 : 3}
+                        />
+                        <Tooltip
+                          contentStyle={{ fontSize: 11, padding: "6px 10px", borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
+                          formatter={(v: number) => [`£${v.toFixed(2)}`, "Best price"]}
+                          labelFormatter={(l: string) => fmtDate(l)}
+                          cursor={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1, strokeDasharray: "4 2" }}
+                        />
+                        {/* 30-day low reference line */}
+                        {thirtyDayLow != null && !isAtLow && (
+                          <ReferenceLine
+                            y={thirtyDayLow}
+                            stroke="#16a34a"
+                            strokeDasharray="4 2"
+                            strokeOpacity={0.6}
+                            label={{ value: `Low £${thirtyDayLow.toFixed(0)}`, position: "insideBottomRight", fontSize: 9, fill: "#16a34a", opacity: 0.8 }}
+                          />
+                        )}
+                        <Area
+                          type="monotone"
+                          dataKey="price"
+                          stroke={trendColor}
+                          fill="url(#priceGrad)"
+                          strokeWidth={2}
+                          dot={{ r: 3, fill: trendColor, strokeWidth: 0 }}
+                          activeDot={{ r: 5, fill: trendColor, strokeWidth: 2, stroke: "hsl(var(--card))" }}
+                          isAnimationActive={true}
+                          animationDuration={600}
+                          animationEasing="ease-out"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex h-16 items-center justify-center rounded-lg bg-secondary/30">
+                      <p className="text-xs text-muted-foreground">Not enough data yet — check back in a few days</p>
+                    </div>
+                  )}
                 </div>
               );
             })()}
-
-            {/* Price history chart */}
-            {priceHistory.length >= 2 && (
-              <div className="rounded-xl border bg-card p-3">
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">30-day price history</p>
-                <ResponsiveContainer width="100%" height={72}>
-                  <AreaChart data={priceHistory} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="date" hide />
-                    <YAxis hide domain={["auto", "auto"]} />
-                    <Tooltip
-                      contentStyle={{ fontSize: 11, padding: "4px 8px", borderRadius: 6 }}
-                      formatter={(v: number) => [`£${v.toFixed(2)}`, "Best price"]}
-                      labelFormatter={(l: string) => new Date(l).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                    />
-                    <Area type="monotone" dataKey="price" stroke="hsl(var(--primary))" fill="url(#priceGrad)" strokeWidth={2} dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            )}
 
             {/* Sort + filter controls */}
             <div className="flex flex-wrap items-center justify-between gap-3">

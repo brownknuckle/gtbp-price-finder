@@ -28,6 +28,10 @@ const NewBalance550Guide = lazy(() => import("./pages/guides/NewBalance550Guide"
 const AirJordan1Guide = lazy(() => import("./pages/guides/AirJordan1Guide"));
 const AdidasGazelleGuide = lazy(() => import("./pages/guides/AdidasGazelleGuide"));
 const AsicsGelKayano14Guide = lazy(() => import("./pages/guides/AsicsGelKayano14Guide"));
+const NikeP6000Guide = lazy(() => import("./pages/guides/NikeP6000Guide"));
+const AdidasHandballSpezialGuide = lazy(() => import("./pages/guides/AdidasHandballSpezialGuide"));
+const BestPriceIndex = lazy(() => import("./pages/BestPriceIndex"));
+const BestPrice = lazy(() => import("./pages/BestPrice"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -56,6 +60,10 @@ const AnimatedRoutes = () => {
         <Route path="/guides/air-jordan-1" element={<AirJordan1Guide />} />
         <Route path="/guides/adidas-gazelle" element={<AdidasGazelleGuide />} />
         <Route path="/guides/asics-gel-kayano-14" element={<AsicsGelKayano14Guide />} />
+        <Route path="/guides/nike-p-6000" element={<NikeP6000Guide />} />
+        <Route path="/guides/adidas-handball-spezial" element={<AdidasHandballSpezialGuide />} />
+        <Route path="/best-price" element={<BestPriceIndex />} />
+        <Route path="/best-price/:slug" element={<BestPrice />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>

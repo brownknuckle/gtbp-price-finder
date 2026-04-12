@@ -28,11 +28,12 @@ const UK_COM_RETAILERS = new Set([
   "laced.com", "klekt.com", "thesolesupplier.co.uk",
   "crepsuk.com", "launches.co.uk", "samedaytrainers.co.uk",
   "fatbuddhastore.com", "shucentre.co.uk",
-  "kershkicks.com", "stadiumgoods.com",
+  "kershkicks.com", "footpatrol.com",
+  // stadiumgoods.com is NYC-based — intentionally excluded (international)
   "stoneisland.com", "cpcompany.com", "carhartt-wip.com",
   "nike.com", "adidas.com", "newbalance.com", "puma.com", "reebok.com",
   "converse.com", "vans.com", "timberland.com", "ugg.com", "crocs.com",
-  // Note: stockx.com, goat.com, sneakersnstuff.com, solebox.com are international — NOT in this set
+  // Note: stockx.com, goat.com, sneakersnstuff.com, solebox.com, stadiumgoods.com are international — NOT in this set
 ]);
 
 // Canonical display names for known retailer domains
@@ -232,6 +233,38 @@ const NON_PRODUCT_PATH_PATTERNS = [
 const MIN_REALISTIC_PRICE = 20;
 const MAX_REALISTIC_PRICE = 2000;
 const MIN_CACHE_RESULTS = 6;
+
+// Shared collab / variant filter lists — used for both URL candidates and Shopping titles/URLs
+const COLLAB_NAMES_GLOBAL = [
+  "supreme","off-white","sacai","dior","travis-scott","travis_scott",
+  "fragment","kaws","cdg","comme-des-garcons","stussy","palace","union",
+  "off_white","a-cold-wall","acold","ambush","clot","virgil","drake","nocta",
+  "acronym","ispa","atmos","parra","cactus","joy","concepts","bodega",
+  "new-era","new_era","patta","wtaps","beams","gyakusou",
+  // Additional collabs seen in the wild
+  "aime-leon-dore","aime_leon","joe-freshgoods","joe_freshgoods",
+  "salehe","jjjjound","norda","moncler","j-balvin","j_balvin",
+  "pigalle","oth","kith","undefeated","undftd","mastermind","cactus-plant","cpfm",
+];
+// Variant modifier words (without punctuation, for title matching)
+const VARIANT_WORDS_GLOBAL = ["dirty","premium","lux","luxe","prm","lx","se edition","sp edition"];
+// Variant modifier patterns for URL matching (same as in candidates filter)
+const VARIANT_URL_PATTERNS = [
+  "/dirty-","_dirty_","-dirty-","-dirty/",
+  "/premium-","_premium_","-premium-","-premium/",
+  "/lux-","_lux_","-lux-","-luxe-","/luxe-",
+  "/prm-","_prm_","-prm-",
+  "/sp-","_sp_","-sp-",
+];
+// Extended colour list used for colorway conflict detection in Shopping merge
+// (in addition to the basic list used in candidates filtering)
+const EXTENDED_COLOR_TERMS = [
+  "black","white","red","blue","green","yellow","orange","purple","pink","brown",
+  "grey","gray","beige","cream","navy","khaki","tan","silver","gold",
+  "army","olive","sage","denim","cobalt","teal","cardinal","maroon","burgundy",
+  "coral","indigo","lavender","mint","amber","terracotta","rust","ochre","moss",
+  "slate","chalk","sand","smoke","stone","wheat","hay","chalk","bone",
+];
 
 const NON_RETAIL_DOMAINS = [
   /\.org\b/, /\.edu\b/, /\.gov\b/, /\.nhs\b/, /charity/, /hospice/, /foundation/,
@@ -558,10 +591,12 @@ For each numbered candidate, extract price data and return a JSON array. Rules:
 
 is_correct_product: true ONLY if ALL of these are true:
   1. The page is a specific product listing (not a category, collection, or search results page)
-  2. The model matches AND the colourway is compatible. Common equivalents: "Cloud White"="White"="Off White"="Triple White"="White/White/White", "Core Black"="Black"="Triple Black"="Black/Black/Black", "Cream"="Ivory"="Natural", "Grey"="Gray"="Smoke Grey". RULE: only reject if the page CLEARLY shows a DIFFERENT primary colour (e.g. searching White but page shows Red, Blue, Green, Yellow, Pink, Orange). If the colourway is not explicitly stated but the model name matches, set is_correct_product: true.
+  2. The model matches AND the colourway is compatible. Common equivalents: "Cloud White"="White"="Triple White"="White/White/White", "Core Black"="Black"="Triple Black"="Black/Black/Black", "Cream"="Ivory"="Natural", "Grey"="Gray"="Smoke Grey". RULE: only reject if the page CLEARLY shows a DIFFERENT primary colour (e.g. searching White but page shows Red, Blue, Green, Yellow, Pink, Orange). If the colourway is not explicitly stated but the model name matches, set is_correct_product: true.
   3. Brand new condition (not used, pre-owned, or refurbished)
   4. Correct gender and age group (not kids, junior, grade school, toddler unless searched for)
-  REJECT if: wrong colourway/model, kids/GS/PS/TD version, secondhand, category page, wrong gender.
+  5. NOT a collaboration or designer variant the user did not ask for. If the user searched for "Triple White" and the page shows "Supreme x Air Force 1" or "Off-White x Nike" or any named collab (Supreme, Sacai, Travis Scott, Dior, Fragment, KAWS, CDG, Stüssy, Palace, NOCTA, etc.) → set is_correct_product: false.
+  6. NOT a product variant modifier the user did not ask for. "Dirty Triple White", "Premium", "Lux", "LX", "SP", "SE" versions are DIFFERENT products — if the user did not include those words in their search, reject them.
+  REJECT if: wrong colourway/model, collaboration not searched for, variant modifier not searched for, kids/GS/PS/TD version, secondhand, category page, wrong gender.
 
 current_price_gbp: the current selling/add-to-cart price in GBP.
   - If shown in £, use directly.
@@ -773,22 +808,62 @@ serve(async (req) => {
     let cachedCreatedAt: string | undefined;
 
     if (!skip_cache) {
-      const { data: cached } = await sb
+      // ── Stale-while-revalidate cache strategy ──
+      // 1. Fresh cache (<6h) → return immediately, no background work needed.
+      // 2. Stale cache (6h–48h) → return immediately to the user, fire a background
+      //    self-invoke to refresh the cache so the *next* visitor gets fresh data.
+      // 3. No cache or very old (>48h) → do a full synchronous scrape.
+
+      // Fetch the most recent cache entry for this product (no TTL filter yet)
+      const { data: anyCache } = await sb
         .from("price_cache")
         .select("results, created_at")
         .eq("product_key", cacheKey)
-        .gte("created_at", new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
         .maybeSingle();
 
-      cachedResults = Array.isArray(cached?.results) ? cached.results : [];
-      cachedCreatedAt = cached?.created_at;
+      cachedResults = Array.isArray(anyCache?.results) ? anyCache.results : [];
+      cachedCreatedAt = anyCache?.created_at;
 
-      if (cachedResults.length >= MIN_CACHE_RESULTS) {
-        log(`Cache hit for: ${cacheKey}`);
-        const { low: thirtyDayLow, history: priceHistory } = await getThirtyDayLow(cacheKey);
-        return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cachedCreatedAt, thirtyDayLow, priceHistory }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (cachedResults.length >= MIN_CACHE_RESULTS && cachedCreatedAt) {
+        const ageMs = Date.now() - new Date(cachedCreatedAt).getTime();
+        const SIX_HOURS = 6 * 60 * 60 * 1000;
+        const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
+
+        if (ageMs <= SIX_HOURS) {
+          // Fresh — return immediately
+          log(`Cache hit (fresh) for: ${cacheKey}`);
+          const { low: thirtyDayLow, history: priceHistory } = await getThirtyDayLow(cacheKey);
+          return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, cached_at: cachedCreatedAt, thirtyDayLow, priceHistory }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        if (ageMs <= FORTY_EIGHT_HOURS) {
+          // Stale — return immediately AND kick off a background refresh
+          log(`Cache hit (stale, ${Math.round(ageMs / 3600000)}h old) for: ${cacheKey} — triggering background refresh`);
+          const { low: thirtyDayLow, history: priceHistory } = await getThirtyDayLow(cacheKey);
+
+          // Fire background self-invoke with skip_cache: true so it scrapes fresh and writes to cache
+          const bgRefresh = fetch(`${supabaseUrl}/functions/v1/price-scrape`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY") ?? ""}`,
+            },
+            body: JSON.stringify({ product_name, retailers: normalizedRetailers, estimated_retail_price, gender, skip_cache: true }),
+            signal: AbortSignal.timeout(140_000),
+          }).catch(() => {}); // fire-and-forget — we don't need the result
+          // Keep the function alive until the background refresh completes if supported
+          (globalThis as any).EdgeRuntime?.waitUntil?.(bgRefresh);
+
+          return new Response(JSON.stringify({ success: true, results: cachedResults, cached: true, stale: true, cached_at: cachedCreatedAt, thirtyDayLow, priceHistory }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Cache is >48h old — fall through to full synchronous scrape
+        // cachedResults is kept so we can use it as a fallback if fresh results are sparse
+        log(`Cache expired (${Math.round(ageMs / 3600000)}h old) for: ${cacheKey} — scraping fresh`);
       }
     }
 
@@ -1005,6 +1080,28 @@ serve(async (req) => {
         if (WOMENS_URL_RE.test(urlLower)) return false;
         if (WOMENS_TITLE_RE.test(titleLower)) return false;
       }
+
+      // ── Collaboration / variant filter ──────────────────────────────────────
+      // Reject URLs that reference a collaboration or product variant the user
+      // did NOT ask for. "supreme-white" when searching "Triple White" is a
+      // completely different (and more expensive) product.
+      // Collab names: known designer/brand collabs that produce different SKUs.
+      // Variant modifiers: "dirty", "premium", "lux/luxe", "prm", "se ", "sp "
+      //   that indicate a different model version.
+      const COLLAB_NAMES = COLLAB_NAMES_GLOBAL;
+      const VARIANT_MODIFIERS = [
+        "/dirty-","_dirty_","-dirty-","-dirty/",
+        "/premium-","_premium_","-premium-","-premium/",
+        "/lux-","_lux_","-lux-","-luxe-","/luxe-",
+        "/prm-","_prm_","-prm-",
+        "/sp-","_sp_","-sp-",     // "Special" models e.g. AF1 SP
+      ];
+      // Only apply if these words are NOT in what the user searched for
+      const searchLower = searchName.toLowerCase();
+      const hasCollab = COLLAB_NAMES.some(c => urlLower.includes(c) && !searchLower.includes(c));
+      const hasVariant = VARIANT_MODIFIERS.some(v => urlLower.includes(v) && !searchLower.includes(v.replace(/[-_/]/g, "")));
+      if (hasCollab || hasVariant) return false;
+
       return true;
     });
 
@@ -1210,11 +1307,28 @@ serve(async (req) => {
       const domain = extractDomain(c.url);
       if (aiCoveredDomains.has(domain)) continue;
       if (!AUTHORISED_RETAILERS.has(domain)) continue;
+      // Reject wrong-colorway URLs in regex fallback (same logic as Shopping merge)
+      const regexUrlLower = c.url.toLowerCase();
+      const regexSearchLower = searchName.toLowerCase();
+      const regexSearchColours = EXTENDED_COLOR_TERMS.filter(col => regexSearchLower.includes(col));
+      if (regexSearchColours.length > 0) {
+        const regexConflictColours = EXTENDED_COLOR_TERMS.filter(col => !regexSearchColours.includes(col));
+        const regexUrlConflict = regexConflictColours.some(col => {
+          const pat = new RegExp(`[-_/]${col}[-_/]|[-_]${col}$|[-_]${col}\\d`, "i");
+          return pat.test(regexUrlLower);
+        });
+        if (regexUrlConflict) { log(`Regex fallback: rejected ${c.url.slice(0,80)} — colorway conflict`); continue; }
+      }
+      // Apply non-resale price floor (62% of RRP) for non-resale authorised retailers
+      const regexNonResaleFloor = estimated_retail_price
+        ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.60))
+        : priceFloor;
+      const regexEffectiveFloor = RESALE_PLATFORMS.has(domain) ? priceFloor : regexNonResaleFloor;
       const text = `${c.title || ""} ${c.markdown || ""} ${c.description || ""}`;
       const prices: number[] = [];
       for (const m of text.replace(/,/g, "").matchAll(/£\s?(\d{1,4}(?:\.\d{1,2})?)/gi)) {
         const v = Number(m[1]);
-        if (!isNaN(v) && v >= priceFloor && v <= priceCeiling) prices.push(v);
+        if (!isNaN(v) && v >= regexEffectiveFloor && v <= priceCeiling) prices.push(v);
       }
       if (!prices.length) continue;
       prices.sort((a, b) => a - b);
@@ -1372,6 +1486,17 @@ serve(async (req) => {
       log(`Shopping URL for ${domain}: ${isDirectProductUrl ? "productLink" : webSearchUrl ? "webSearch" : RETAILER_SEARCH_URLS[domain] ? "searchUrl" : "homepage!"} → ${url.slice(0, 80)}`);
       if (shoppingCoveredDomains.has(domain)) continue;
       if (BLOCKED_DOMAINS.has(domain)) continue;
+      // Reject search/category page fallback URLs — user would land on a search page, not a product
+      if (!isDirectProductUrl && !webSearchUrl && !isLikelyProductPage(url)) {
+        log(`Shopping: rejected ${domain} — URL is a search/category page: ${url.slice(0, 80)}`);
+        continue;
+      }
+      // Apply URL-level collab/variant filter to the resolved URL (catches e.g. "/products/af1-retro-premium-...")
+      const resolvedUrlLower = url.toLowerCase();
+      const searchLowerForUrl = searchName.toLowerCase();
+      const urlHasCollab = COLLAB_NAMES_GLOBAL.some(c => resolvedUrlLower.includes(c) && !searchLowerForUrl.includes(c));
+      const urlHasVariant = VARIANT_URL_PATTERNS.some(v => resolvedUrlLower.includes(v) && !searchLowerForUrl.includes(v.replace(/[-_/]/g, "")));
+      if (urlHasCollab || urlHasVariant) { log(`Shopping: rejected ${domain} — collab/variant in resolved URL`); continue; }
       // Parse price — Shopping returns strings like "£90.00", "$120", "€95"
       const priceRaw = (item.price || "").trim();
       let itemPrice = 0;
@@ -1388,9 +1513,27 @@ serve(async (req) => {
         itemPrice = parseFloat(priceRaw.replace(/[^0-9.]/g, ""));
       }
       if (!itemPrice || isNaN(itemPrice)) { log(`Shopping: no price for ${domain}: "${priceRaw}"`); continue; }
-      // Resale platforms legitimately price above RRP — skip ceiling for them
-      if (!RESALE_PLATFORMS.has(domain) && (itemPrice < priceFloor || itemPrice > priceCeiling)) { log(`Shopping: price ${itemPrice} out of range [${priceFloor}, ${priceCeiling}] for ${domain}`); continue; }
-      if (RESALE_PLATFORMS.has(domain) && itemPrice < priceFloor) { log(`Shopping: price ${itemPrice} below floor for ${domain}`); continue; }
+      // Resale platforms legitimately price above RRP — skip ceiling for them.
+      // Non-resale retailers should never be more than 30% above RRP — if they are,
+      // it's almost certainly a Premium/collab/wrong product slipping through.
+      const nonResaleCeiling = estimated_retail_price ? estimated_retail_price * 1.3 : priceCeiling;
+      // Non-resale retailers shouldn't go below 62% of RRP — catches junior sizes, clearance errors, wrong products
+      const nonResaleFloor = estimated_retail_price
+        ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.60))
+        : priceFloor;
+      const effectiveCeiling = RESALE_PLATFORMS.has(domain) ? priceCeiling : nonResaleCeiling;
+      const effectiveFloor = RESALE_PLATFORMS.has(domain) ? priceFloor : nonResaleFloor;
+      if (itemPrice < effectiveFloor || itemPrice > effectiveCeiling) { log(`Shopping: price ${itemPrice} out of range [${effectiveFloor}, ${effectiveCeiling}] for ${domain} (resale: ${RESALE_PLATFORMS.has(domain)})`); continue; }
+      // Ensure the Shopping title is actually about what the user searched for
+      // (Google Shopping occasionally returns adjacent products at the same retailer)
+      if (item.title) {
+        const stopWords = new Set(["the","and","for","with","low","high","mid","men","women","uk","in","of","a","an"]);
+        const searchWords = searchName.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
+        const shoppingTitleForMatch = (item.title || "").toLowerCase();
+        const matchCount = searchWords.filter(w => shoppingTitleForMatch.includes(w)).length;
+        const minMatch = Math.max(1, Math.ceil(searchWords.length * 0.5));
+        if (matchCount < minMatch) { log(`Shopping: rejected "${item.title}" from ${domain} — only ${matchCount}/${minMatch} search words matched title`); continue; }
+      }
       if (isKidsProduct(url, item.title || "")) continue;
       // Reject women's Shopping results unless user explicitly wants women's
       const shoppingTitleLower = (item.title || "").toLowerCase();
@@ -1399,6 +1542,26 @@ serve(async (req) => {
       const WOMENS_TITLE_RE2 = /\b(women'?s?|womens?|girls?)\b/;
       if (wantsMens && (WOMENS_TITLE_RE2.test(shoppingTitleLower) || WOMENS_URL_RE2.test(shoppingUrlLower))) continue;
       if (!wantsMens && !wantsWomens && (WOMENS_TITLE_RE2.test(shoppingTitleLower) || WOMENS_URL_RE2.test(shoppingUrlLower))) continue;
+      // Reject Shopping results whose title contains a collab or variant modifier the user did NOT ask for
+      const searchLowerForShopping = searchName.toLowerCase();
+      const shoppingHasCollab = COLLAB_NAMES_GLOBAL.some(c => shoppingTitleLower.includes(c) && !searchLowerForShopping.includes(c));
+      const shoppingHasVariant = VARIANT_WORDS_GLOBAL.some(v => {
+        const vRe = new RegExp(`\\b${v}\\b`);
+        return vRe.test(shoppingTitleLower) && !searchLowerForShopping.includes(v);
+      });
+      if (shoppingHasCollab || shoppingHasVariant) { log(`Shopping: rejected "${item.title}" from ${domain} — collab/variant in title`); continue; }
+      // Colorway conflict check — URL slug only (separator-based), to avoid false positives in titles.
+      // Catches e.g. "trainer-white-light-army-..." or "...denim-trainers-..." when searching for a different colorway.
+      const searchColours = EXTENDED_COLOR_TERMS.filter(c => searchLowerForShopping.includes(c));
+      if (searchColours.length > 0) {
+        const conflictColours = EXTENDED_COLOR_TERMS.filter(c => !searchColours.includes(c));
+        const hasColorConflictInUrl = conflictColours.some(c => {
+          // Match color only when surrounded by URL slug separators (-, _, /) to avoid matching compound words or descriptions
+          const urlPattern = new RegExp(`[-_/]${c}[-_/]|[-_]${c}$|[-_]${c}\\d`, "i");
+          return urlPattern.test(resolvedUrlLower);
+        });
+        if (hasColorConflictInUrl) { log(`Shopping: rejected "${item.title}" from ${domain} — colorway conflict in URL`); continue; }
+      }
       const uk = isUkDomain(domain);
       const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
       const duties = calculateDuties(itemPrice, uk);
@@ -1497,12 +1660,44 @@ serve(async (req) => {
       .sort((a, b) => a.totalYouPay - b.totalYouPay);
 
     // ── Price outlier filter: hide results > 3x cheapest (only when 5+ results) ──
-    // Use 3x (not 1.8x) because resale platforms legitimately price 2-3x above retail
     const cheapest = sorted[0]?.totalYouPay ?? 0;
     const cutoff = cheapest * 3;
-    const finalResults = (sorted.length >= 5 ? sorted.filter(r => r.totalYouPay <= cutoff) : sorted)
-      .map((r, i) => ({ ...r, rank: i + 1 }));
+    const outlierFiltered = (sorted.length >= 5 ? sorted.filter(r => r.totalYouPay <= cutoff) : sorted);
 
+    // ── URL verification — parallel HEAD check, 3s timeout ──
+    // Filters dead links (404) and redirects to homepage (path becomes "/" after redirect).
+    // Defaults to KEEPING the URL on timeout or bot-block (403/429) so good results aren't lost.
+    const verifyUrl = async (url: string): Promise<boolean> => {
+      try {
+        const r = await fetch(url, {
+          method: "HEAD",
+          redirect: "follow",
+          signal: AbortSignal.timeout(3000),
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+        });
+        // Explicit 404 → dead link, drop it
+        if (r.status === 404) return false;
+        // Redirected to homepage (path is "/" or empty) → wrong product URL
+        if (r.status < 400) {
+          try {
+            const finalPath = new URL(r.url).pathname;
+            if (finalPath === "/" || finalPath === "") return false;
+          } catch { /* keep */ }
+        }
+        // 403/429/5xx → bot blocked or server error → keep (don't penalise)
+        return true;
+      } catch {
+        return true; // timeout or network error → keep
+      }
+    };
+
+    const verificationResults = await Promise.all(
+      outlierFiltered.map(r => verifyUrl(r.url).then(ok => ({ ...r, _urlOk: ok })))
+    );
+    const verified = verificationResults.filter(r => r._urlOk).map(({ _urlOk, ...r }) => r);
+    log(`URL verification: ${verified.length}/${outlierFiltered.length} passed (${outlierFiltered.length - verified.length} dead links removed)`);
+
+    const finalResults = verified.map((r, i) => ({ ...r, rank: i + 1 }));
     log(`Final: ${finalResults.length} unique retailers (cutoff £${cutoff.toFixed(0)})`);
 
     // ── 30-day historical low + chart data ──

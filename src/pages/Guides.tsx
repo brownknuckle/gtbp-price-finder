@@ -47,6 +47,20 @@ const guides = [
     brand: "ASICS",
     emoji: "🏃",
   },
+  {
+    slug: "nike-p-6000",
+    name: "Nike P-6000",
+    desc: "Size guide, best colourways, P-6000 vs Kayano 14 and 9060, and where to find the cheapest UK price.",
+    brand: "Nike",
+    emoji: "⚡",
+  },
+  {
+    slug: "adidas-handball-spezial",
+    name: "Adidas Handball Spezial",
+    desc: "Size guide (runs narrow), Spezial vs Samba, best colourways, and where to find the cheapest UK price.",
+    brand: "Adidas",
+    emoji: "🤾",
+  },
 ];
 
 const Guides = () => {
