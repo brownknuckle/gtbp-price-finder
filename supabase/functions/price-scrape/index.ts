@@ -228,7 +228,11 @@ const NON_PRODUCT_PATH_PATTERNS = [
   // Editorial / non-commerce paths
   /\/news\//i, /\/blog\//i, /\/editorial\//i,
   // Category paths: /footwear/model-name or /clothing/model-name (single slug, no product code segment after)
-  /\/footwear\/[a-z0-9-]+$/i, /\/clothing\/[a-z0-9-]+$/i, /\/accessories\/[a-z0-9-]+$/i,
+  /\/footwear\/[a-z0-9-]+$/i, /\/clothing\/[a-z0-9-]+$/i, /\/accessories\//i,
+  // Clothing category patterns: "coats-and-jackets", "caps-and-hats", "shirts-and-tops" etc.
+  /\/[a-z]+-and-[a-z]+(?:\/|$)/i,
+  // Flannels/SSENSE brand+category pages: /brand-name/coats-and-jackets
+  /\/[a-z-]+\/(?:coats|jackets|shirts|hoodies|trousers|shorts|knitwear|sweats|fleece|outerwear|sweatshirts|tracksuits|caps|hats|accessories)[^/]*$/i,
 ];
 
 const MIN_REALISTIC_PRICE = 20;
@@ -456,7 +460,7 @@ function isLikelyProductPage(url: string): boolean {
     if (NON_PRODUCT_PATH_PATTERNS.some((p) => p.test(pathname))) return false;
     const segments = pathname.split("/").filter(Boolean);
     if (segments.length < 1) return false;
-    if (/[?&](q|query|search|s)=/i.test(search)) return false;
+    if (/[?&](q|query|search|s|teamsport|category|filter|sort|facet|refinement|department)=/i.test(search)) return false;
     if (segments.length === 1) {
       const last = segments[0];
       if (!/\d/.test(last) && last.length <= 20) return false;
