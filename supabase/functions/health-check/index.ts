@@ -9,13 +9,13 @@ const ALERT_TO = "info@getthebestprice.co.uk";
 const ALERT_FROM = "alerts@getthebestprice.co.uk";
 const MIN_RESULTS = 4;
 
-// Known product to test against — Air Jordan 1 Retro High OG
+// Known product to test against — Nike Air Force 1 Triple White (widely stocked, reliable)
 const TEST_PRODUCT = {
-  product_key: "air-jordan-1-retro-high-og",
-  product_name: "Air Jordan 1 Retro High OG",
-  estimated_retail_price: 169.95,
+  product_key: "nike-air-force-1-07-triple-white",
+  product_name: "Nike Air Force 1 07 Triple White",
+  estimated_retail_price: 89.95,
   category: "shoes",
-  brand: "Jordan",
+  brand: "Nike",
 };
 
 async function sendAlert(subject: string, body: string) {

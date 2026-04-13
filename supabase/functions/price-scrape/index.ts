@@ -221,6 +221,7 @@ const NON_PRODUCT_PATH_PATTERNS = [
   /\/browse\//i, /\/listing/i, /\/results\?/i, /\/shop\?/i,
   /\/plp\//i, /\/c\//i,
   /\/campaign\//i, /\/best-sellers/i, /\/new-arrivals/i, /\/sale\//i,
+  /\/brand-[a-z0-9]/i, /productaffiliation/i,
   /\/colour\//i, /\/color\//i, /\/gender\//i,
   /\/p\/trainers/i, /\/p\/shoes/i, /\/p\/clothing/i,
   /\/shoes\/\?/i, /\/trainers\/\?/i, /\/footwear\/\?/i,
@@ -1217,6 +1218,12 @@ serve(async (req) => {
           ? prices.reduce((best, p) => Math.abs(p - estimated_retail_price) < Math.abs(best - estimated_retail_price) ? p : best, prices[0])
           : prices[0];
         const domain = extractDomain(s.url);
+        // Apply non-resale floor (60% of RRP) — catches junior sizes, wrong products
+        const regexFallbackFloor = estimated_retail_price
+          ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.60))
+          : priceFloor;
+        const regexFallbackEffectiveFloor = RESALE_PLATFORMS.has(domain) ? priceFloor : regexFallbackFloor;
+        if (itemPrice < regexFallbackEffectiveFloor) continue;
         const uk = isUkDomain(domain);
         const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
         const duties = calculateDuties(itemPrice, uk);
@@ -1268,6 +1275,12 @@ serve(async (req) => {
       if (itemPrice < priceFloor || itemPrice > priceCeiling) continue;
 
       const domain = extractDomain(source.url);
+      // Apply non-resale floor (60% of RRP) in AI path — catches junior sizes, wrong products
+      const aiNonResaleFloor = estimated_retail_price
+        ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.60))
+        : priceFloor;
+      const aiEffectiveFloor = RESALE_PLATFORMS.has(domain) ? priceFloor : aiNonResaleFloor;
+      if (itemPrice < aiEffectiveFloor) continue;
       const uk = isUkDomain(domain);
       const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
       const duties = calculateDuties(itemPrice, uk);
@@ -1468,14 +1481,23 @@ serve(async (req) => {
       let domain = !isGoogleRedirect && rawDomain ? rawDomain : (SHOPPING_SOURCE_MAP[sourceName] || "");
       if (!domain) { log(`Shopping: no domain for source "${item.source}"`); continue; }
       // Reject non-UK locale paths (nike.com/sg, /en-us/ etc.)
-      const NON_UK_LOCALE = /\/en-us\/|\/en-au\/|\/en-ca\/|\/sg\/|\/us\/|\/au\/|\/ca\/|\/fr\/|\/de\/|\/it\/|\/es\/|\/nl\/|\/jp\/|\/kr\//;
+      const NON_UK_LOCALE = /\/en-(?!gb)[a-z]{2}\/|\/en-us\/|\/en-au\/|\/en-ca\/|\/sg\/|\/us\/|\/au\/|\/ca\/|\/fr\/|\/de\/|\/it\/|\/es\/|\/nl\/|\/jp\/|\/kr\//;
       // Use direct product URL only if it passes product-page validation AND is UK locale
       const isNonUkLocale = NON_UK_LOCALE.test(productUrl.toLowerCase()) && !productUrl.toLowerCase().includes(".co.uk");
-      const isDirectProductUrl = !!productUrl && isLikelyProductPage(productUrl) && !isNonUkLocale;
+      // For multi-locale brand sites, prefer /gb/ URL from web search over Shopping's US URL
+      const REQUIRES_GB_PATH = new Set(["nike.com", "adidas.com", "converse.com", "vans.com", "puma.com"]);
+      const isMissingGbPath = REQUIRES_GB_PATH.has(domain) && !productUrl.toLowerCase().includes("/gb/") && !productUrl.toLowerCase().includes(".co.uk");
+      // Only skip direct URL if we have a better GB URL from web search — otherwise fall through to productUrl
+      const hasGbWebUrl = isMissingGbPath && enrichedCandidates.some(c => {
+        const u = c.url.toLowerCase();
+        return (extractDomain(c.url) === domain) && u.includes("/gb/") && isLikelyProductPage(c.url);
+      });
+      const isDirectProductUrl = !!productUrl && isLikelyProductPage(productUrl) && !isNonUkLocale && !(isMissingGbPath && hasGbWebUrl);
       // Find a product URL from web search, tolerating .co.uk / .com variants
       const webSearchUrl = enrichedCandidates.find(c => {
         const u = c.url.toLowerCase();
         if (NON_UK_LOCALE.test(u) && !u.includes(".co.uk")) return false;
+        if (REQUIRES_GB_PATH.has(domain) && !u.includes("/gb/") && !u.includes(".co.uk")) return false;
         return (extractDomain(c.url) === domain || normaliseDomain(extractDomain(c.url)) === normaliseDomain(domain))
           && isLikelyProductPage(c.url);
       })?.url;
@@ -1490,6 +1512,15 @@ serve(async (req) => {
       if (!isDirectProductUrl && !webSearchUrl && !isLikelyProductPage(url)) {
         log(`Shopping: rejected ${domain} — URL is a search/category page: ${url.slice(0, 80)}`);
         continue;
+      }
+      // Reject wrong-gender URLs in Shopping merge (skip resale platforms — they list all sizes/genders)
+      const shoppingUrlLower = url.toLowerCase();
+      if (!RESALE_PLATFORMS.has(domain)) {
+        const WOMENS_SHOPPING_RE = /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|[-_]wmns[-_/]|[-_]wmns$|\/wmns[-_/]|\/wmns$|\/wmns\/|-w-\d/;
+        const MENS_SHOPPING_RE = /\/mens?[-_/]|[-_]mens?[-_/]|\/men\//;
+        if (wantsMens && WOMENS_SHOPPING_RE.test(shoppingUrlLower)) { log(`Shopping: rejected ${domain} — women's URL for men's search`); continue; }
+        if (!wantsMens && !wantsWomens && WOMENS_SHOPPING_RE.test(shoppingUrlLower)) { log(`Shopping: rejected ${domain} — women's URL for unisex search`); continue; }
+        if (wantsWomens && MENS_SHOPPING_RE.test(shoppingUrlLower)) { log(`Shopping: rejected ${domain} — men's URL for women's search`); continue; }
       }
       // Apply URL-level collab/variant filter to the resolved URL (catches e.g. "/products/af1-retro-premium-...")
       const resolvedUrlLower = url.toLowerCase();
@@ -1537,8 +1568,7 @@ serve(async (req) => {
       if (isKidsProduct(url, item.title || "")) continue;
       // Reject women's Shopping results unless user explicitly wants women's
       const shoppingTitleLower = (item.title || "").toLowerCase();
-      const shoppingUrlLower = url.toLowerCase();
-      const WOMENS_URL_RE2 = /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|[-_]wmns[-_/]|[-_]wmns$|\/wmns\/|-w-\d/;
+      const WOMENS_URL_RE2 = /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|[-_]wmns[-_/]|[-_]wmns$|\/wmns[-_/]|\/wmns$|\/wmns\/|-w-\d/;
       const WOMENS_TITLE_RE2 = /\b(women'?s?|womens?|girls?)\b/;
       if (wantsMens && (WOMENS_TITLE_RE2.test(shoppingTitleLower) || WOMENS_URL_RE2.test(shoppingUrlLower))) continue;
       if (!wantsMens && !wantsWomens && (WOMENS_TITLE_RE2.test(shoppingTitleLower) || WOMENS_URL_RE2.test(shoppingUrlLower))) continue;
@@ -1614,12 +1644,12 @@ serve(async (req) => {
               if (isKidsProduct(r.url, r.title + " " + r.description)) return false;
               const u = r.url.toLowerCase();
               // Reject opposite-gender URLs (and women's pages when gender is unspecified)
-              const WOMENS_URL_RE3 = /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|[-_]wmns[-_/]|[-_]wmns$|\/wmns\/|-w-\d/;
+              const WOMENS_URL_RE3 = /\/womens?[-_/]|[-_]womens?[-_/]|\/women\/|[-_]wmns[-_/]|[-_]wmns$|\/wmns[-_/]|\/wmns$|\/wmns\/|-w-\d/;
               if (wantsMens && WOMENS_URL_RE3.test(u)) return false;
               if (!wantsMens && !wantsWomens && WOMENS_URL_RE3.test(u)) return false;
               if (wantsWomens && /\/mens?[-_/]|[-_]mens?[-_/]|\/men\//.test(u)) return false;
               // Reject non-UK locale paths (nike.com/sg, /en-us/, /en-au/, etc.)
-              if (/\/en-us\/|\/en-au\/|\/en-ca\/|\/sg\/|\/us\/|\/au\/|\/ca\/|\/fr\/|\/de\/|\/it\/|\/es\/|\/nl\/|\/jp\/|\/kr\//.test(u) && !u.includes(".co.uk")) return false;
+              if (/\/en-(?!gb)[a-z]{2}\/|\/en-us\/|\/en-au\/|\/en-ca\/|\/sg\/|\/us\/|\/au\/|\/ca\/|\/fr\/|\/de\/|\/it\/|\/es\/|\/nl\/|\/jp\/|\/kr\//.test(u) && !u.includes(".co.uk")) return false;
               return true;
             });
             return { entry, productUrl: productPage?.url ?? null };
