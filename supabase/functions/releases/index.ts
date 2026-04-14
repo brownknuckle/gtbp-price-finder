@@ -10,103 +10,64 @@ const corsHeaders = {
 const CACHE_KEY = "__upcoming_releases__";
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
-const rateLimits = new Map<string, { count: number; resetAt: number }>();
-function checkRateLimit(req: Request): Response | null {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const now = Date.now();
-  const entry = rateLimits.get(ip);
-  if (entry && now < entry.resetAt) {
-    if (entry.count >= 20) {
-      return new Response(JSON.stringify({ error: "Rate limit exceeded." }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    entry.count++;
-  } else {
-    rateLimits.set(ip, { count: 1, resetAt: now + 60_000 });
-  }
-  return null;
-}
-
 // ─── Image helpers ──────────────────────────────────────────
-const KNOWN_IMAGE_CDNS = /static\.nike\.com|assets\.adidas|nb\.scene7|images\.stockx|image\.goat|images\.asos|media\.jdsports|images\.footlocker|images\.zalando|endclothing\.com|selfridges\.com|cdn-images\.farfetch|puma\.com|hoka\.com|newbalance\.com|asics\.com|converse\.com|vans\.com|images\.ssense|images\.mrporter/i;
+const KNOWN_IMAGE_CDNS = /static\.nike\.com|assets\.adidas|nb\.scene7|images\.stockx|image\.goat|images\.asos|media\.jdsports|images\.footlocker|images\.zalando|endclothing\.com|selfridges\.com|cdn-images\.farfetch|puma\.com|hoka\.com|newbalance\.com|asics\.com|converse\.com|vans\.com|images\.ssense|images\.mrporter|cdn\.shopify|cdninstagram|photo\.goat|media\.karousell/i;
 
 function looksLikeImage(url: string): boolean {
-  return /^https:\/\/.{15,}\.(?:jpg|jpeg|png|webp)(?:[?#][^\s]*)?$/i.test(url) || KNOWN_IMAGE_CDNS.test(url);
+  return /^https:\/\/.{15,}\.(?:jpg|jpeg|png|webp)(?:[?#][^\s]*)?$/i.test(url);
 }
 
-function upgradeCdnUrl(url: string): string {
-  url = url.replace(/t_PDP_\d+_v\d+/i, "t_PDP_864_v1");
-  url = url.replace(/w_\d{2,3},h_\d{2,3}/i, "w_600,h_600");
-  url = url.replace(/s-l\d{2,3}\./i, "s-l960.");
-  return url;
-}
-
-async function fetchImageForProduct(name: string, apiKey: string): Promise<string> {
-  const trySearch = async (query: string, domains: string[]): Promise<string> => {
-    try {
-      const r = await fetch("https://api.firecrawl.dev/v1/search", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ query, limit: 3, lang: "en", country: "gb", includeDomains: domains }),
-        signal: AbortSignal.timeout(6000),
-      });
-      const data = await r.json();
-      for (const item of (data.data || [])) {
-        // Check og:image first
-        const ogImage = item.metadata?.ogImage || item.metadata?.og_image || "";
-        if (ogImage && looksLikeImage(ogImage)) return upgradeCdnUrl(ogImage);
-        // Check for image URLs in markdown content
-        for (const mdMatch of (item.markdown || "").matchAll(/https?:\/\/[^\s"')]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"')\]>]*)?/gi)) {
-          if (looksLikeImage(mdMatch[0])) return upgradeCdnUrl(mdMatch[0]);
-        }
-      }
-    } catch { /* timeout or error */ }
-    return "";
-  };
-
-  // Try StockX/GOAT first (most reliable for product images)
-  const img = await trySearch(name, ["stockx.com", "goat.com"]);
-  if (img) return img;
-
-  // Try brand-specific retailers
-  const img2 = await trySearch(`${name} buy`, ["nike.com", "adidas.co.uk", "newbalance.co.uk", "size.co.uk", "jdsports.co.uk", "endclothing.com", "footlocker.co.uk"]);
-  if (img2) return img2;
-
-  // Last resort: open web search for product image
-  return trySearch(`${name} product image`, []);
-}
-
-async function fillMissingImages(items: any[], apiKey: string): Promise<void> {
-  // Keep AI-generated URLs from known CDNs (don't verify — CDNs block HEAD requests)
+// Fill missing images using Serper Image Search (1 credit per product, reliable CDN URLs)
+async function fillMissingImages(items: any[], serperKey: string): Promise<void> {
+  // Clear obviously hallucinated URLs: keep only URLs that look like real images
   items.forEach(item => {
-    if (item.image_url && !KNOWN_IMAGE_CDNS.test(item.image_url)) {
-      item.image_url = ""; // Clear non-CDN hallucinated URLs
+    if (item.image_url && !looksLikeImage(item.image_url) && !KNOWN_IMAGE_CDNS.test(item.image_url)) {
+      item.image_url = "";
     }
   });
 
-  // Fetch images via Firecrawl for items without CDN images
   const needsImage = items.filter(i => !i.image_url);
-  if (needsImage.length === 0) return;
+  if (!needsImage.length || !serperKey) return;
 
-  const batch = needsImage.slice(0, 15);
-  console.log(`Fetching images for ${batch.length} items via Firecrawl…`);
+  console.log(`Fetching images for ${needsImage.length} items via Serper…`);
+
   await Promise.all(
-    batch.map(async (item) => {
-      const url = await fetchImageForProduct(item.name, apiKey);
-      if (url) {
-        item.image_url = url;
-        console.log(`Found image for "${item.name}": ${url.slice(0, 80)}`);
-      }
+    needsImage.map(async (item) => {
+      try {
+        const r = await fetch("https://google.serper.dev/images", {
+          method: "POST",
+          headers: { "X-API-KEY": serperKey, "Content-Type": "application/json" },
+          body: JSON.stringify({ q: `${item.name} product image`, gl: "gb", hl: "en", num: 5 }),
+          signal: AbortSignal.timeout(6000),
+        });
+        if (!r.ok) return;
+        const data = await r.json();
+
+        // Prefer known CDN images (most reliable, won't 404 due to hotlink protection)
+        for (const img of (data.images || [])) {
+          const url = img.imageUrl || "";
+          if (url && KNOWN_IMAGE_CDNS.test(url)) {
+            item.image_url = url;
+            console.log(`CDN image for "${item.name}": ${url.slice(0, 80)}`);
+            return;
+          }
+        }
+        // Fallback: any valid image URL — the frontend onError handler covers broken images
+        for (const img of (data.images || [])) {
+          const url = img.imageUrl || "";
+          if (url && looksLikeImage(url)) {
+            item.image_url = url;
+            console.log(`Fallback image for "${item.name}": ${url.slice(0, 80)}`);
+            return;
+          }
+        }
+      } catch { /* timeout */ }
     })
   );
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-
-  const rateLimitResponse = checkRateLimit(req);
-  if (rateLimitResponse) return rateLimitResponse;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -133,9 +94,11 @@ serve(async (req) => {
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
+    const SERPER_API_KEY = Deno.env.get("SERPER_API_KEY") || "";
+
     const today = new Date().toISOString().split("T")[0];
 
-    // Search for upcoming releases
+    // Search for upcoming releases via Firecrawl (snippet-only — no scrapeOptions)
     const searches = [
       `upcoming sneaker releases UK ${today} release dates`,
       "new trainer releases UK 2026 Nike Adidas Jordan New Balance ASICS",
@@ -185,8 +148,7 @@ Return ONLY valid JSON:
       "releaseDate": "YYYY-MM-DD or null if unknown",
       "retailPrice": 120,
       "emoji": "👟",
-      "searchQuery": "Optimised search query for this product",
-      "image_url": "Direct URL to a real product image from a known retailer CDN (static.nike.com, assets.adidas.com, nb.scene7.com, images.stockx.com, image.goat.com etc). Must be a real existing URL. If unsure, omit this field."
+      "searchQuery": "Optimised search query for this product"
     }
   ]
 }
@@ -199,8 +161,7 @@ Rules:
 - retailPrice in GBP (integer)
 - searchQuery should be the best search term to find this product on GTBP
 - REQUIRED brand coverage — must include items from at least 10 different brands
-- Specific colourways only — no duplicates
-- image_url: ONLY use URLs you are confident are real and publicly accessible. Prefer omitting over fabricating.`,
+- Specific colourways only — no duplicates`,
             },
             {
               role: "user",
@@ -220,8 +181,8 @@ Rules:
 
     const { releases } = JSON.parse(jsonMatch[0]);
 
-    // Fill missing images via Firecrawl (parallel, capped at 10)
-    await fillMissingImages(releases, FIRECRAWL_API_KEY);
+    // Fill images via Serper Image Search (1 credit per product — much cheaper than Firecrawl scraping)
+    await fillMissingImages(releases, SERPER_API_KEY);
 
     // Cache results
     await sb.from("price_cache").upsert(
