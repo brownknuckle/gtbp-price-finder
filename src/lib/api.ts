@@ -25,7 +25,7 @@ function setSessionCache(key: string, data: unknown): void {
   try { sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch { /* quota */ }
 }
 
-async function invokeFunction(name: string, body: Record<string, any>): Promise<any> {
+async function invokeFunction(name: string, body: Record<string, any>, timeoutMs = 90_000): Promise<any> {
   const res = await fetch(`${GTBP_URL}/functions/v1/${name}`, {
     method: "POST",
     headers: {
@@ -33,6 +33,7 @@ async function invokeFunction(name: string, body: Record<string, any>): Promise<
       Authorization: `Bearer ${GTBP_ANON_KEY}`,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");

@@ -153,9 +153,15 @@ const Releases = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.03, duration: 0.3 }}
                   className="group flex items-center gap-4 rounded-xl border border-border bg-card p-3 sm:p-4 transition-shadow hover:shadow-md cursor-pointer"
-                  onClick={() => navigate(`/product/${toProductSlug(release.searchQuery || release.name)}`, {
-                    state: { sizing: { gender: "men", sizeType: "shoes", sizeRegion: "UK", size: "9" } }
-                  })}
+                  onClick={() => {
+                    const isShoe = release.category === "shoes";
+                    navigate(`/product/${toProductSlug(release.searchQuery || release.name)}`, {
+                      state: { sizing: isShoe
+                        ? { gender: "men", sizeType: "shoes", sizeRegion: "UK", size: "9" }
+                        : { gender: "men", sizeType: "clothing", sizeRegion: "UK", size: "M" }
+                      }
+                    });
+                  }}
                 >
                   {/* Thumbnail */}
                   <div className="flex h-24 w-24 sm:h-28 sm:w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-secondary">
