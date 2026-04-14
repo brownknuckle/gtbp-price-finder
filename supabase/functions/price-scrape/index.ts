@@ -221,18 +221,30 @@ const NON_PRODUCT_PATH_PATTERNS = [
   /\/browse\//i, /\/listing/i, /\/results\?/i, /\/shop\?/i,
   /\/plp\//i, /\/c\//i,
   /\/campaign\//i, /\/best-sellers/i, /\/new-arrivals/i, /\/sale\//i,
-  /\/brand-[a-z0-9]/i, /productaffiliation/i,
+  /\/brand-[a-z0-9]/i, /productaffiliation/i, /\/shop-by-model\//i,
+  // Opaque numeric-only product IDs with no readable slug — can't validate product from URL
+  /\/products\/\d+\/?$/, /\/product\/\d+\/?$/, /offspring_catalog/, /office_catalog/,
+  // Next.co.uk opaque style URLs: /style/SU459411/AG5666
+  /\/style\/[a-z0-9]+\/[a-z0-9]+/i,
+  // Footasylum editorial / launch pages
+  /\/the-lowdown\//i, /\/launch\//i,
   /\/colour\//i, /\/color\//i, /\/gender\//i,
   /\/p\/trainers/i, /\/p\/shoes/i, /\/p\/clothing/i,
   /\/shoes\/\?/i, /\/trainers\/\?/i, /\/footwear\/\?/i,
   // Editorial / non-commerce paths
-  /\/news\//i, /\/blog\//i, /\/editorial\//i,
+  /\/news\//i, /\/blog\//i, /\/editorial\//i, /\/inspiration\//i, /\/theplatform\//i, /\/culture\//i,
+  // Nike article/story URLs: /gb/a/article-name (editorial, not product)
+  /\/[a-z]{2}\/a\/[a-z0-9-]{5,}/i,
   // Category paths: /footwear/model-name or /clothing/model-name (single slug, no product code segment after)
   /\/footwear\/[a-z0-9-]+$/i, /\/clothing\/[a-z0-9-]+$/i, /\/accessories\//i,
   // Clothing category patterns: "coats-and-jackets", "caps-and-hats", "shirts-and-tops" etc.
   /\/[a-z]+-and-[a-z]+(?:\/|$)/i,
   // Flannels/SSENSE brand+category pages: /brand-name/coats-and-jackets
   /\/[a-z-]+\/(?:coats|jackets|shirts|hoodies|trousers|shorts|knitwear|sweats|fleece|outerwear|sweatshirts|tracksuits|caps|hats|accessories)[^/]*$/i,
+  // Foot Locker model listing pages: /en/product/model/nike-air-force-1/
+  /\/product\/model\//i,
+  // Gender/brand/model category paths: /mens/nike/dunk/ — 3 word-only segments, no product code
+  /\/(?:mens?|womens?|girls?|boys?|kids?|unisex)\/[a-z-]+\/[a-z-]+\/?$/i,
 ];
 
 const MIN_REALISTIC_PRICE = 20;
@@ -250,16 +262,29 @@ const COLLAB_NAMES_GLOBAL = [
   "aime-leon-dore","aime_leon","joe-freshgoods","joe_freshgoods",
   "salehe","jjjjound","norda","moncler","j-balvin","j_balvin",
   "pigalle","oth","kith","undefeated","undftd","mastermind","cactus-plant","cpfm",
+  "thom-browne","thom_browne","wales-bonner","wales_bonner","humanrace","human-race",
+  "end-clothing-x","end-x",
+  // Luxury/designer collabs
+  "stone-island","stone_island","-x-size-","-x-size/","size-x-","x-offspring","x-footpatrol",
+  // Named Nike editions that are distinct products (not colourway names)
+  "houseflies","doernbecher","bhm","black-history","be-true","betrue","swoosh-pack",
+  "community","recreation","laser","id-custom",
 ];
 // Variant modifier words (without punctuation, for title matching)
-const VARIANT_WORDS_GLOBAL = ["dirty","premium","lux","luxe","prm","lx","se edition","sp edition"];
+const VARIANT_WORDS_GLOBAL = ["dirty","premium","lux","luxe","prm","lx","se edition","sp edition","lv8","utility","shield","flyknit","flyease","crater","move to zero","easyon","easy on","craft"];
 // Variant modifier patterns for URL matching (same as in candidates filter)
 const VARIANT_URL_PATTERNS = [
   "/dirty-","_dirty_","-dirty-","-dirty/",
   "/premium-","_premium_","-premium-","-premium/",
   "/lux-","_lux_","-lux-","-luxe-","/luxe-",
   "/prm-","_prm_","-prm-",
+  "-lv8","_lv8","/lv8",
+  "-utility","-shield","-flyknit","-flyease","-crater",
   "/sp-","_sp_","-sp-",
+  // Nike Easy On — slip-on variant, not the standard model
+  "-easyon","/easyon","_easyon","-easy-on","/easy-on",
+  // Craft — Stadium Goods "craft" edition variant
+  "-craft","/craft","_craft",
 ];
 // Extended colour list used for colorway conflict detection in Shopping merge
 // (in addition to the basic list used in candidates filtering)
@@ -349,6 +374,8 @@ const KIDS_PATH_PATTERNS = [
   /\/kids?\//i, /\/toddler/i, /\/junior/i, /\/infant/i, /\/youth/i,
   /\/children/i, /\/boys?\//i, /\/girls?\//i, /\/baby/i,
   /[-_](kids?|junior|toddler|infant|youth|child|baby)[-_]/i,
+  // Pre-school / grade-school slugs (e.g. Foot Locker "air-force-1-low-ez-pre-school-shoes")
+  /pre-school/i, /grade-school/i,
   // Nike/Adidas size codes for grade school, preschool, toddler
   /\/gs\//i, /\/ps\//i, /\/td\//i,
   /[-_]gs[-_]/i, /[-_]ps[-_]/i, /[-_]td[-_]/i,
@@ -457,6 +484,8 @@ function isLikelyProductPage(url: string): boolean {
   try {
     const parsed = new URL(url);
     const { pathname, search } = parsed;
+    // Blog subdomains are never product pages
+    if (/^blog\./i.test(parsed.hostname)) return false;
     if (NON_PRODUCT_PATH_PATTERNS.some((p) => p.test(pathname))) return false;
     const segments = pathname.split("/").filter(Boolean);
     if (segments.length < 1) return false;
@@ -469,6 +498,8 @@ function isLikelyProductPage(url: string): boolean {
     const hostname = parsed.hostname.replace(/^www\./, "").replace(/^(uk|gb)\./i, "");
     if ((hostname === "adidas.co.uk" || hostname === "adidas.com")
         && !pathname.match(/\d/) && !pathname.endsWith(".html")) return false;
+    // Laced brand/model category pages: /nike/air-force-1 (exactly 2 word-only segments)
+    if (hostname === "laced.com" && segments.length === 2 && !/\d/.test(pathname)) return false;
     return true;
   } catch {
     return false;
@@ -770,6 +801,8 @@ serve(async (req) => {
       .replace(/'([^']+)'/g, "$1")
       // Strip lone apostrophes (e.g. '07 → 07) that break search queries
       .replace(/'/g, "")
+      // AF1 is always low-top — "Low" over-constrains Shopping queries and splits the cache key
+      .replace(/\b(Air Force 1(?:\s+\d+)?)\s+Low\b/gi, "$1")
       .replace(/\s{2,}/g, " ").trim();
 
     // ── Cache check ──
@@ -832,7 +865,7 @@ serve(async (req) => {
       if (cachedResults.length >= MIN_CACHE_RESULTS && cachedCreatedAt) {
         const ageMs = Date.now() - new Date(cachedCreatedAt).getTime();
         const SIX_HOURS = 6 * 60 * 60 * 1000;
-        const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
+        const FORTY_EIGHT_HOURS = 7 * 24 * 60 * 60 * 1000; // extended to 7 days for resilience (Serper outages etc.)
 
         if (ageMs <= SIX_HOURS) {
           // Fresh — return immediately
@@ -941,6 +974,11 @@ serve(async (req) => {
           signal: controller.signal,
           body: JSON.stringify({ q: query, gl: "gb", hl: "en", num }),
         });
+        if (!r.ok) {
+          const errText = await r.text().catch(() => "");
+          console.error(`Serper web search HTTP ${r.status}: ${errText.slice(0, 200)}`);
+          return [];
+        }
         const data = await r.json();
         return (data.organic || []).map((item: any) => ({
           url: item.link || "",
@@ -983,7 +1021,7 @@ serve(async (req) => {
           const r = await fetch("https://google.serper.dev/shopping", {
             method: "POST",
             headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
-            body: JSON.stringify({ q: query, gl: "gb", hl: "en", num: 20 }),
+            body: JSON.stringify({ q: query, gl: "gb", hl: "en", num: 40 }),
             signal: AbortSignal.timeout(10000),
           });
           if (!r.ok) {
@@ -1006,25 +1044,42 @@ serve(async (req) => {
     };
 
     // ── URL discovery — parallel Serper searches ──
+    // Broader Shopping fallback — strips colourway words so more retailers surface
+    const searchNameNoColour = searchName
+      .replace(/\b(triple\s+white|white|black|grey|navy|red|blue|green|pink|cream|beige|brown|tan|yellow|orange|purple|volt|infrared|bred|panda|mocha|hemp|wheat|sail|bone|cement|silver|gold|platinum|obsidian|royal|university|chicago|off.white)\b/gi, "")
+      .replace(/\s{2,}/g, " ").trim();
+
     const [
       shoppingResults,
+      shoppingFallback,
       broadResults1,
       broadResults2,
+      // Dedicated single-retailer searches — these always surface JD Sports / Nike product URLs
+      // even when the OR-combined queries don't have room for them. Run first so dedup keeps these URLs.
+      dedicatedJD,
+      dedicatedNikeFL,
       ukResults1,
       ukResults2,
+      ukResults3,
       boutiqueResults,
       resaleResults,
       clothingResults,
       feedResults,
     ] = await Promise.all([
-      doSerperShopping(searchName), // Google Shopping — primary price source
+      doSerperShopping(searchName), // Google Shopping — primary price source (num: 40)
+      searchNameNoColour !== searchName ? doSerperShopping(searchNameNoColour) : Promise.resolve([]), // broader fallback
       doSerperSearch(`${searchName} buy UK price`, 20),
       doSerperSearch(`${searchName} buy UK`, 20),
+      // Dedicated searches for highest-priority retailers most often missed by OR queries
+      doSerperSearch(`${searchName} site:jdsports.co.uk`, 5),
+      doSerperSearch(`${searchName} site:footlocker.co.uk OR site:schuh.co.uk OR site:size.co.uk`, 5),
       // UK high street sneaker retailers
       doSerperSearch(`${searchName} site:jdsports.co.uk OR site:size.co.uk OR site:schuh.co.uk OR site:footlocker.co.uk OR site:offspring.co.uk OR site:office.co.uk`, 10),
       doSerperSearch(`${searchName} site:footasylum.com OR site:endclothing.com OR site:asos.com OR site:zalando.co.uk OR site:flannels.com OR site:nike.com OR site:adidas.co.uk OR site:newbalance.co.uk`, 10),
+      // Additional UK retailers often missed by Shopping API
+      doSerperSearch(`${searchName} site:crepsuk.com OR site:footpatrol.com OR site:size.co.uk OR site:office.co.uk OR site:schuh.co.uk OR site:very.co.uk OR site:next.co.uk`, 10),
       // Sneaker boutiques
-      doSerperSearch(`${searchName} site:sneakersnstuff.com OR site:solebox.com OR site:footpatrol.com OR site:hanon-shop.com OR site:asphaltgold.com OR site:bstn.com OR site:overkillshop.com`, 10),
+      doSerperSearch(`${searchName} site:sneakersnstuff.com OR site:solebox.com OR site:hanon-shop.com OR site:asphaltgold.com OR site:bstn.com OR site:overkillshop.com`, 10),
       // Resale
       doSerperSearch(`${searchName} site:stockx.com OR site:goat.com OR site:klekt.com OR site:laced.com OR site:laced.co.uk OR site:thesolesupplier.co.uk`, 10),
       // Clothing retailers — brand direct + department stores
@@ -1035,8 +1090,8 @@ serve(async (req) => {
     const seenUrls = new Set<string>();
     const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
-    // Site-targeted results first (highest precision), broad last
-    for (const results of [ukResults1, ukResults2, boutiqueResults, resaleResults, clothingResults, broadResults1, broadResults2]) {
+    // Dedicated single-retailer results first (highest precision) → OR-combined → broad last
+    for (const results of [dedicatedJD, dedicatedNikeFL, ukResults1, ukResults2, ukResults3, boutiqueResults, resaleResults, clothingResults, broadResults1, broadResults2]) {
       for (const item of results) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
@@ -1079,6 +1134,8 @@ serve(async (req) => {
       const WOMENS_TITLE_RE = /\b(women'?s?|womens?|girls?)\b/;
       if (wantsMens && WOMENS_URL_RE.test(urlLower)) return false;
       if (wantsMens && WOMENS_TITLE_RE.test(titleLower)) return false;
+      // ASOS "unisex" trainers use women's UK sizing — reject for men's searches
+      if (wantsMens && /unisex/i.test(urlLower + " " + titleLower) && extractDomain(s.url) === "asos.com") return false;
       if (wantsWomens && /\/mens?[-_/]|[-_]mens?[-_/]|\/men\//.test(urlLower)) return false;
       // When gender is unspecified, still reject clearly women's-specific pages
       if (!wantsMens && !wantsWomens) {
@@ -1094,13 +1151,8 @@ serve(async (req) => {
       // Variant modifiers: "dirty", "premium", "lux/luxe", "prm", "se ", "sp "
       //   that indicate a different model version.
       const COLLAB_NAMES = COLLAB_NAMES_GLOBAL;
-      const VARIANT_MODIFIERS = [
-        "/dirty-","_dirty_","-dirty-","-dirty/",
-        "/premium-","_premium_","-premium-","-premium/",
-        "/lux-","_lux_","-lux-","-luxe-","/luxe-",
-        "/prm-","_prm_","-prm-",
-        "/sp-","_sp_","-sp-",     // "Special" models e.g. AF1 SP
-      ];
+      // Use the shared VARIANT_URL_PATTERNS so both candidate filter and Shopping merge stay in sync
+      const VARIANT_MODIFIERS = VARIANT_URL_PATTERNS;
       // Only apply if these words are NOT in what the user searched for
       const searchLower = searchName.toLowerCase();
       const hasCollab = COLLAB_NAMES.some(c => urlLower.includes(c) && !searchLower.includes(c));
@@ -1111,16 +1163,18 @@ serve(async (req) => {
     });
 
     // ── Colorway URL filtering — reject URLs containing conflicting colour words ──
-    const COLOR_LIST = ["black","white","red","blue","green","yellow","orange","purple","pink","brown","grey","gray","beige","cream","navy","khaki","tan","silver","gold"];
+    const COLOR_LIST = ["black","white","red","blue","green","yellow","orange","purple","pink","brown","grey","gray","beige","cream","navy","khaki","tan","silver","gold","denim","camo","floral","leopard"];
     const searchColors = COLOR_LIST.filter(c => searchName.toLowerCase().includes(c));
     const conflictColors = COLOR_LIST.filter(c => !searchColors.includes(c));
 
     const colorFilteredCandidates = searchColors.length > 0
       ? candidates.filter((s) => {
-          const slugAndTitle = `${s.url} ${s.title || ""}`.toLowerCase();
+          const urlSlug = s.url.toLowerCase();
           return !conflictColors.some(c => {
-            const pattern = new RegExp(`[-_/]${c}[-_/]|[-_]${c}$|^${c}[-_]`, "i");
-            return pattern.test(slugAndTitle);
+            // URL slug only — separator-bounded to avoid false positives in titles/descriptions
+            // (e.g. "available in black and white" would wrongly reject Triple White results)
+            const slugPattern = new RegExp(`[-_/]${c}[-_/]|[-_]${c}$|^${c}[-_]`, "i");
+            return slugPattern.test(urlSlug);
           });
         })
       : candidates;
@@ -1191,7 +1245,7 @@ serve(async (req) => {
       log(`Regex price range: £${priceFloor}-£${priceCeil}`);
 
       // Extract colour words from the search name so we can reject wrong colourways
-      const COLOR_LIST = ["black","white","red","blue","green","yellow","orange","purple","pink","brown","grey","gray","beige","cream","navy","khaki","tan","silver","gold"];
+      const COLOR_LIST = ["black","white","red","blue","green","yellow","orange","purple","pink","brown","grey","gray","beige","cream","navy","khaki","tan","silver","gold","denim","camo","floral","leopard"];
       const searchColors = COLOR_LIST.filter(c => searchName.toLowerCase().includes(c));
       const conflictColors = COLOR_LIST.filter(c => !searchColors.includes(c));
       log(`Search colors: [${searchColors}], conflict colors: [${conflictColors}]`);
@@ -1279,12 +1333,14 @@ serve(async (req) => {
       if (itemPrice < priceFloor || itemPrice > priceCeiling) continue;
 
       const domain = extractDomain(source.url);
-      // Apply non-resale floor (60% of RRP) in AI path — catches junior sizes, wrong products
+      // Apply non-resale floor (60% of RRP) and ceiling (130% of RRP) in AI path
       const aiNonResaleFloor = estimated_retail_price
         ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.60))
         : priceFloor;
+      const aiNonResaleCeiling = estimated_retail_price ? estimated_retail_price * 1.5 : priceCeiling;
       const aiEffectiveFloor = RESALE_PLATFORMS.has(domain) ? priceFloor : aiNonResaleFloor;
-      if (itemPrice < aiEffectiveFloor) continue;
+      const aiEffectiveCeiling = RESALE_PLATFORMS.has(domain) ? priceCeiling : aiNonResaleCeiling;
+      if (itemPrice < aiEffectiveFloor || itemPrice > aiEffectiveCeiling) continue;
       const uk = isUkDomain(domain);
       const shipping = uk ? (itemPrice >= 50 ? 0 : 4.99) : 12.99;
       const duties = calculateDuties(itemPrice, uk);
@@ -1299,7 +1355,7 @@ serve(async (req) => {
         duties,
         totalYouPay,
         originalPrice: (aiResult.original_price_gbp && aiResult.original_price_gbp > itemPrice
-          && (!estimated_retail_price || aiResult.original_price_gbp <= estimated_retail_price * 1.3))
+          && (!estimated_retail_price || aiResult.original_price_gbp <= estimated_retail_price * 1.5))
           ? aiResult.original_price_gbp : null,
         delivery: getDeliveryTime(domain, uk),
         trustRating: getTrustRating(domain),
@@ -1341,11 +1397,13 @@ serve(async (req) => {
         ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.60))
         : priceFloor;
       const regexEffectiveFloor = RESALE_PLATFORMS.has(domain) ? priceFloor : regexNonResaleFloor;
+      const regexNonResaleCeiling = estimated_retail_price ? estimated_retail_price * 1.5 : priceCeiling;
+      const regexEffectiveCeiling = RESALE_PLATFORMS.has(domain) ? priceCeiling : regexNonResaleCeiling;
       const text = `${c.title || ""} ${c.markdown || ""} ${c.description || ""}`;
       const prices: number[] = [];
       for (const m of text.replace(/,/g, "").matchAll(/£\s?(\d{1,4}(?:\.\d{1,2})?)/gi)) {
         const v = Number(m[1]);
-        if (!isNaN(v) && v >= regexEffectiveFloor && v <= priceCeiling) prices.push(v);
+        if (!isNaN(v) && v >= regexEffectiveFloor && v <= regexEffectiveCeiling) prices.push(v);
       }
       if (!prices.length) continue;
       prices.sort((a, b) => a - b);
@@ -1468,13 +1526,21 @@ serve(async (req) => {
       "clarks": "clarks.co.uk",
       "kurt geiger": "kurtgeiger.com",
     };
-    log(`Shopping total: ${shoppingResults.length}`);
+    // Merge Shopping results: primary + fallback (deduped by productLink)
+    const shoppingSeenLinks = new Set<string>();
+    const allShoppingResults = [...shoppingResults, ...shoppingFallback].filter(item => {
+      const key = item.productLink || item.link || "";
+      if (!key || shoppingSeenLinks.has(key)) return false;
+      shoppingSeenLinks.add(key);
+      return true;
+    });
+    log(`Shopping total: ${allShoppingResults.length} (primary: ${shoppingResults.length}, fallback: ${shoppingFallback.length})`);
     const shoppingCoveredDomains = new Set(extracted.map(e => extractDomain(e.url)));
     // Normalise retailer domain variants so .co.uk and .com match each other
     const normaliseDomain = (d: string) =>
       d.replace(/\.co\.uk$/, ".com").replace(/^(uk|gb|us|eu)\./i, "");
 
-    for (const item of shoppingResults) {
+    for (const item of allShoppingResults) {
       // productLink = direct retailer product URL; link = Google redirect — always prefer productLink
       const productUrl = item.productLink || "";
       const googleUrl = item.link || "";
@@ -1485,7 +1551,7 @@ serve(async (req) => {
       let domain = !isGoogleRedirect && rawDomain ? rawDomain : (SHOPPING_SOURCE_MAP[sourceName] || "");
       if (!domain) { log(`Shopping: no domain for source "${item.source}"`); continue; }
       // Reject non-UK locale paths (nike.com/sg, /en-us/ etc.)
-      const NON_UK_LOCALE = /\/en-(?!gb)[a-z]{2}\/|\/en-us\/|\/en-au\/|\/en-ca\/|\/sg\/|\/us\/|\/au\/|\/ca\/|\/fr\/|\/de\/|\/it\/|\/es\/|\/nl\/|\/jp\/|\/kr\//;
+      const NON_UK_LOCALE = /\/en-(?!gb)[a-z]{2}\/|\/en-us\/|\/en-au\/|\/en-ca\/|\/us_en\/|\/sg\/|\/us\/|\/au\/|\/ca\/|\/fr\/|\/de\/|\/it\/|\/es\/|\/nl\/|\/jp\/|\/kr\//;
       // Use direct product URL only if it passes product-page validation AND is UK locale
       const isNonUkLocale = NON_UK_LOCALE.test(productUrl.toLowerCase()) && !productUrl.toLowerCase().includes(".co.uk");
       // For multi-locale brand sites, prefer /gb/ URL from web search over Shopping's US URL
@@ -1512,10 +1578,15 @@ serve(async (req) => {
       log(`Shopping URL for ${domain}: ${isDirectProductUrl ? "productLink" : webSearchUrl ? "webSearch" : RETAILER_SEARCH_URLS[domain] ? "searchUrl" : "homepage!"} → ${url.slice(0, 80)}`);
       if (shoppingCoveredDomains.has(domain)) continue;
       if (BLOCKED_DOMAINS.has(domain)) continue;
-      // Reject search/category page fallback URLs — user would land on a search page, not a product
+      // Reject search/category page fallback URLs unless we have a search URL template for this retailer.
+      // Known retailers with RETAILER_SEARCH_URLS get a search-URL placeholder — the URL resolution
+      // step below will upgrade it to a direct product URL via a site: search.
       if (!isDirectProductUrl && !webSearchUrl && !isLikelyProductPage(url)) {
-        log(`Shopping: rejected ${domain} — URL is a search/category page: ${url.slice(0, 80)}`);
-        continue;
+        if (!RETAILER_SEARCH_URLS[domain]) {
+          log(`Shopping: rejected ${domain} — no product URL and no search URL template`);
+          continue;
+        }
+        log(`Shopping: ${domain} — search URL placeholder, URL resolution will upgrade to product page`);
       }
       // Reject wrong-gender URLs in Shopping merge (skip resale platforms — they list all sizes/genders)
       const shoppingUrlLower = url.toLowerCase();
@@ -1551,7 +1622,7 @@ serve(async (req) => {
       // Resale platforms legitimately price above RRP — skip ceiling for them.
       // Non-resale retailers should never be more than 30% above RRP — if they are,
       // it's almost certainly a Premium/collab/wrong product slipping through.
-      const nonResaleCeiling = estimated_retail_price ? estimated_retail_price * 1.3 : priceCeiling;
+      const nonResaleCeiling = estimated_retail_price ? estimated_retail_price * 1.5 : priceCeiling;
       // Non-resale retailers shouldn't go below 62% of RRP — catches junior sizes, clearance errors, wrong products
       const nonResaleFloor = estimated_retail_price
         ? Math.max(MIN_REALISTIC_PRICE, Math.round(estimated_retail_price * 0.60))
@@ -1670,6 +1741,18 @@ serve(async (req) => {
       }
     }
 
+    // Drop any Shopping results that URL resolution couldn't upgrade to a product page.
+    // Resale platforms (StockX, GOAT etc.) use unconventional URL structures — keep those,
+    // but always reject search/query URLs regardless of platform (a search page is never a product).
+    for (let i = extracted.length - 1; i >= 0; i--) {
+      const e = extracted[i];
+      const isSearchUrl = /[?&](q|query|search|s|keyword)=/i.test(e.url) || /\/search[?/]/i.test(e.url);
+      if (isSearchUrl || (!isLikelyProductPage(e.url) && !RESALE_PLATFORMS.has(extractDomain(e.url)))) {
+        log(`Dropping ${extractDomain(e.url)} — still on search/non-product URL after resolution`);
+        extracted.splice(i, 1);
+      }
+    }
+
     // Merge affiliate feed results — feed takes precedence over scraped (higher confidence)
     for (const feedEntry of feedResults) {
       const domain = extractDomain(feedEntry.url);
@@ -1756,14 +1839,45 @@ serve(async (req) => {
       });
     }
 
-    // ── Cache results ──
+    // ── Cache results — merge with previous cache so Serper variance doesn't lose retailers ──
     if (finalResults.length > 0) {
+      // Use already-loaded cachedResults if available; otherwise fetch for merge (e.g. skip_cache=true path)
+      const previousResults: any[] = cachedResults.length > 0 ? cachedResults :
+        await sb.from("price_cache").select("results").eq("product_key", cacheKey).maybeSingle()
+          .then(({ data }) => Array.isArray(data?.results) ? data.results : []);
+
+      const freshDomains = new Set(finalResults.map((r: any) => extractDomain(r.url)));
+      const FORTY_EIGHT_HOURS_MS = 7 * 24 * 60 * 60 * 1000; // 7 days — matches stale cache window
+      const cutoff = Date.now() - FORTY_EIGHT_HOURS_MS;
+
+      const mergedResults = [...finalResults];
+      for (const prev of previousResults) {
+        const domain = extractDomain(prev.url);
+        const prevAge = prev.checkedAt ? new Date(prev.checkedAt).getTime() : 0;
+        // Reject non-UK locale URLs (e.g. /us_en/, /en-us/, /us/) from cache
+        const isNonUkLocale = /\/(?:us_en|us|au|ca|de|fr|it|es|nl|en-us|en-au)\//.test(prev.url) && !prev.url.includes(".co.uk");
+        // Reject cached URLs that now fail variant/collab filters (e.g. craft, flyknit, premium)
+        const prevUrlLower = prev.url.toLowerCase();
+        const searchLower = searchName.toLowerCase();
+        const prevHasVariant = VARIANT_URL_PATTERNS.some(v => prevUrlLower.includes(v) && !searchLower.includes(v.replace(/[-_/]/g, "")));
+        const prevHasCollab = COLLAB_NAMES_GLOBAL.some(c => prevUrlLower.includes(c) && !searchLower.includes(c));
+        // Keep cached retailer if: not found fresh AND within 48h AND URL passes current filters
+        if (!freshDomains.has(domain) && prevAge > cutoff && isLikelyProductPage(prev.url) && !isNonUkLocale && !prevHasVariant && !prevHasCollab) {
+          mergedResults.push(prev);
+        }
+      }
+
       sb.from("price_cache")
         .upsert(
-          { product_key: cacheKey, results: finalResults, product_info: { product_name, retailers: normalizedRetailers } },
+          { product_key: cacheKey, results: mergedResults, product_info: { product_name, retailers: normalizedRetailers } },
           { onConflict: "product_key" }
         )
         .then(({ error }) => { if (error) console.error("Cache write error:", error); });
+
+      // Return merged results so this scrape also benefits from previously-found retailers
+      return new Response(JSON.stringify({ success: true, results: mergedResults, thirtyDayLow, priceHistory }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify({ success: true, results: finalResults, thirtyDayLow, priceHistory }), {
