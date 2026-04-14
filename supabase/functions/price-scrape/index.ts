@@ -271,7 +271,7 @@ const COLLAB_NAMES_GLOBAL = [
   "community","recreation","laser","id-custom",
 ];
 // Variant modifier words (without punctuation, for title matching)
-const VARIANT_WORDS_GLOBAL = ["dirty","premium","lux","luxe","prm","lx","se edition","sp edition","lv8","utility","shield","flyknit","flyease","crater","move to zero","easyon","easy on","craft"];
+const VARIANT_WORDS_GLOBAL = ["dirty","premium","lux","luxe","prm","lx","se edition","sp edition","lv8","utility","shield","flyknit","flyease","crater","move to zero","easyon","easy on","craft","mid-top"];
 // Variant modifier patterns for URL matching (same as in candidates filter)
 const VARIANT_URL_PATTERNS = [
   "/dirty-","_dirty_","-dirty-","-dirty/",
@@ -285,6 +285,9 @@ const VARIANT_URL_PATTERNS = [
   "-easyon","/easyon","_easyon","-easy-on","/easy-on",
   // Craft — Stadium Goods "craft" edition variant
   "-craft","/craft","_craft",
+  // Mid-top height — AF1 Mid / Dunk Mid are distinct models from the standard Low
+  // Only match when sandwiched by separators (e.g. /af1-mid-white) — avoids "midfoot", "midlayer" etc.
+  "-mid-","/mid-","_mid_","-mid/","/mid/",
 ];
 // Extended colour list used for colorway conflict detection in Shopping merge
 // (in addition to the basic list used in candidates filtering)
@@ -1814,7 +1817,26 @@ serve(async (req) => {
     const verified = verificationResults.filter(r => r._urlOk).map(({ _urlOk, ...r }) => r);
     log(`URL verification: ${verified.length}/${outlierFiltered.length} passed (${outlierFiltered.length - verified.length} dead links removed)`);
 
-    const finalResults = verified.map((r, i) => ({ ...r, rank: i + 1 }));
+    // ── Final safety filter — variant/collab URLs that bypassed earlier checks ──
+    // Applied last so it catches results from ALL paths (AI, Shopping merge, feed, cache merge).
+    const searchLowerFinal = searchName.toLowerCase();
+    const safeVerified = verified.filter(r => {
+      const urlLower = r.url.toLowerCase();
+      const hasVariant = VARIANT_URL_PATTERNS.some(v => urlLower.includes(v) && !searchLowerFinal.includes(v.replace(/[-_/]/g, "")));
+      const hasCollab = COLLAB_NAMES_GLOBAL.some(c => urlLower.includes(c) && !searchLowerFinal.includes(c));
+      if (hasVariant || hasCollab) {
+        console.error(`Final filter: dropped ${extractDomain(r.url)} — variant/collab in URL: ${r.url}`);
+        return false;
+      }
+      if (isKidsProduct(r.url, r.retailer || "")) {
+        console.error(`Final filter: dropped ${extractDomain(r.url)} — kids product URL: ${r.url}`);
+        return false;
+      }
+      return true;
+    });
+    log(`Final safety filter: ${safeVerified.length}/${verified.length} passed`);
+
+    const finalResults = safeVerified.map((r, i) => ({ ...r, rank: i + 1 }));
     log(`Final: ${finalResults.length} unique retailers (cutoff £${cutoff.toFixed(0)})`);
 
     // ── 30-day historical low + chart data ──
@@ -1851,18 +1873,19 @@ serve(async (req) => {
       const cutoff = Date.now() - FORTY_EIGHT_HOURS_MS;
 
       const mergedResults = [...finalResults];
+      const searchLowerMerge = searchName.toLowerCase();
       for (const prev of previousResults) {
         const domain = extractDomain(prev.url);
         const prevAge = prev.checkedAt ? new Date(prev.checkedAt).getTime() : 0;
         // Reject non-UK locale URLs (e.g. /us_en/, /en-us/, /us/) from cache
         const isNonUkLocale = /\/(?:us_en|us|au|ca|de|fr|it|es|nl|en-us|en-au)\//.test(prev.url) && !prev.url.includes(".co.uk");
-        // Reject cached URLs that now fail variant/collab filters (e.g. craft, flyknit, premium)
+        // Reject cached URLs that now fail variant/collab/kids filters
         const prevUrlLower = prev.url.toLowerCase();
-        const searchLower = searchName.toLowerCase();
-        const prevHasVariant = VARIANT_URL_PATTERNS.some(v => prevUrlLower.includes(v) && !searchLower.includes(v.replace(/[-_/]/g, "")));
-        const prevHasCollab = COLLAB_NAMES_GLOBAL.some(c => prevUrlLower.includes(c) && !searchLower.includes(c));
-        // Keep cached retailer if: not found fresh AND within 48h AND URL passes current filters
-        if (!freshDomains.has(domain) && prevAge > cutoff && isLikelyProductPage(prev.url) && !isNonUkLocale && !prevHasVariant && !prevHasCollab) {
+        const prevHasVariant = VARIANT_URL_PATTERNS.some(v => prevUrlLower.includes(v) && !searchLowerMerge.includes(v.replace(/[-_/]/g, "")));
+        const prevHasCollab = COLLAB_NAMES_GLOBAL.some(c => prevUrlLower.includes(c) && !searchLowerMerge.includes(c));
+        const prevIsKids = isKidsProduct(prev.url, "");
+        // Keep cached retailer if: not found fresh AND within 7 days AND URL passes all current filters
+        if (!freshDomains.has(domain) && prevAge > cutoff && isLikelyProductPage(prev.url) && !isNonUkLocale && !prevHasVariant && !prevHasCollab && !prevIsKids) {
           mergedResults.push(prev);
         }
       }
