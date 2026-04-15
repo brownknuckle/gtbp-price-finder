@@ -1056,37 +1056,22 @@ serve(async (req) => {
       shoppingResults,
       shoppingFallback,
       broadResults1,
-      broadResults2,
-      // Dedicated single-retailer searches — these always surface JD Sports / Nike product URLs
-      // even when the OR-combined queries don't have room for them. Run first so dedup keeps these URLs.
+      // Dedicated JD Sports — UK's dominant retailer, always needs its own slot
       dedicatedJD,
-      dedicatedNikeFL,
-      ukResults1,
-      ukResults2,
-      ukResults3,
-      boutiqueResults,
-      resaleResults,
-      clothingResults,
+      // UK retailers group A: high street + brand direct + department stores
+      ukRetailersA,
+      // Resale + boutiques + clothing specialists
+      ukRetailersB,
       feedResults,
     ] = await Promise.all([
-      doSerperShopping(searchName), // Google Shopping — primary price source (num: 40)
-      searchNameNoColour !== searchName ? doSerperShopping(searchNameNoColour) : Promise.resolve([]), // broader fallback
-      doSerperSearch(`${searchName} buy UK price`, 20),
-      doSerperSearch(`${searchName} buy UK`, 20),
-      // Dedicated searches for highest-priority retailers most often missed by OR queries
+      doSerperShopping(searchName), // Google Shopping — primary price source
+      searchNameNoColour !== searchName ? doSerperShopping(searchNameNoColour) : Promise.resolve([]), // colour-stripped fallback
+      doSerperSearch(`${searchName} buy UK price`, 10),
       doSerperSearch(`${searchName} site:jdsports.co.uk`, 5),
-      doSerperSearch(`${searchName} site:footlocker.co.uk OR site:schuh.co.uk OR site:size.co.uk`, 5),
-      // UK high street sneaker retailers
-      doSerperSearch(`${searchName} site:jdsports.co.uk OR site:size.co.uk OR site:schuh.co.uk OR site:footlocker.co.uk OR site:offspring.co.uk OR site:office.co.uk`, 10),
-      doSerperSearch(`${searchName} site:footasylum.com OR site:endclothing.com OR site:asos.com OR site:zalando.co.uk OR site:flannels.com OR site:nike.com OR site:adidas.co.uk OR site:newbalance.co.uk`, 10),
-      // Additional UK retailers often missed by Shopping API
-      doSerperSearch(`${searchName} site:crepsuk.com OR site:footpatrol.com OR site:size.co.uk OR site:office.co.uk OR site:schuh.co.uk OR site:very.co.uk OR site:next.co.uk`, 10),
-      // Sneaker boutiques
-      doSerperSearch(`${searchName} site:sneakersnstuff.com OR site:solebox.com OR site:hanon-shop.com OR site:asphaltgold.com OR site:bstn.com OR site:overkillshop.com`, 10),
-      // Resale
-      doSerperSearch(`${searchName} site:stockx.com OR site:goat.com OR site:klekt.com OR site:laced.com OR site:laced.co.uk OR site:thesolesupplier.co.uk`, 10),
-      // Clothing retailers — brand direct + department stores
-      doSerperSearch(`${searchName} site:thenorthface.com OR site:patagonia.com OR site:carhartt-wip.com OR site:stoneisland.com OR site:cpcompany.com OR site:next.co.uk OR site:very.co.uk OR site:selfridges.com OR site:mrporter.com OR site:harveynichols.com`, 10),
+      // All major UK sneaker + clothing retailers in one query
+      doSerperSearch(`${searchName} site:footlocker.co.uk OR site:schuh.co.uk OR site:size.co.uk OR site:endclothing.com OR site:asos.com OR site:zalando.co.uk OR site:footasylum.com OR site:nike.com OR site:adidas.co.uk OR site:newbalance.co.uk OR site:offspring.co.uk OR site:footpatrol.com OR site:selfridges.com OR site:next.co.uk`, 10),
+      // Resale + boutiques + specialist clothing brands
+      doSerperSearch(`${searchName} site:stockx.com OR site:goat.com OR site:klekt.com OR site:laced.com OR site:sneakersnstuff.com OR site:hanon-shop.com OR site:carhartt-wip.com OR site:stoneisland.com OR site:mrporter.com OR site:crepsuk.com OR site:flannels.com`, 10),
       queryAffiliateFeed(),
     ]);
 
@@ -1094,7 +1079,7 @@ serve(async (req) => {
     const rawCandidates: Array<{ url: string; title: string; markdown: string; description: string }> = [];
 
     // Dedicated single-retailer results first (highest precision) → OR-combined → broad last
-    for (const results of [dedicatedJD, dedicatedNikeFL, ukResults1, ukResults2, ukResults3, boutiqueResults, resaleResults, clothingResults, broadResults1, broadResults2]) {
+    for (const results of [dedicatedJD, ukRetailersA, ukRetailersB, shoppingResults, shoppingFallback, broadResults1]) {
       for (const item of results) {
         if (item.url && !seenUrls.has(item.url)) {
           seenUrls.add(item.url);
