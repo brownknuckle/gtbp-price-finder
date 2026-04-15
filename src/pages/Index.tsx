@@ -199,7 +199,7 @@ const Index = () => {
         setPlaceholderIndex((i) => (i + 1) % PLACEHOLDER_EXAMPLES.length);
         setPlaceholderVisible(true);
       }, 300);
-    }, 3000);
+    }, 8000);
     return () => clearInterval(interval);
   }, []);
 
