@@ -25,6 +25,24 @@ const fallbackTrending = [
   "Adidas Samba OG White Black",
 ];
 
+const PLACEHOLDER_EXAMPLES = [
+  "Nike Air Force 1 Triple White UK 9",
+  "Adidas Samba OG White Black",
+  "New Balance 550 White Grey",
+  "Air Jordan 4 Retro Bred",
+  "Salomon XT-6 Black",
+  "Carhartt WIP Active Jacket Black",
+  "Nike Dunk Low Panda",
+  "Stone Island Garment Dyed Hoodie",
+  "ASICS Gel-Kayano 14 Cream",
+  "New Balance 1906R Protection Pack",
+  "Adidas Campus 00s Cloud White",
+  "Hoka Bondi 8 White",
+  "Puma Palermo White Gum",
+  "Converse Chuck 70 High Black",
+  "On Cloudmonster Undyed White",
+];
+
 // Expanded local catalogue for autocomplete — no API call needed
 const LOCAL_PRODUCT_CATALOGUE = [
   // Nike sneakers
@@ -170,6 +188,20 @@ const Index = () => {
     } catch { /* quota */ }
   };
   const [recentSearches, setRecentSearches] = useState<string[]>(() => getRecentSearches());
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [placeholderVisible, setPlaceholderVisible] = useState(true);
+
+  // Rotate placeholder every 3s with a fade transition
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlaceholderVisible(false);
+      setTimeout(() => {
+        setPlaceholderIndex((i) => (i + 1) % PLACEHOLDER_EXAMPLES.length);
+        setPlaceholderVisible(true);
+      }, 300);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch trending items on mount
   useEffect(() => {
@@ -514,8 +546,8 @@ const Index = () => {
                       else if (query.length < 2 && recentSearches.length > 0) setShowSuggestions(true);
                     }}
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 300)}
-                    placeholder="e.g. Nike Air Force 1 Triple White UK 9, or paste a URL…"
-                    className="h-12 rounded-md border-border bg-card pl-4 pr-12 text-sm shadow-xs transition-shadow focus-visible:shadow-md sm:h-13 sm:text-base"
+                    placeholder={`e.g. ${PLACEHOLDER_EXAMPLES[placeholderIndex]}`}
+                    className={`h-12 rounded-md border-border bg-card pl-4 pr-12 text-sm shadow-xs transition-all duration-300 focus-visible:shadow-md sm:h-13 sm:text-base ${placeholderVisible ? "placeholder:opacity-100" : "placeholder:opacity-0"}`}
                     onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                     disabled={isSearching}
                   />
