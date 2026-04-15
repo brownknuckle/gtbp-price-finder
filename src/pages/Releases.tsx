@@ -84,7 +84,10 @@ const Releases = () => {
           </p>
           <h1 className="mb-2 text-3xl font-bold text-foreground">Upcoming Releases</h1>
           <p className="text-sm text-muted-foreground">
-            Every confirmed UK sneaker and clothing drop. Click any release to compare prices across 30+ retailers instantly.
+            Upcoming UK sneaker and clothing drops. Click any release to compare prices across 30+ retailers instantly.
+          </p>
+          <p className="mt-2 text-[11px] text-muted-foreground/60">
+            ⓘ Dates are based on the latest available information and may change. Always verify with the retailer before purchase.
           </p>
         </motion.div>
 
